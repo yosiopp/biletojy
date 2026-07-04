@@ -1,23 +1,40 @@
+import { parseTag } from '../lib/tags';
+
 type Props = {
-  data: {
-    id: string
-    text: string
-    color: string
-  };
+  tag: string;
+  color?: string | null;
+  onRemove?: () => void;
 };
 
-function TagItem({ data }: Props) {
-  const isGroup = data.text.indexOf(':') > 0;
-  const [parent, child] = isGroup ? data.text.split(':', 2) : [];
+function TagItem({ tag, color, onRemove }: Props) {
+  const { group, name } = parseTag(tag);
+  const style = color ? { backgroundColor: `${color}20`, borderColor: color } : {};
 
-  return isGroup ? (
-    <span className="rounded-lg bg-neutral-100 py-1 px-2 mr-1">
-      <span className="border-r pr-1 text-sm opacity-70">{parent}</span>
-      <span className="pl-2">{child}</span>
-    </span>
-  ) : (
-    <span className="rounded-lg bg-neutral-100 py-1 px-2 mr-1">
-      {data.text}
+  return (
+    <span
+      className="inline-flex items-center rounded-lg bg-neutral-100 border border-transparent py-0.5 px-2 mr-1 mb-1 whitespace-nowrap"
+      style={style}
+    >
+      {group != null ? (
+        <>
+          <span className="border-r border-neutral-300 pr-1 text-sm opacity-70">{group.replace(/@$/, '')}</span>
+          <span className="pl-2">{name}</span>
+        </>
+      ) : (
+        <span>{name}</span>
+      )}
+      {onRemove && (
+        <button
+          type="button"
+          className="ml-1 text-neutral-400 hover:text-neutral-700"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+        >
+          ×
+        </button>
+      )}
     </span>
   );
 }

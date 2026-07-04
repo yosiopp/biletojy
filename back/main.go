@@ -1,19 +1,33 @@
 package main
 
 import (
+	"flag"
+	"log"
+	"net/http"
+	"os"
+
 	"github.com/yosiopp/biletojy/data"
-	"time"
-	"fmt"
 )
 
 func main() {
-	dao := data.NewDao()
+	addr := flag.String("addr", ":8040", "listen address")
+	staticDir := flag.String("static", "../front/dist", "frontend build directory (empty to disable)")
+	flag.Parse()
+
+	dao, err := data.NewDao()
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer dao.Close()
-	ticket := data.Ticket{Title: "こんにちは世界", Content: `
-	# biletojy最初の課題です
-	markdown記法が使えます。
-	コードブロックにmermaidを指定すればmermaidも使用できます
-	`, Tags: "test first_issue", CreatedBy: "yosiopp", CreatedAt: time.Now(), UpdatedAt: time.Now()}
-	data.AddTicket(dao, &ticket)
-	fmt.Println(ticket)
+
+	static := *staticDir
+	if static != "" {
+		if _, err := os.Stat(static); err != nil {
+			log.Printf("static dir %s not found, serving API only", static)
+			static = ""
+		}
+	}
+
+	log.Printf("biletojy listening on %s", *addr)
+	log.Fatal(http.ListenAndServe(*addr, newServer(dao, static)))
 }
