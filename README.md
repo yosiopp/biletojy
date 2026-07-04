@@ -19,8 +19,8 @@ issue tracking system with tag
 
 ## 起動方法
 ### 前提
-* Go 1.22以上（cgo有効。go-sqlite3のビルドに必要）
-* Node.js 18以上
+* Go 1.26以上（cgo有効。go-sqlite3のビルドに必要）
+* Node.js 24以上（LTS）
 
 ### 本番構成（1プロセスでAPIとUIを配信）
 ```sh

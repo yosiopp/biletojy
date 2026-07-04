@@ -23,7 +23,7 @@ function TagFilter({ selected, onChange, catalog }: Props) {
   };
 
   return (
-    <div className="border rounded p-2 mb-2">
+    <div className="border rounded-sm p-2 mb-2">
       <div className="flex flex-wrap gap-2 items-center">
         <span className="text-sm text-neutral-500">絞り込み:</span>
 
@@ -33,7 +33,7 @@ function TagFilter({ selected, onChange, catalog }: Props) {
             <label key={group} className="text-sm text-neutral-600">
               {group}
               <select
-                className="border rounded px-1 py-1 ml-1"
+                className="border rounded-sm px-1 py-1 ml-1"
                 value={selected.find((t) => parseTag(t).group === group) ?? ''}
                 onChange={(e) => {
                   const rest = selected.filter((t) => parseTag(t).group !== group);
@@ -54,7 +54,7 @@ function TagFilter({ selected, onChange, catalog }: Props) {
           <label className="text-sm text-neutral-600">
             階層
             <select
-              className="border rounded px-1 py-1 ml-1"
+              className="border rounded-sm px-1 py-1 ml-1"
               value=""
               onChange={(e) => addTag(e.target.value)}
             >
@@ -71,7 +71,7 @@ function TagFilter({ selected, onChange, catalog }: Props) {
 
         <input
           type="text"
-          className="border rounded px-2 py-1 min-w-40"
+          className="border rounded-sm px-2 py-1 min-w-40"
           placeholder="タグで絞り込み（Enter）"
           list="tag-filter-suggestions"
           value={text}

@@ -44,7 +44,7 @@ function TicketDetail() {
         </h2>
         <Link
           to={`/tickets/${ticket.id}/edit`}
-          className="border rounded px-3 py-1 text-sm hover:bg-neutral-100"
+          className="border rounded-sm px-3 py-1 text-sm hover:bg-neutral-100"
           title="ctrl+e"
         >
           編集
@@ -59,13 +59,13 @@ function TicketDetail() {
         ))}
       </div>
 
-      <div className="border rounded p-4 mb-6">
+      <div className="border rounded-sm p-4 mb-6">
         <Markdown content={ticket.content} />
       </div>
 
       <h3 className="text-lg mb-2">コメント</h3>
       {comments.map((comment) => (
-        <div key={comment.id} className="border rounded p-3 mb-2">
+        <div key={comment.id} className="border rounded-sm p-3 mb-2">
           <div className="text-sm text-neutral-500 mb-1">
             {comment.created_by} ・ {new Date(comment.created_at).toLocaleString()}
           </div>
@@ -75,12 +75,12 @@ function TicketDetail() {
 
       <form onSubmit={submitComment} className="mt-4">
         <textarea
-          className="border rounded w-full p-2 h-24"
+          className="border rounded-sm w-full p-2 h-24"
           placeholder="コメントを追加（markdown可）"
           value={commentText}
           onChange={(e) => setCommentText(e.target.value)}
         />
-        <button type="submit" className="bg-blue-600 text-white rounded px-4 py-1 mt-1 hover:bg-blue-700">
+        <button type="submit" className="bg-blue-600 text-white rounded-sm px-4 py-1 mt-1 hover:bg-blue-700">
           コメント
         </button>
       </form>

@@ -58,7 +58,7 @@ function TicketForm() {
 
       <input
         type="text"
-        className="border rounded w-full px-2 py-1 mb-2 text-lg"
+        className="border rounded-sm w-full px-2 py-1 mb-2 text-lg"
         placeholder="タイトル"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
@@ -82,19 +82,19 @@ function TicketForm() {
         </button>
       </div>
       {preview ? (
-        <div className="border rounded p-4 mb-2 min-h-64">
+        <div className="border rounded-sm p-4 mb-2 min-h-64">
           <Markdown content={content} />
         </div>
       ) : (
         <textarea
-          className="border rounded w-full p-2 h-64 mb-2 font-mono text-sm"
+          className="border rounded-sm w-full p-2 h-64 mb-2 font-mono text-sm"
           placeholder={'本文（markdown / mermaid可）\n\n```mermaid\ngraph TD; A-->B;\n```'}
           value={content}
           onChange={(e) => setContent(e.target.value)}
         />
       )}
 
-      <div className="border rounded p-2 mb-2">
+      <div className="border rounded-sm p-2 mb-2">
         <div className="text-sm text-neutral-500 mb-1">タグ</div>
         <TagInput value={tags} onChange={setTags} catalog={catalog} />
       </div>
@@ -104,19 +104,19 @@ function TicketForm() {
           作成者
           <input
             type="text"
-            className="border rounded px-2 py-1 ml-2"
+            className="border rounded-sm px-2 py-1 ml-2"
             value={user}
             onChange={(e) => setUser(e.target.value)}
           />
         </label>
       )}
 
-      <button type="submit" className="bg-blue-600 text-white rounded px-4 py-1 hover:bg-blue-700">
+      <button type="submit" className="bg-blue-600 text-white rounded-sm px-4 py-1 hover:bg-blue-700">
         {isEdit ? '更新' : '作成'}
       </button>
       <button
         type="button"
-        className="border rounded px-4 py-1 ml-2 hover:bg-neutral-100"
+        className="border rounded-sm px-4 py-1 ml-2 hover:bg-neutral-100"
         onClick={() => navigate(-1)}
       >
         キャンセル

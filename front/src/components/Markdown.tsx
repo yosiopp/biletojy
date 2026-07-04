@@ -35,7 +35,7 @@ function Mermaid({ code }: { code: string }) {
   }, [code, id]);
 
   if (error) {
-    return <pre className="bg-red-50 text-red-700 p-2 rounded text-sm">{error}</pre>;
+    return <pre className="bg-red-50 text-red-700 p-2 rounded-sm text-sm">{error}</pre>;
   }
   return <div dangerouslySetInnerHTML={{ __html: svg }} />;
 }

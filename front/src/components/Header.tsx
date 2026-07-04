@@ -25,7 +25,7 @@ function Header() {
 
         <Link
           to="/tickets/new"
-          className="bg-blue-600 text-white rounded px-3 py-1 text-sm hover:bg-blue-700"
+          className="bg-blue-600 text-white rounded-sm px-3 py-1 text-sm hover:bg-blue-700"
           title="ctrl+n"
         >
           + 新規チケット

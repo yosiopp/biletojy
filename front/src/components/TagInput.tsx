@@ -69,7 +69,7 @@ function TagInput({ value, onChange, catalog }: Props) {
               {group.replace(/@$/, '')}
               <input
                 type="datetime-local"
-                className="border rounded px-1 py-0.5 ml-1"
+                className="border rounded-sm px-1 py-0.5 ml-1"
                 value={parseTag(selectedInGroup(group)).name || ''}
                 onChange={(e) => replaceGroupTag(group, e.target.value ? `${group}:${e.target.value}` : '')}
               />
@@ -78,7 +78,7 @@ function TagInput({ value, onChange, catalog }: Props) {
             <label key={group} className="text-sm text-neutral-600">
               {group}
               <select
-                className="border rounded px-1 py-1 ml-1"
+                className="border rounded-sm px-1 py-1 ml-1"
                 value={selectedInGroup(group)}
                 onChange={(e) => replaceGroupTag(group, e.target.value)}
               >
@@ -96,7 +96,7 @@ function TagInput({ value, onChange, catalog }: Props) {
 
         <input
           type="text"
-          className="border rounded px-2 py-1 flex-1 min-w-40"
+          className="border rounded-sm px-2 py-1 flex-1 min-w-40"
           placeholder="タグを追加（Enterで確定）"
           list="tag-input-suggestions"
           value={text}
@@ -119,13 +119,13 @@ function TagInput({ value, onChange, catalog }: Props) {
           <span className="flex items-center gap-1">
             <input
               type="datetime-local"
-              className="border rounded px-1 py-0.5"
+              className="border rounded-sm px-1 py-0.5"
               value={dateValue}
               onChange={(e) => setDateValue(e.target.value)}
             />
             <button
               type="button"
-              className="border rounded px-2 py-0.5 text-sm hover:bg-neutral-100"
+              className="border rounded-sm px-2 py-0.5 text-sm hover:bg-neutral-100"
               onClick={() => {
                 if (!dateValue) return;
                 addTag(`${dateGroup}:${dateValue}`);

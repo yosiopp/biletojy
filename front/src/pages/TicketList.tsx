@@ -39,7 +39,7 @@ function TicketList() {
       <div className="mb-2">
         <input
           type="search"
-          className="border rounded px-2 py-1 w-full"
+          className="border rounded-sm px-2 py-1 w-full"
           placeholder="全文検索（タイトル・本文・コメント・タグ / Enterで検索）"
           value={text}
           onChange={(e) => setText(e.target.value)}

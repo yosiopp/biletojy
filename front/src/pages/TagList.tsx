@@ -28,6 +28,8 @@ function TagList() {
   // ctrl+shift+n（/tags?new=1）でタグ作成フォームを開く
   useEffect(() => {
     if (searchParams.get('new') === '1') {
+      // URLパラメータ起点でフォームを開くため、ここでのsetStateは意図したもの
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEditing(EMPTY);
       setSearchParams({}, { replace: true });
       setTimeout(() => tagInputRef.current?.focus(), 0);
@@ -67,13 +69,13 @@ function TagList() {
   };
 
   const form = editing && (
-    <form onSubmit={submit} className="border rounded p-3 mb-4 bg-neutral-50 flex flex-wrap gap-2 items-end">
+    <form onSubmit={submit} className="border rounded-sm p-3 mb-4 bg-neutral-50 flex flex-wrap gap-2 items-end">
       <label className="text-sm text-neutral-600">
         タグ
         <input
           ref={tagInputRef}
           type="text"
-          className="border rounded px-2 py-1 block w-64"
+          className="border rounded-sm px-2 py-1 block w-64"
           placeholder="status:OPEN / docs/design / due-date@:"
           value={editing.tag}
           onChange={(e) => setEditing({ ...editing, tag: e.target.value })}
@@ -84,7 +86,7 @@ function TagList() {
         説明
         <input
           type="text"
-          className="border rounded px-2 py-1 block w-48"
+          className="border rounded-sm px-2 py-1 block w-48"
           value={editing.note}
           onChange={(e) => setEditing({ ...editing, note: e.target.value })}
         />
@@ -94,7 +96,7 @@ function TagList() {
         <span className="flex items-center gap-1">
           <input
             type="color"
-            className="border rounded h-8 w-10"
+            className="border rounded-sm h-8 w-10"
             value={editing.color || '#a3a3a3'}
             onChange={(e) => setEditing({ ...editing, color: e.target.value })}
           />
@@ -109,12 +111,12 @@ function TagList() {
           )}
         </span>
       </label>
-      <button type="submit" className="bg-blue-600 text-white rounded px-4 py-1 hover:bg-blue-700">
+      <button type="submit" className="bg-blue-600 text-white rounded-sm px-4 py-1 hover:bg-blue-700">
         {editing.id == null ? '作成' : '更新'}
       </button>
       <button
         type="button"
-        className="border rounded px-4 py-1 hover:bg-neutral-100"
+        className="border rounded-sm px-4 py-1 hover:bg-neutral-100"
         onClick={() => setEditing(null)}
       >
         キャンセル
@@ -128,7 +130,7 @@ function TagList() {
         <h2 className="text-xl flex-1">タグ一覧</h2>
         <button
           type="button"
-          className="bg-blue-600 text-white rounded px-3 py-1 text-sm hover:bg-blue-700"
+          className="bg-blue-600 text-white rounded-sm px-3 py-1 text-sm hover:bg-blue-700"
           title="ctrl+shift+n"
           onClick={() => setEditing(EMPTY)}
         >
