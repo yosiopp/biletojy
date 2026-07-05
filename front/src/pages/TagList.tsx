@@ -152,14 +152,14 @@ function TagList() {
       {error && <p className="text-red-600 mb-2">{error}</p>}
       {form}
 
-      <div className="flex text-gray-500 border-b">
+      <div className="flex text-neutral-500 border-b">
         <div className="w-1/3 py-1 pl-2">tag</div>
         <div className="w-1/4 py-1">説明</div>
         <div className="flex-1 py-1">属性</div>
         <div className="flex-none w-32 py-1"></div>
       </div>
       {catalog.map((tag) => (
-        <div key={tag.id} className="flex items-center border-b hover:bg-slate-50">
+        <div key={tag.id} className="flex items-center border-b hover:bg-neutral-100">
           <div className="w-1/3 py-2 pl-2">
             <TagItem tag={tag.tag} color={tag.color} />
           </div>

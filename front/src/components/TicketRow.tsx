@@ -10,7 +10,7 @@ function TicketRow({ ticket, catalog }: { ticket: Ticket; catalog: Tag[] }) {
   return (
     <Link
       to={`/tickets/${id}`}
-      className="block sm:flex sm:items-center hover:bg-slate-100 border-b px-2 py-2 sm:px-0 sm:py-0"
+      className="block sm:flex sm:items-center hover:bg-neutral-100 border-b px-2 py-2 sm:px-0 sm:py-0"
     >
       <div className="hidden sm:block flex-none w-16 sm:py-2 sm:pl-4 text-neutral-500">{id}</div>
       <div className="sm:w-2/4 sm:py-2">

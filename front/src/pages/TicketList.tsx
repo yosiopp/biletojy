@@ -46,7 +46,7 @@ function TicketList() {
 
       {error && <p className="text-red-600 mb-2">{error}</p>}
 
-      <div className="hidden sm:flex text-gray-500 border-b">
+      <div className="hidden sm:flex text-neutral-500 border-b">
         <div className="flex-none w-16 py-1 pl-4">id</div>
         <div className="w-2/4 py-1">title</div>
         <div className="flex-1 py-1">tags</div>

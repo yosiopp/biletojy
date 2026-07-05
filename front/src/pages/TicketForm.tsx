@@ -111,14 +111,14 @@ function TicketForm() {
       <div className="mb-1">
         <button
           type="button"
-          className={`text-sm border rounded-l px-3 py-0.5 ${!preview ? 'bg-neutral-200' : ''}`}
+          className={`text-sm border rounded-l-sm px-3 py-0.5 ${!preview ? 'bg-neutral-200' : ''}`}
           onClick={() => setPreview(false)}
         >
           編集
         </button>
         <button
           type="button"
-          className={`text-sm border rounded-r px-3 py-0.5 ${preview ? 'bg-neutral-200' : ''}`}
+          className={`text-sm border rounded-r-sm px-3 py-0.5 ${preview ? 'bg-neutral-200' : ''}`}
           onClick={() => setPreview(true)}
         >
           プレビュー
