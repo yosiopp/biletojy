@@ -34,6 +34,11 @@ function Header({ onUserClick }: { onUserClick: () => void }) {
                 tags
               </NavLink>
             </li>
+            <li>
+              <NavLink className={navClass} to="/templates">
+                templates
+              </NavLink>
+            </li>
           </ul>
         </nav>
 

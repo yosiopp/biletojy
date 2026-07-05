@@ -51,6 +51,17 @@ export type Image = {
   created_at: string;
 };
 
+// チケット作成時に適用するタイトル・本文・タグの雛形
+export type Template = {
+  id: number;
+  name: string;
+  title: string;
+  content: string;
+  tags: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Tag = {
   id: number;
   tag: string;
@@ -104,6 +115,12 @@ export const api = {
       body: file,
     }),
   imageUrl: (id: number) => `/api/images/${id}`,
+  listTemplates: () => request<Template[]>('/api/templates'),
+  createTemplate: (data: Pick<Template, 'name' | 'title' | 'content' | 'tags'>) =>
+    request<Template>('/api/templates', { method: 'POST', body: JSON.stringify(data) }),
+  updateTemplate: (id: number, data: Pick<Template, 'name' | 'title' | 'content' | 'tags'>) =>
+    request<Template>(`/api/templates/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteTemplate: (id: number) => request<void>(`/api/templates/${id}`, { method: 'DELETE' }),
   listTags: () => request<Tag[]>('/api/tags'),
   createTag: (data: Pick<Tag, 'tag' | 'note' | 'color'>) =>
     request<Tag>('/api/tags', { method: 'POST', body: JSON.stringify(data) }),

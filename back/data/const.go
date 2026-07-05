@@ -70,6 +70,16 @@ const (
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
 
+	CREATE TABLE IF NOT EXISTS templates (
+		id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+		name VARCHAR(255) NOT NULL,
+		title VARCHAR(255) NOT NULL DEFAULT '',
+		content TEXT NOT NULL DEFAULT '',
+		tags TEXT NOT NULL DEFAULT '',
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP NOT NULL
+	);
+
 	CREATE VIRTUAL TABLE IF NOT EXISTS tickets_fts USING fts5 (
 		ticket_id UNINDEXED,
 		title,
@@ -150,6 +160,13 @@ const (
 	// 画像
 	_SQL_ADD_IMAGE = `INSERT INTO images (mime, data, created_at) VALUES (?, ?, ?)`
 	_SQL_GET_IMAGE = `SELECT id, mime, data, created_at FROM images WHERE id = ?`
+
+	// テンプレート（チケット作成時に適用するタイトル・本文・タグの雛形。一覧は名前順）
+	_SQL_QUERY_TEMPLATES = `SELECT id, name, title, content, tags, created_at, updated_at FROM templates ORDER BY name ASC, id ASC`
+	_SQL_GET_TEMPLATE    = `SELECT id, name, title, content, tags, created_at, updated_at FROM templates WHERE id = ?`
+	_SQL_ADD_TEMPLATE    = `INSERT INTO templates (name, title, content, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+	_SQL_EDIT_TEMPLATE   = `UPDATE templates SET name = ?, title = ?, content = ?, tags = ?, updated_at = ? WHERE id = ?`
+	_SQL_DELETE_TEMPLATE = `DELETE FROM templates WHERE id = ?`
 
 	// チケット検索
 	_SQL_QUERY_TICKETS_BASE = `SELECT t.id, t.title, t.content, COALESCE(t.tags, ''), t.created_by, t.created_sub, t.updated_by, t.updated_sub, t.created_at, t.updated_at FROM tickets t`

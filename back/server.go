@@ -272,6 +272,74 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		http.ServeContent(w, r, "", image.CreatedAt, bytes.NewReader(image.Data))
 	})
 
+	mux.HandleFunc("GET /api/templates", func(w http.ResponseWriter, r *http.Request) {
+		templates, err := dao.QueryTemplates()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJson(w, http.StatusOK, templates)
+	})
+
+	mux.HandleFunc("POST /api/templates", func(w http.ResponseWriter, r *http.Request) {
+		var tpl data.Template
+		if !readJson(w, r, &tpl) {
+			return
+		}
+		if tpl.Name == "" {
+			writeErrorMessage(w, http.StatusBadRequest, "name is required")
+			return
+		}
+		if err := dao.AddTemplate(&tpl); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJson(w, http.StatusCreated, tpl)
+	})
+
+	mux.HandleFunc("PUT /api/templates/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, ok := pathId(w, r)
+		if !ok {
+			return
+		}
+		current, ok := fetchOr404(w, dao.GetTemplate, id, "template")
+		if !ok {
+			return
+		}
+		var tpl data.Template
+		if !readJson(w, r, &tpl) {
+			return
+		}
+		if tpl.Name == "" {
+			writeErrorMessage(w, http.StatusBadRequest, "name is required")
+			return
+		}
+		tpl.Id = id
+		tpl.CreatedAt = current.CreatedAt
+		if err := dao.EditTemplate(&tpl); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJson(w, http.StatusOK, tpl)
+	})
+
+	mux.HandleFunc("DELETE /api/templates/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, ok := pathId(w, r)
+		if !ok {
+			return
+		}
+		deleted, err := dao.DeleteTemplate(id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		if !deleted {
+			writeErrorMessage(w, http.StatusNotFound, "template not found")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	mux.HandleFunc("GET /api/tags", func(w http.ResponseWriter, r *http.Request) {
 		tags, err := dao.QueryTags()
 		if err != nil {

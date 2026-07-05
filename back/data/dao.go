@@ -77,6 +77,17 @@ type Image struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// チケット作成時に適用するタイトル・本文・タグの雛形
+type Template struct {
+	Id        int64     `json:"id"`
+	Name      string    `json:"name"`
+	Title     string    `json:"title"`
+	Content   string    `json:"content"`
+	Tags      string    `json:"tags"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type Tag struct {
 	Id        int64   `json:"id"`
 	Tag       string  `json:"tag"`
@@ -536,6 +547,67 @@ func (dao *Dao) GetImage(id int64) (*Image, error) {
 		return nil, err
 	}
 	return &img, nil
+}
+
+// テンプレートを名前順（同名は登録順）に返す
+func (dao *Dao) QueryTemplates() ([]Template, error) {
+	rows, err := dao.db.Query(_SQL_QUERY_TEMPLATES)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	templates := []Template{}
+	for rows.Next() {
+		var tpl Template
+		if err := rows.Scan(&tpl.Id, &tpl.Name, &tpl.Title, &tpl.Content, &tpl.Tags, &tpl.CreatedAt, &tpl.UpdatedAt); err != nil {
+			return nil, err
+		}
+		templates = append(templates, tpl)
+	}
+	return templates, rows.Err()
+}
+
+func (dao *Dao) GetTemplate(id int64) (*Template, error) {
+	var tpl Template
+	err := dao.db.QueryRow(_SQL_GET_TEMPLATE, id).Scan(&tpl.Id, &tpl.Name, &tpl.Title, &tpl.Content, &tpl.Tags, &tpl.CreatedAt, &tpl.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &tpl, nil
+}
+
+func (dao *Dao) AddTemplate(tpl *Template) error {
+	now := time.Now()
+	tpl.CreatedAt = now
+	tpl.UpdatedAt = now
+	res, err := dao.db.Exec(_SQL_ADD_TEMPLATE, tpl.Name, tpl.Title, tpl.Content, tpl.Tags, tpl.CreatedAt, tpl.UpdatedAt)
+	if err != nil {
+		return err
+	}
+	tpl.Id, _ = res.LastInsertId()
+	return nil
+}
+
+func (dao *Dao) EditTemplate(tpl *Template) error {
+	tpl.UpdatedAt = time.Now()
+	_, err := dao.db.Exec(_SQL_EDIT_TEMPLATE, tpl.Name, tpl.Title, tpl.Content, tpl.Tags, tpl.UpdatedAt, tpl.Id)
+	return err
+}
+
+// テンプレートを削除する。該当行がなければfalseを返す
+func (dao *Dao) DeleteTemplate(id int64) (bool, error) {
+	res, err := dao.db.Exec(_SQL_DELETE_TEMPLATE, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 func (dao *Dao) QueryTags() ([]Tag, error) {

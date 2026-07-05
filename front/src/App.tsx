@@ -6,6 +6,7 @@ import TicketDetail from './pages/TicketDetail';
 import TicketForm from './pages/TicketForm';
 import TicketHistory from './pages/TicketHistory';
 import TagList from './pages/TagList';
+import TemplateList from './pages/TemplateList';
 
 const router = createBrowserRouter([
   {
@@ -18,6 +19,7 @@ const router = createBrowserRouter([
       { path: '/tickets/:id/edit', element: <TicketForm key="edit" /> },
       { path: '/tickets/:id/history', element: <TicketHistory /> },
       { path: '/tags', element: <TagList /> },
+      { path: '/templates', element: <TemplateList /> },
       { path: '/*', element: <TicketList /> },
     ],
   },

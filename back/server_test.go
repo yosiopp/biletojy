@@ -460,6 +460,70 @@ func TestTicketBacklinks(t *testing.T) {
 	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/abc/backlinks", nil), http.StatusBadRequest)
 }
 
+func TestTemplateCrud(t *testing.T) {
+	handler := newTestServer(t)
+
+	// 初期状態は空配列
+	w := request(t, handler, "GET", "/api/templates", nil)
+	assertStatus(t, w, http.StatusOK)
+	if got := decodeBody[[]data.Template](t, w); len(got) != 0 {
+		t.Errorf("templates on empty = %+v", got)
+	}
+
+	// 作成
+	w = request(t, handler, "POST", "/api/templates",
+		data.Template{Name: "バグ報告", Title: "【バグ】", Content: "## 再現手順\n", Tags: "type:BUG status:OPEN"})
+	assertStatus(t, w, http.StatusCreated)
+	created := decodeBody[data.Template](t, w)
+	if created.Id <= 0 || created.Name != "バグ報告" || created.Title != "【バグ】" || created.Tags != "type:BUG status:OPEN" {
+		t.Errorf("created = %+v", created)
+	}
+	if created.CreatedAt.IsZero() || created.UpdatedAt.IsZero() {
+		t.Errorf("timestamps not set: %+v", created)
+	}
+
+	// バリデーション（nameは必須）
+	assertErrorResponse(t, request(t, handler, "POST", "/api/templates", data.Template{Title: "名前なし"}), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "POST", "/api/templates", "{invalid json"), http.StatusBadRequest)
+
+	// 一覧は名前順に返る
+	w = request(t, handler, "POST", "/api/templates", data.Template{Name: "a-作業依頼"})
+	assertStatus(t, w, http.StatusCreated)
+	second := decodeBody[data.Template](t, w)
+	w = request(t, handler, "GET", "/api/templates", nil)
+	assertStatus(t, w, http.StatusOK)
+	list := decodeBody[[]data.Template](t, w)
+	if len(list) != 2 || list[0].Id != second.Id || list[1].Id != created.Id {
+		t.Errorf("templates = %+v, want name order [%d %d]", list, second.Id, created.Id)
+	}
+
+	// 更新。created_atは維持される
+	w = request(t, handler, "PUT", fmt.Sprintf("/api/templates/%d", created.Id),
+		data.Template{Name: "不具合報告", Title: "【不具合】", Content: "## 事象\n", Tags: "type:BUG"})
+	assertStatus(t, w, http.StatusOK)
+	updated := decodeBody[data.Template](t, w)
+	if updated.Name != "不具合報告" || updated.Title != "【不具合】" || updated.Tags != "type:BUG" {
+		t.Errorf("updated = %+v", updated)
+	}
+	if !updated.CreatedAt.Equal(created.CreatedAt) {
+		t.Errorf("created_at = %v, want %v (must keep original)", updated.CreatedAt, created.CreatedAt)
+	}
+
+	assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/templates/%d", created.Id), data.Template{Title: "名前なし"}), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "PUT", "/api/templates/9999", data.Template{Name: "x"}), http.StatusNotFound)
+
+	// 削除。存在しないテンプレート（削除済みを含む）は404
+	w = request(t, handler, "DELETE", fmt.Sprintf("/api/templates/%d", created.Id), nil)
+	assertStatus(t, w, http.StatusNoContent)
+	assertErrorResponse(t, request(t, handler, "DELETE", fmt.Sprintf("/api/templates/%d", created.Id), nil), http.StatusNotFound)
+	assertErrorResponse(t, request(t, handler, "DELETE", "/api/templates/abc", nil), http.StatusBadRequest)
+	w = request(t, handler, "GET", "/api/templates", nil)
+	assertStatus(t, w, http.StatusOK)
+	if got := decodeBody[[]data.Template](t, w); len(got) != 1 || got[0].Id != second.Id {
+		t.Errorf("templates after delete = %+v, want [%d]", got, second.Id)
+	}
+}
+
 func TestTagCreateDerivesAttributes(t *testing.T) {
 	handler := newTestServer(t)
 

@@ -725,6 +725,99 @@ func TestReplaceTagTokens(t *testing.T) {
 	}
 }
 
+func TestTemplates(t *testing.T) {
+	dao := newTestDao(t)
+
+	// 初期状態は空
+	templates, err := dao.QueryTemplates()
+	if err != nil {
+		t.Fatalf("QueryTemplates: %v", err)
+	}
+	if len(templates) != 0 {
+		t.Errorf("QueryTemplates on empty = %+v", templates)
+	}
+
+	tpl := &Template{Name: "バグ報告", Title: "【バグ】", Content: "## 再現手順\n\n## 期待する結果\n", Tags: "type:BUG status:OPEN"}
+	if err := dao.AddTemplate(tpl); err != nil {
+		t.Fatalf("AddTemplate: %v", err)
+	}
+	if tpl.Id <= 0 {
+		t.Fatalf("AddTemplate did not set id: %d", tpl.Id)
+	}
+	if tpl.CreatedAt.IsZero() || tpl.UpdatedAt.IsZero() {
+		t.Errorf("AddTemplate did not set timestamps: %+v", tpl)
+	}
+
+	got, err := dao.GetTemplate(tpl.Id)
+	if err != nil {
+		t.Fatalf("GetTemplate: %v", err)
+	}
+	if got == nil || got.Name != "バグ報告" || got.Title != "【バグ】" || got.Content != tpl.Content || got.Tags != "type:BUG status:OPEN" {
+		t.Errorf("GetTemplate = %+v", got)
+	}
+	missing, err := dao.GetTemplate(9999)
+	if err != nil {
+		t.Fatalf("GetTemplate(missing): %v", err)
+	}
+	if missing != nil {
+		t.Errorf("GetTemplate(missing) = %+v, want nil", missing)
+	}
+
+	// 一覧は名前順に返る
+	second := &Template{Name: "a-作業依頼"}
+	if err := dao.AddTemplate(second); err != nil {
+		t.Fatalf("AddTemplate: %v", err)
+	}
+	templates, err = dao.QueryTemplates()
+	if err != nil {
+		t.Fatalf("QueryTemplates: %v", err)
+	}
+	if len(templates) != 2 || templates[0].Id != second.Id || templates[1].Id != tpl.Id {
+		t.Errorf("QueryTemplates = %+v, want name order [%d %d]", templates, second.Id, tpl.Id)
+	}
+
+	// 編集で内容が更新され、created_atは維持される
+	time.Sleep(10 * time.Millisecond)
+	got.Name = "不具合報告"
+	got.Tags = "type:BUG"
+	if err := dao.EditTemplate(got); err != nil {
+		t.Fatalf("EditTemplate: %v", err)
+	}
+	edited, _ := dao.GetTemplate(tpl.Id)
+	if edited.Name != "不具合報告" || edited.Tags != "type:BUG" {
+		t.Errorf("GetTemplate after edit = %+v", edited)
+	}
+	if !edited.CreatedAt.Equal(tpl.CreatedAt) {
+		t.Errorf("created_at = %v, want %v (must keep original)", edited.CreatedAt, tpl.CreatedAt)
+	}
+	if !edited.UpdatedAt.After(edited.CreatedAt) {
+		t.Errorf("updated_at %v should be after created_at %v", edited.UpdatedAt, edited.CreatedAt)
+	}
+
+	// 削除。存在しないIDはfalseを返す
+	ok, err := dao.DeleteTemplate(tpl.Id)
+	if err != nil {
+		t.Fatalf("DeleteTemplate: %v", err)
+	}
+	if !ok {
+		t.Errorf("DeleteTemplate = false, want true")
+	}
+	ok, err = dao.DeleteTemplate(tpl.Id)
+	if err != nil {
+		t.Fatalf("DeleteTemplate(missing): %v", err)
+	}
+	if ok {
+		t.Errorf("DeleteTemplate(missing) = true, want false")
+	}
+	deleted, err := dao.GetTemplate(tpl.Id)
+	if err != nil {
+		t.Fatalf("GetTemplate after delete: %v", err)
+	}
+	if deleted != nil {
+		t.Errorf("GetTemplate after delete = %+v, want nil", deleted)
+	}
+}
+
 func findTag(tags []Tag, name string) *Tag {
 	for i := range tags {
 		if tags[i].Tag == name {

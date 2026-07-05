@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useBlocker, useNavigate, useParams } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, Template } from '../api/client';
 import Markdown from '../components/Markdown';
 import TagInput from '../components/TagInput';
 import { pasteImages } from '../lib/imagePaste';
@@ -25,8 +25,18 @@ function TicketForm() {
   const [titleError, setTitleError] = useState(false);
   // 未保存判定の基準値（編集時はロードしたチケットの内容）
   const [initial, setInitial] = useState<Draft>({ title: '', content: '', tags: '' });
+  // 新規作成時に選択できるテンプレート
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templateId, setTemplateId] = useState('');
   const titleRef = useRef<HTMLInputElement>(null);
   const submittedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isEdit) {
+      // テンプレートは新規作成時の適用にしか使わないため、取得に失敗しても画面表示は妨げない
+      api.listTemplates().then(setTemplates).catch(() => {});
+    }
+  }, [isEdit]);
 
   useEffect(() => {
     if (isEdit) {
@@ -44,6 +54,23 @@ function TicketForm() {
 
   const dirty =
     title !== initial.title || content !== initial.content || joinTags(tags) !== initial.tags;
+
+  // 選択したテンプレートのタイトル・本文・タグをフォームへ適用する（入力済みの内容は確認の上で置き換える）
+  const applyTemplate = (value: string) => {
+    const template = templates.find((t) => t.id === Number(value));
+    if (!template) {
+      setTemplateId('');
+      return;
+    }
+    if (dirty && !confirm('入力中の内容をテンプレートの内容で置き換えます。よろしいですか？')) {
+      return;
+    }
+    setTemplateId(value);
+    setTitle(template.title);
+    setContent(template.content);
+    setTags(splitTags(template.tags));
+    if (template.title.trim()) setTitleError(false);
+  };
 
   // ルーター内の遷移（キャンセル・ブラウザバック・ショートカット遷移）を確認付きにする
   const blocker = useBlocker(
@@ -94,7 +121,26 @@ function TicketForm() {
 
   return (
     <form onSubmit={submit}>
-      <h2 className="text-xl mb-2">{isEdit ? `チケット編集 #${id}` : 'チケット作成'}</h2>
+      <div className="flex items-center mb-2">
+        <h2 className="text-xl flex-1">{isEdit ? `チケット編集 #${id}` : 'チケット作成'}</h2>
+        {!isEdit && templates.length > 0 && (
+          <label className="text-sm text-neutral-500">
+            テンプレート
+            <select
+              className="border rounded-sm px-2 py-1 ml-1"
+              value={templateId}
+              onChange={(e) => applyTemplate(e.target.value)}
+            >
+              <option value="">選択なし</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
       {error && <p className="text-red-600 mb-2">{error}</p>}
 
       <input
