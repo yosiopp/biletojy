@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Header from './Header';
+import UserNameDialog from './UserNameDialog';
 
 const SHORTCUTS: [string, string][] = [
   ['Ctrl+N', 'チケット作成'],
@@ -68,6 +69,8 @@ function Layout() {
       <main className="p-2">
         <Outlet />
       </main>
+
+      <UserNameDialog />
 
       <button
         type="button"

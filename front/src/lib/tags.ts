@@ -139,10 +139,19 @@ export function groupOptions(tags: Tag[]): { value: string; label: string; note:
 
 const USER_KEY = 'biletojy.user';
 
+// setCurrentUserによる変更をマウント済みの画面（作成者入力欄など）へ知らせるイベント
+export const USER_CHANGED_EVENT = 'biletojy:user-changed';
+
 export function currentUser(): string {
   return localStorage.getItem(USER_KEY) || 'anonymous';
 }
 
+// ユーザ名が一度でも設定されたか（未設定なら初回アクセス時に設定ダイアログを出す）
+export function hasCurrentUser(): boolean {
+  return localStorage.getItem(USER_KEY) !== null;
+}
+
 export function setCurrentUser(name: string) {
   localStorage.setItem(USER_KEY, name);
+  window.dispatchEvent(new Event(USER_CHANGED_EVENT));
 }

@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import Markdown from '../components/Markdown';
 import TagInput from '../components/TagInput';
 import { pasteImages } from '../lib/imagePaste';
-import { currentUser, joinTags, setCurrentUser, splitTags } from '../lib/tags';
+import { currentUser, joinTags, setCurrentUser, splitTags, USER_CHANGED_EVENT } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
 
 type Draft = { title: string; content: string; tags: string };
@@ -28,6 +28,13 @@ function TicketForm() {
   const [initial, setInitial] = useState<Draft>({ title: '', content: '', tags: '' });
   const titleRef = useRef<HTMLInputElement>(null);
   const submittedRef = useRef(false);
+
+  // フォーム表示中にユーザ名設定ダイアログで名前が保存された場合、作成者欄へ反映する
+  useEffect(() => {
+    const handler = () => setUser(currentUser());
+    window.addEventListener(USER_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(USER_CHANGED_EVENT, handler);
+  }, []);
 
   useEffect(() => {
     if (isEdit) {
