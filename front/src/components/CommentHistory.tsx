@@ -36,8 +36,8 @@ function CommentHistory({ comment, onRestored }: { comment: Comment; onRestored:
     }
   };
 
-  if (error) return <p className="text-red-600 mt-2">{error}</p>;
-  if (!histories) return <p className="text-neutral-500 mt-2">読み込み中...</p>;
+  if (error) return <p className="text-red-600 dark:text-red-400 mt-2">{error}</p>;
+  if (!histories) return <p className="text-neutral-500 dark:text-neutral-400 mt-2">読み込み中...</p>;
 
   return (
     <div className="mt-2">
@@ -46,7 +46,7 @@ function CommentHistory({ comment, onRestored }: { comment: Comment; onRestored:
         .reverse()
         .map(({ history, idx }) => (
           <div key={history.id} className="border rounded-sm p-2 mb-2">
-            <div className="flex items-center text-sm text-neutral-500 mb-1">
+            <div className="flex items-center text-sm text-neutral-500 dark:text-neutral-400 mb-1">
               <span className="flex-1">
                 v{idx + 1}
                 {idx === histories.length - 1 && '（最新）'} ・{' '}
@@ -56,7 +56,7 @@ function CommentHistory({ comment, onRestored }: { comment: Comment; onRestored:
               {idx < histories.length - 1 && (
                 <button
                   type="button"
-                  className="text-blue-700 hover:underline disabled:opacity-50"
+                  className="text-blue-700 dark:text-blue-400 hover:underline disabled:opacity-50"
                   disabled={restoring}
                   onClick={() => restore(history, idx + 1)}
                 >

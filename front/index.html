@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>biletojy</title>
+    <!-- 初期描画のちらつき（FOUC）を避けるため、テーマの.darkクラスは描画前にここで付与する。
+         判定ロジックは src/lib/theme.ts と揃えること -->
+    <script>
+      (function () {
+        var mode = localStorage.getItem('biletojy.theme');
+        if (mode === 'dark' || (mode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

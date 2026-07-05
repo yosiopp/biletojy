@@ -62,8 +62,8 @@ function TicketHistory() {
     }
   };
 
-  if (error && !ticket) return <p className="text-red-600">{error}</p>;
-  if (!ticket || histories.length === 0) return <p className="text-neutral-500">読み込み中...</p>;
+  if (error && !ticket) return <p className="text-red-600 dark:text-red-400">{error}</p>;
+  if (!ticket || histories.length === 0) return <p className="text-neutral-500 dark:text-neutral-400">読み込み中...</p>;
 
   const oldHistory = histories[oldIdx];
   const newHistory = histories[newIdx];
@@ -80,15 +80,15 @@ function TicketHistory() {
           <span className="text-neutral-400 mr-2">#{ticket.id}</span>
           {ticket.title} の履歴
         </h2>
-        <Link to={`/tickets/${ticket.id}`} className="border rounded-sm px-3 py-1 text-sm hover:bg-neutral-100">
+        <Link to={`/tickets/${ticket.id}`} className="border rounded-sm px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">
           詳細へ戻る
         </Link>
       </div>
 
-      {error && <p className="text-red-600 mb-2">{error}</p>}
+      {error && <p className="text-red-600 dark:text-red-400 mb-2">{error}</p>}
 
       <div className="mb-6">
-        <div className="hidden sm:flex text-sm text-neutral-500 border-b py-1 gap-x-2">
+        <div className="hidden sm:flex text-sm text-neutral-500 dark:text-neutral-400 border-b py-1 gap-x-2">
           <span className="w-8 text-center">旧</span>
           <span className="w-8 text-center">新</span>
           <span className="w-24">版</span>
@@ -121,17 +121,17 @@ function TicketHistory() {
               </span>
               <span className="w-24">
                 v{idx + 1}
-                {idx === histories.length - 1 && <span className="text-sm text-neutral-500">（最新）</span>}
+                {idx === histories.length - 1 && <span className="text-sm text-neutral-500 dark:text-neutral-400">（最新）</span>}
               </span>
-              <span className="w-36 text-sm text-neutral-500">{formatDateTime(history.created_at)}</span>
-              <span className="flex-1 text-sm text-neutral-500" title={history.created_sub || undefined}>
+              <span className="w-36 text-sm text-neutral-500 dark:text-neutral-400">{formatDateTime(history.created_at)}</span>
+              <span className="flex-1 text-sm text-neutral-500 dark:text-neutral-400" title={history.created_sub || undefined}>
                 {history.created_by}
               </span>
               <span className="w-24 text-right">
                 {idx < histories.length - 1 && (
                   <button
                     type="button"
-                    className="text-blue-700 hover:underline text-sm disabled:opacity-50"
+                    className="text-blue-700 dark:text-blue-400 hover:underline text-sm disabled:opacity-50"
                     disabled={restoring}
                     onClick={() => restore(history, idx + 1)}
                   >
@@ -146,10 +146,10 @@ function TicketHistory() {
       <h3 className="text-lg mb-2">
         差分（v{oldIdx + 1} → v{newIdx + 1}）
       </h3>
-      {sections.length === 0 && <p className="text-neutral-500">選択した版の間に差分はありません</p>}
+      {sections.length === 0 && <p className="text-neutral-500 dark:text-neutral-400">選択した版の間に差分はありません</p>}
       {sections.map((section) => (
         <div key={section.label} className="mb-4">
-          <div className="text-sm text-neutral-500 mb-1">{section.label}</div>
+          <div className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">{section.label}</div>
           <DiffView lines={section.lines} />
         </div>
       ))}

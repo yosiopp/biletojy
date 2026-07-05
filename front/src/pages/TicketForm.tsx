@@ -126,7 +126,7 @@ function TicketForm() {
       <div className="flex items-center mb-2">
         <h2 className="text-xl flex-1">{isEdit ? `チケット編集 #${id}` : 'チケット作成'}</h2>
         {!isEdit && templates.length > 0 && (
-          <label className="text-sm text-neutral-500">
+          <label className="text-sm text-neutral-500 dark:text-neutral-400">
             テンプレート
             <select
               className="border rounded-sm px-2 py-1 ml-1"
@@ -143,7 +143,7 @@ function TicketForm() {
           </label>
         )}
       </div>
-      {error && <p className="text-red-600 mb-2">{error}</p>}
+      {error && <p className="text-red-600 dark:text-red-400 mb-2">{error}</p>}
 
       <input
         ref={titleRef}
@@ -164,14 +164,14 @@ function TicketForm() {
         <div className="flex-1">
           <button
             type="button"
-            className={`text-sm border rounded-l-sm px-3 py-0.5 ${!preview ? 'bg-neutral-200' : ''}`}
+            className={`text-sm border rounded-l-sm px-3 py-0.5 ${!preview ? 'bg-neutral-200 dark:bg-neutral-600' : ''}`}
             onClick={() => setPreview(false)}
           >
             編集
           </button>
           <button
             type="button"
-            className={`text-sm border rounded-r-sm px-3 py-0.5 ${preview ? 'bg-neutral-200' : ''}`}
+            className={`text-sm border rounded-r-sm px-3 py-0.5 ${preview ? 'bg-neutral-200 dark:bg-neutral-600' : ''}`}
             onClick={() => setPreview(true)}
           >
             プレビュー
@@ -179,7 +179,7 @@ function TicketForm() {
         </div>
         <button
           type="button"
-          className="text-sm text-blue-700 hover:underline"
+          className="text-sm text-blue-700 dark:text-blue-400 hover:underline"
           onClick={() => fileRef.current?.click()}
         >
           ファイルを添付
@@ -208,7 +208,7 @@ function TicketForm() {
       )}
 
       <div className="border rounded-sm p-2 mb-2">
-        <div className="text-sm text-neutral-500 mb-1">タグ</div>
+        <div className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">タグ</div>
         <TagInput value={tags} onChange={setTags} catalog={catalog} />
       </div>
 
@@ -221,7 +221,7 @@ function TicketForm() {
       </button>
       <button
         type="button"
-        className="border rounded-sm px-4 py-1 ml-2 hover:bg-neutral-100"
+        className="border rounded-sm px-4 py-1 ml-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         onClick={() => navigate(-1)}
       >
         キャンセル

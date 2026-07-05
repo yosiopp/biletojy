@@ -2,8 +2,8 @@ import { DiffLine } from '../lib/diff';
 
 const STYLES = {
   same: { mark: ' ', className: '' },
-  del: { mark: '-', className: 'bg-red-50 text-red-700' },
-  add: { mark: '+', className: 'bg-blue-50 text-blue-700' },
+  del: { mark: '-', className: 'bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300' },
+  add: { mark: '+', className: 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400' },
 } as const;
 
 // 行単位の差分表示。削除行は赤、追加行は青で示す

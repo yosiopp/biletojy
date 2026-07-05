@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Link } from 'react-router-dom';
 import remarkGfm from 'remark-gfm';
+import { isDarkTheme, THEME_CHANGED_EVENT } from '../lib/theme';
 
 // remark ASTの必要最小限の型（依存を増やさないため自前定義）
 type MdNode = {
@@ -45,10 +46,7 @@ function splitTicketRefs(value: string): MdNode[] {
 let mermaidLoader: Promise<typeof import('mermaid')['default']> | null = null;
 function loadMermaid() {
   if (!mermaidLoader) {
-    mermaidLoader = import('mermaid').then((m) => {
-      m.default.initialize({ startOnLoad: false, securityLevel: 'strict' });
-      return m.default;
-    });
+    mermaidLoader = import('mermaid').then((m) => m.default);
   }
   return mermaidLoader;
 }
@@ -57,11 +55,22 @@ function Mermaid({ code }: { code: string }) {
   const id = useId().replace(/:/g, '_');
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string>('');
+  // 表示テーマに合わせてmermaidのテーマを切り替え、トグル時は再描画する
+  const [dark, setDark] = useState(isDarkTheme);
+
+  useEffect(() => {
+    const handler = () => setDark(isDarkTheme());
+    window.addEventListener(THEME_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, handler);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     loadMermaid()
-      .then((mermaid) => mermaid.render(`mermaid${id}`, code))
+      .then((mermaid) => {
+        mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: dark ? 'dark' : 'default' });
+        return mermaid.render(`mermaid${id}`, code);
+      })
       .then(({ svg }) => {
         if (!cancelled) {
           setSvg(svg);
@@ -74,10 +83,10 @@ function Mermaid({ code }: { code: string }) {
     return () => {
       cancelled = true;
     };
-  }, [code, id]);
+  }, [code, id, dark]);
 
   if (error) {
-    return <pre className="bg-red-50 text-red-700 p-2 rounded-sm text-sm">{error}</pre>;
+    return <pre className="bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 p-2 rounded-sm text-sm">{error}</pre>;
   }
   return <div dangerouslySetInnerHTML={{ __html: svg }} />;
 }

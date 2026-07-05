@@ -123,19 +123,19 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
         aria-expanded={open}
         className={`inline-flex items-center rounded-lg border py-0.5 px-2 whitespace-nowrap ${
           value
-            ? 'bg-neutral-100 border-transparent'
-            : 'bg-white border-dashed border-neutral-300 text-neutral-500 hover:bg-neutral-50'
+            ? 'bg-neutral-100 dark:bg-neutral-700 border-transparent'
+            : 'bg-white dark:bg-neutral-900 border-dashed border-neutral-300 dark:border-neutral-600 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'
         }`}
         style={chipStyle}
         onClick={toggle}
       >
-        <span className="border-r border-neutral-300 pr-1 text-sm opacity-70">{groupLabel}</span>
+        <span className="border-r border-neutral-300 dark:border-neutral-600 pr-1 text-sm opacity-70">{groupLabel}</span>
         <span className={`pl-2 ${value ? '' : 'text-neutral-400'}`}>{chipLabel || '-'}</span>
         <span className="ml-1 text-xs text-neutral-400">▾</span>
       </button>
 
       {open && (
-        <div className="absolute z-10 left-0 top-full mt-1 bg-white border rounded-sm shadow-md min-w-full max-h-64 overflow-auto whitespace-nowrap">
+        <div className="absolute z-10 left-0 top-full mt-1 bg-white dark:bg-neutral-800 border rounded-sm shadow-md min-w-full max-h-64 overflow-auto whitespace-nowrap">
           {isRange ? (
             <div className="p-2 flex flex-col gap-1">
               <input
@@ -150,7 +150,7 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
                 {value && (
                   <button
                     type="button"
-                    className="border rounded-sm px-2 py-0.5 text-sm hover:bg-neutral-100"
+                    className="border rounded-sm px-2 py-0.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700"
                     onClick={() => select('')}
                   >
                     クリア
@@ -173,8 +173,8 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
                 role="option"
                 aria-selected={value === ''}
                 className={`block w-full text-left px-2 py-1 text-sm text-neutral-400 ${
-                  active === 0 ? 'bg-blue-100' : ''
-                } hover:bg-neutral-100`}
+                  active === 0 ? 'bg-blue-100 dark:bg-blue-900' : ''
+                } hover:bg-neutral-100 dark:hover:bg-neutral-700`}
                 onClick={() => select('')}
                 onMouseEnter={() => setActive(0)}
               >
@@ -190,12 +190,12 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
                     role="option"
                     aria-selected={checked}
                     className={`block w-full text-left px-2 py-1 text-sm ${
-                      index === active ? 'bg-blue-100' : checked ? 'bg-blue-50' : ''
-                    } hover:bg-neutral-100`}
+                      index === active ? 'bg-blue-100 dark:bg-blue-900' : checked ? 'bg-blue-50 dark:bg-blue-950' : ''
+                    } hover:bg-neutral-100 dark:hover:bg-neutral-700`}
                     onClick={() => pick(option.value)}
                     onMouseEnter={() => setActive(index)}
                   >
-                    <span className="inline-block w-4 text-blue-700">{checked ? '✓' : ''}</span>
+                    <span className="inline-block w-4 text-blue-700 dark:text-blue-400">{checked ? '✓' : ''}</span>
                     {option.label}
                     {option.note && <span className="text-neutral-400 ml-1">（{option.note}）</span>}
                   </button>
@@ -205,12 +205,12 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
                 <button
                   type="button"
                   className={`block w-full text-left px-2 py-1 text-sm border-t ${
-                    active === lastIndex ? 'bg-blue-100' : ''
-                  } ${alts.length === 0 ? 'text-neutral-300' : ''} hover:bg-neutral-100`}
+                    active === lastIndex ? 'bg-blue-100 dark:bg-blue-900' : ''
+                  } ${alts.length === 0 ? 'text-neutral-300 dark:text-neutral-600' : ''} hover:bg-neutral-100 dark:hover:bg-neutral-700`}
                   onClick={toggleNot}
                   onMouseEnter={() => setActive(lastIndex)}
                 >
-                  <span className="inline-block w-4 text-blue-700">{not ? '✓' : ''}</span>
+                  <span className="inline-block w-4 text-blue-700 dark:text-blue-400">{not ? '✓' : ''}</span>
                   除外（マッチしないもの）
                 </button>
               )}

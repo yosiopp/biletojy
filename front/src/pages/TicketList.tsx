@@ -72,13 +72,13 @@ function TicketList() {
         catalog={catalog}
       />
 
-      {error && <p className="text-red-600 mb-2">{error}</p>}
-      {notice && <p className="text-blue-700 mb-2">{notice}</p>}
+      {error && <p className="text-red-600 dark:text-red-400 mb-2">{error}</p>}
+      {notice && <p className="text-blue-700 dark:text-blue-400 mb-2">{notice}</p>}
 
       <div className="flex flex-wrap items-start justify-between mb-2">
         <ViewSelect q={q} tags={tags} onApply={updateParams} />
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <label htmlFor="ticket-sort" className="text-neutral-500">
+          <label htmlFor="ticket-sort" className="text-neutral-500 dark:text-neutral-400">
             並び替え:
           </label>
           <select
@@ -97,7 +97,7 @@ function TicketList() {
           </select>
           <button
             type="button"
-            className="border rounded-sm px-2 py-0.5 hover:bg-neutral-100"
+            className="border rounded-sm px-2 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
             onClick={() => updateSort({ ...sort, desc: !sort.desc })}
           >
             {sort.desc ? '↓ 降順' : '↑ 昇順'}
@@ -118,25 +118,25 @@ function TicketList() {
         </div>
       </div>
 
-      <div className="hidden sm:flex text-neutral-500 border-b">
+      <div className="hidden sm:flex text-neutral-500 dark:text-neutral-400 border-b">
         <div className="flex-none w-16 py-1 pl-4">id</div>
         <div className="w-2/4 py-1">title</div>
         <div className="flex-1 py-1">tags</div>
         <div className="flex-none w-40 py-1 pr-4">updated</div>
       </div>
-      {tickets == null && !error && <p className="text-neutral-500 p-4">読み込み中...</p>}
+      {tickets == null && !error && <p className="text-neutral-500 dark:text-neutral-400 p-4">読み込み中...</p>}
       {tickets != null &&
         sortTickets(tickets, sort).map((ticket) => (
           <TicketRow key={ticket.id} ticket={ticket} catalog={catalog} />
         ))}
       {tickets != null && tickets.length === 0 && (
-        <div className="text-neutral-500 p-4">
+        <div className="text-neutral-500 dark:text-neutral-400 p-4">
           {hasFilter ? (
             <>
               条件に一致するチケットがありません
               <button
                 type="button"
-                className="text-blue-700 hover:underline ml-2"
+                className="text-blue-700 dark:text-blue-400 hover:underline ml-2"
                 onClick={() => updateParams('', [])}
               >
                 条件をクリア
@@ -145,7 +145,7 @@ function TicketList() {
           ) : (
             <>
               チケットがありません
-              <Link to="/tickets/new" className="text-blue-700 hover:underline ml-2">
+              <Link to="/tickets/new" className="text-blue-700 dark:text-blue-400 hover:underline ml-2">
                 新規チケットを作成
               </Link>
             </>

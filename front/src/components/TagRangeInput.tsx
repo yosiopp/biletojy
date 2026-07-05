@@ -78,7 +78,7 @@ function TagRangeInput({
   return (
     <span
       ref={rootRef}
-      className="absolute z-10 top-full mt-1 flex items-center gap-1 bg-white border rounded-sm shadow-md p-2"
+      className="absolute z-10 top-full mt-1 flex items-center gap-1 bg-white dark:bg-neutral-800 border rounded-sm shadow-md p-2"
       style={{ left }}
     >
       <input
@@ -108,7 +108,7 @@ function TagRangeInput({
       />
       <button
         type="button"
-        className="border rounded-sm px-2 py-0.5 text-sm hover:bg-neutral-100"
+        className="border rounded-sm px-2 py-0.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700"
         onClick={() => value && onSubmit()}
       >
         {submitLabel}

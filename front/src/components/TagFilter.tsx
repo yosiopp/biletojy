@@ -50,10 +50,10 @@ function ConditionChip({
     children
   );
   return (
-    <span className="inline-flex items-center rounded-lg border border-neutral-300 bg-white py-0.5 px-2 mr-1 mb-1 whitespace-nowrap">
-      {label && <span className="border-r border-neutral-300 pr-1 text-sm text-neutral-500">{label}</span>}
+    <span className="inline-flex items-center rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 py-0.5 px-2 mr-1 mb-1 whitespace-nowrap">
+      {label && <span className="border-r border-neutral-300 dark:border-neutral-600 pr-1 text-sm text-neutral-500 dark:text-neutral-400">{label}</span>}
       <span className={label ? 'pl-2' : ''}>{content}</span>
-      <button type="button" className="ml-1 text-neutral-400 hover:text-neutral-700" onClick={onRemove}>
+      <button type="button" className="ml-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200" onClick={onRemove}>
         ×
       </button>
     </span>
@@ -206,7 +206,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
       </span>
 
       <div className="flex flex-wrap items-center mt-2">
-        <span className="text-sm text-neutral-500 mr-1 mb-1">絞り込み:</span>
+        <span className="text-sm text-neutral-500 dark:text-neutral-400 mr-1 mb-1">絞り込み:</span>
 
         {filterGroups.map(([group, tags]) => {
           const groupSelected = selectedInGroup(group);

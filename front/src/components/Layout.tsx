@@ -85,7 +85,7 @@ function Layout() {
 
       <button
         type="button"
-        className="fixed bottom-4 right-4 z-20 w-8 h-8 rounded-full border bg-white text-neutral-500 shadow-sm hover:bg-neutral-100"
+        className="fixed bottom-4 right-4 z-20 w-8 h-8 rounded-full border bg-white dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 shadow-sm hover:bg-neutral-100 dark:hover:bg-neutral-700"
         title="ショートカット一覧（?）"
         aria-label="ショートカット一覧"
         onClick={() => setShowHelp((v) => !v)}
@@ -95,20 +95,20 @@ function Layout() {
 
       {showHelp && (
         <div
-          className="fixed inset-0 z-20 bg-black/30 flex items-center justify-center"
+          className="fixed inset-0 z-20 bg-black/30 dark:bg-black/60 flex items-center justify-center"
           onClick={() => setShowHelp(false)}
         >
           <div
             role="dialog"
             aria-label="キーボードショートカット"
-            className="bg-white rounded-sm shadow-lg p-4 w-80"
+            className="bg-white dark:bg-neutral-800 rounded-sm shadow-lg p-4 w-80"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center mb-2">
               <h2 className="text-lg flex-1">キーボードショートカット</h2>
               <button
                 type="button"
-                className="text-neutral-400 hover:text-neutral-700"
+                className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
                 aria-label="閉じる"
                 onClick={() => setShowHelp(false)}
               >
@@ -120,7 +120,7 @@ function Layout() {
                 {SHORTCUTS.map(([key, desc]) => (
                   <tr key={key}>
                     <td className="py-1 pr-3 whitespace-nowrap">
-                      <kbd className="border rounded-sm px-1.5 py-0.5 bg-neutral-50 font-mono text-xs">{key}</kbd>
+                      <kbd className="border rounded-sm px-1.5 py-0.5 bg-neutral-50 dark:bg-neutral-700 font-mono text-xs">{key}</kbd>
                     </td>
                     <td className="py-1">{desc}</td>
                   </tr>

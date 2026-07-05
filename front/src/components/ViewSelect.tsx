@@ -106,18 +106,18 @@ function ViewSelect({ q, tags, onApply }: Props) {
         aria-expanded={open}
         className={`inline-flex items-center rounded-lg border py-0.5 px-2 whitespace-nowrap ${
           current
-            ? 'bg-neutral-100 border-transparent'
-            : 'bg-white border-dashed border-neutral-300 text-neutral-500 hover:bg-neutral-50'
+            ? 'bg-neutral-100 dark:bg-neutral-700 border-transparent'
+            : 'bg-white dark:bg-neutral-900 border-dashed border-neutral-300 dark:border-neutral-600 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'
         }`}
         onClick={toggle}
       >
-        <span className="border-r border-neutral-300 pr-1 text-sm opacity-70">ビュー</span>
+        <span className="border-r border-neutral-300 dark:border-neutral-600 pr-1 text-sm opacity-70">ビュー</span>
         <span className={`pl-2 ${current ? '' : 'text-neutral-400'}`}>{current?.name ?? '-'}</span>
         <span className="ml-1 text-xs text-neutral-400">▾</span>
       </button>
 
       {open && (
-        <div className="absolute z-10 left-0 top-full mt-1 bg-white border rounded-sm shadow-md min-w-full max-h-64 overflow-auto whitespace-nowrap">
+        <div className="absolute z-10 left-0 top-full mt-1 bg-white dark:bg-neutral-800 border rounded-sm shadow-md min-w-full max-h-64 overflow-auto whitespace-nowrap">
           {views.length === 0 ? (
             <p className="px-2 py-1 text-sm text-neutral-400">保存済みのビューはありません</p>
           ) : (
@@ -126,8 +126,8 @@ function ViewSelect({ q, tags, onApply }: Props) {
                 <div
                   key={view.name}
                   className={`flex items-center ${
-                    i === active ? 'bg-blue-100' : view === current ? 'bg-blue-50' : ''
-                  } hover:bg-neutral-100`}
+                    i === active ? 'bg-blue-100 dark:bg-blue-900' : view === current ? 'bg-blue-50 dark:bg-blue-950' : ''
+                  } hover:bg-neutral-100 dark:hover:bg-neutral-700`}
                   onMouseEnter={() => setActive(i)}
                 >
                   <button
@@ -137,7 +137,7 @@ function ViewSelect({ q, tags, onApply }: Props) {
                     className="flex-1 text-left px-2 py-1 text-sm"
                     onClick={() => apply(view)}
                   >
-                    <span className="inline-block w-4 text-blue-700">{view === current ? '✓' : ''}</span>
+                    <span className="inline-block w-4 text-blue-700 dark:text-blue-400">{view === current ? '✓' : ''}</span>
                     {view.name}
                     <span className="text-neutral-400 ml-1 text-xs">
                       {[...view.tags, ...splitTags(view.q)].join(' ')}
@@ -145,7 +145,7 @@ function ViewSelect({ q, tags, onApply }: Props) {
                   </button>
                   <button
                     type="button"
-                    className="px-2 py-1 text-neutral-400 hover:text-neutral-700"
+                    className="px-2 py-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
                     title={`ビュー「${view.name}」を削除`}
                     onClick={() => remove(view.name)}
                   >

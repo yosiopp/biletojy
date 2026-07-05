@@ -18,7 +18,7 @@ function Dialog({ label, onClose, children }: { label: string; onClose: () => vo
     <dialog
       ref={ref}
       aria-label={label}
-      className="m-auto bg-white rounded-sm shadow-lg backdrop:bg-black/30"
+      className="m-auto bg-white dark:bg-neutral-800 rounded-sm shadow-lg backdrop:bg-black/30 dark:backdrop:bg-black/60"
       onClose={onClose}
       onClick={onClick}
     >

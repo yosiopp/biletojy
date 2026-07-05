@@ -62,8 +62,8 @@ function TicketDetail() {
     }
   };
 
-  if (ticketError) return <p className="text-red-600">{ticketError}</p>;
-  if (!ticket) return <p className="text-neutral-500">読み込み中...</p>;
+  if (ticketError) return <p className="text-red-600 dark:text-red-400">{ticketError}</p>;
+  if (!ticket) return <p className="text-neutral-500 dark:text-neutral-400">読み込み中...</p>;
 
   return (
     <>
@@ -74,20 +74,20 @@ function TicketDetail() {
         </h2>
         <Link
           to={`/tickets/${ticket.id}/history`}
-          className="border rounded-sm px-3 py-1 text-sm hover:bg-neutral-100 mr-2"
+          className="border rounded-sm px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 mr-2"
           title="ctrl+h"
         >
           履歴
         </Link>
         <Link
           to={`/tickets/${ticket.id}/edit`}
-          className="border rounded-sm px-3 py-1 text-sm hover:bg-neutral-100"
+          className="border rounded-sm px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
           title="ctrl+e"
         >
           編集
         </Link>
       </div>
-      <div className="text-sm text-neutral-500 mb-2">
+      <div className="text-sm text-neutral-500 dark:text-neutral-400 mb-2">
         <span title={ticket.created_sub || undefined}>{ticket.created_by}</span> が作成 ・ 更新{' '}
         {formatDateTime(ticket.updated_at)}
       </div>
@@ -107,7 +107,7 @@ function TicketDetail() {
           <ul>
             {backlinks.map((b) => (
               <li key={b.id}>
-                <Link to={`/tickets/${b.id}`} className="text-blue-700 hover:underline">
+                <Link to={`/tickets/${b.id}`} className="text-blue-700 dark:text-blue-400 hover:underline">
                   <span className="text-neutral-400 mr-1">#{b.id}</span>
                   {b.title}
                 </Link>
@@ -117,14 +117,14 @@ function TicketDetail() {
         </div>
       )}
 
-      <hr className="border-t-2 border-neutral-300 mb-6" />
+      <hr className="border-t-2 border-neutral-300 dark:border-neutral-600 mb-6" />
 
       <h3 className="text-lg mb-2">コメント</h3>
-      {commentError && <p className="text-red-600 mb-2">{commentError}</p>}
-      <div className="divide-y divide-neutral-200">
+      {commentError && <p className="text-red-600 dark:text-red-400 mb-2">{commentError}</p>}
+      <div className="divide-y divide-neutral-200 dark:divide-neutral-700">
         {comments.map((comment) => (
           <div key={comment.id} className="py-3">
-            <div className="text-sm text-neutral-500 mb-1">
+            <div className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">
               <span title={comment.created_sub || undefined}>{comment.created_by}</span> ・{' '}
               {formatDateTime(comment.created_at)}
               {comment.updated_at !== comment.created_at && (
@@ -132,7 +132,7 @@ function TicketDetail() {
                   {' ・ '}
                   <button
                     type="button"
-                    className="text-blue-700 hover:underline"
+                    className="text-blue-700 dark:text-blue-400 hover:underline"
                     onClick={() => setOpenHistories((prev) => ({ ...prev, [comment.id]: !prev[comment.id] }))}
                   >
                     編集済み（履歴）
@@ -171,7 +171,7 @@ function TicketDetail() {
         </button>
         <button
           type="button"
-          className="text-sm text-blue-700 hover:underline ml-3"
+          className="text-sm text-blue-700 dark:text-blue-400 hover:underline ml-3"
           onClick={() => fileRef.current?.click()}
         >
           ファイルを添付

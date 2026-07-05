@@ -25,13 +25,13 @@ function UserNameDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-20 bg-black/30 flex items-center justify-center"
+      className="fixed inset-0 z-20 bg-black/30 dark:bg-black/60 flex items-center justify-center"
       onClick={onClose}
     >
       <form
         role="dialog"
         aria-label="ユーザ名の設定"
-        className="bg-white rounded-sm shadow-lg p-4 w-80"
+        className="bg-white dark:bg-neutral-800 rounded-sm shadow-lg p-4 w-80"
         onClick={(e) => e.stopPropagation()}
         onSubmit={submit}
       >
@@ -39,14 +39,14 @@ function UserNameDialog({ onClose }: { onClose: () => void }) {
           <h2 className="text-lg flex-1">ユーザ名の設定</h2>
           <button
             type="button"
-            className="text-neutral-400 hover:text-neutral-700"
+            className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
             aria-label="閉じる"
             onClick={onClose}
           >
             ×
           </button>
         </div>
-        <p className="text-sm text-neutral-500 mb-2">
+        <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-2">
           チケットやコメントの作成者名として記録されます。未設定のままの場合は anonymous
           として記録されます。
         </p>
@@ -61,7 +61,7 @@ function UserNameDialog({ onClose }: { onClose: () => void }) {
         <div className="text-right">
           <button
             type="button"
-            className="border rounded-sm px-4 py-1 hover:bg-neutral-100"
+            className="border rounded-sm px-4 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
             onClick={onClose}
           >
             {hasCurrentUser() ? 'キャンセル' : 'あとで'}

@@ -189,8 +189,8 @@ function TagList() {
     <Dialog label={editing.id == null ? '新規タグ' : 'タグの編集'} onClose={() => setEditing(null)}>
       <form onSubmit={submit} className="w-80 max-w-full">
         <h2 className="text-lg mb-2">{editing.id == null ? '新規タグ' : 'タグの編集'}</h2>
-        {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
-        <label className="block text-sm text-neutral-600 mb-2">
+        {error && <p className="text-red-600 dark:text-red-400 text-sm mb-2">{error}</p>}
+        <label className="block text-sm text-neutral-600 dark:text-neutral-300 mb-2">
           タグ
           <input
             type="text"
@@ -201,7 +201,7 @@ function TagList() {
             autoFocus
           />
         </label>
-        <label className="block text-sm text-neutral-600 mb-2">
+        <label className="block text-sm text-neutral-600 dark:text-neutral-300 mb-2">
           説明
           <input
             type="text"
@@ -210,7 +210,7 @@ function TagList() {
             onChange={(e) => setEditing({ ...editing, note: e.target.value })}
           />
         </label>
-        <label className="block text-sm text-neutral-600 mb-3">
+        <label className="block text-sm text-neutral-600 dark:text-neutral-300 mb-3">
           色
           <span className="flex items-center gap-1">
             <input
@@ -222,7 +222,7 @@ function TagList() {
             {editing.color && (
               <button
                 type="button"
-                className="text-xs text-neutral-500 underline"
+                className="text-xs text-neutral-500 dark:text-neutral-400 underline"
                 onClick={() => setEditing({ ...editing, color: '' })}
               >
                 色なし
@@ -233,7 +233,7 @@ function TagList() {
         <div className="text-right">
           <button
             type="button"
-            className="border rounded-sm px-4 py-1 hover:bg-neutral-100"
+            className="border rounded-sm px-4 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
             onClick={() => setEditing(null)}
           >
             キャンセル
@@ -255,7 +255,7 @@ function TagList() {
         <div className="text-right">
           <button
             type="button"
-            className="border rounded-sm px-4 py-1 hover:bg-neutral-100"
+            className="border rounded-sm px-4 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
             onClick={() => setRenaming(null)}
             autoFocus
           >
@@ -281,7 +281,7 @@ function TagList() {
         <div className="text-right">
           <button
             type="button"
-            className="border rounded-sm px-4 py-1 hover:bg-neutral-100"
+            className="border rounded-sm px-4 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
             onClick={() => setConfirming(null)}
             autoFocus
           >
@@ -315,12 +315,12 @@ function TagList() {
           + 新規タグ
         </button>
       </div>
-      {error && !editing && <p className="text-red-600 mb-2">{error}</p>}
+      {error && !editing && <p className="text-red-600 dark:text-red-400 mb-2">{error}</p>}
       {editDialog}
       {renameDialog}
       {confirmDialog}
 
-      <div className="hidden sm:flex text-neutral-500 border-b">
+      <div className="hidden sm:flex text-neutral-500 dark:text-neutral-400 border-b">
         <div className="w-1/3 py-1 pl-2">tag</div>
         <div className="w-1/4 py-1">説明</div>
         <div className="flex-1 py-1">属性</div>
@@ -335,8 +335,8 @@ function TagList() {
         <div
           key={tag.id}
           className={`block sm:flex sm:items-center ${
-            sectionEnd ? 'border-b-2 border-b-neutral-300' : 'border-b'
-          } hover:bg-neutral-100 px-2 py-2 sm:px-0 sm:py-0 ${dropId === tag.id ? 'bg-blue-50' : ''}`}
+            sectionEnd ? 'border-b-2 border-b-neutral-300 dark:border-b-neutral-600' : 'border-b'
+          } hover:bg-neutral-100 dark:hover:bg-neutral-800 px-2 py-2 sm:px-0 sm:py-0 ${dropId === tag.id ? 'bg-blue-50 dark:bg-blue-950' : ''}`}
           onDragOver={(e) => {
             if (sortable && dragKey === key && dragId !== tag.id) {
               e.preventDefault();
@@ -357,7 +357,7 @@ function TagList() {
                 <button
                   type="button"
                   draggable
-                  className="cursor-grab text-neutral-400 hover:text-neutral-700 text-sm"
+                  className="cursor-grab text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 text-sm"
                   title="ドラッグまたは↑↓キーで並び替え"
                   aria-label={`${tag.tag} を並び替え`}
                   onDragStart={(e) => {
@@ -383,7 +383,7 @@ function TagList() {
             <TagItem tag={tag.tag} color={tag.color} />
           </div>
           <div className="sm:w-1/4 sm:py-2 text-sm">{tag.note}</div>
-          <div className="sm:flex-1 sm:py-2 mt-1 sm:mt-0 text-sm text-neutral-500">
+          <div className="sm:flex-1 sm:py-2 mt-1 sm:mt-0 text-sm text-neutral-500 dark:text-neutral-400">
             {tag.is_group && <span className="mr-2">グループ</span>}
             {tag.is_range && <span className="mr-2">{parseTag(tag.tag).isNumber ? '数値' : '日時'}</span>}
             {tag.tag.includes('/') && <span className="mr-2">階層</span>}
@@ -391,7 +391,7 @@ function TagList() {
           <div className="sm:flex-none sm:w-32 sm:py-2 sm:pr-2 sm:text-right mt-1 sm:mt-0 text-sm">
             <button
               type="button"
-              className="text-blue-700 hover:underline mr-3"
+              className="text-blue-700 dark:text-blue-400 hover:underline mr-3"
               onClick={() => {
                 setError('');
                 setEditing({ id: tag.id, tag: tag.tag, note: tag.note ?? '', color: tag.color ?? '' });
@@ -399,7 +399,7 @@ function TagList() {
             >
               編集
             </button>
-            <button type="button" className="text-red-600 hover:underline" onClick={() => confirmRemove(tag)}>
+            <button type="button" className="text-red-600 dark:text-red-400 hover:underline" onClick={() => confirmRemove(tag)}>
               削除
             </button>
           </div>

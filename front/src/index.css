@@ -1,5 +1,22 @@
 @import 'tailwindcss';
 
+/* ダークモードはOS設定（prefers-color-scheme）ではなくhtml要素の.darkクラスで切り替える。
+   クラスの付与はindex.htmlのインラインスクリプト（初期表示）とsrc/lib/theme.ts（トグル）が行う */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  /* ネイティブUI（フォームコントロール・日付ピッカー・スクロールバー等）の配色をテーマに合わせる */
+  :root {
+    color-scheme: light;
+  }
+  :root.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-white dark:bg-neutral-900 dark:text-neutral-100;
+  }
+}
+
 /*
   The default border color has changed to `currentcolor` in Tailwind CSS v4,
   so we've added these compatibility styles to make sure everything still
@@ -15,6 +32,15 @@
   ::backdrop,
   ::file-selector-button {
     border-color: var(--color-neutral-200, currentcolor);
+  }
+
+  /* ダークモードでは既定の罫線色をneutral-700にする（`border` だけの指定を一括で反転する） */
+  .dark *,
+  .dark ::after,
+  .dark ::before,
+  .dark ::backdrop,
+  .dark ::file-selector-button {
+    border-color: var(--color-neutral-700, currentcolor);
   }
 }
 
@@ -41,16 +67,16 @@
   @apply list-decimal pl-6 my-2;
 }
 .markdown-body a {
-  @apply text-blue-700 underline;
+  @apply text-blue-700 underline dark:text-blue-400;
 }
 .markdown-body blockquote {
-  @apply border-l-4 border-neutral-300 pl-3 my-2 text-neutral-600;
+  @apply border-l-4 border-neutral-300 pl-3 my-2 text-neutral-600 dark:border-neutral-600 dark:text-neutral-300;
 }
 .markdown-body pre {
-  @apply bg-neutral-100 rounded-sm p-3 my-2 overflow-x-auto text-sm;
+  @apply bg-neutral-100 rounded-sm p-3 my-2 overflow-x-auto text-sm dark:bg-neutral-800;
 }
 .markdown-body code {
-  @apply bg-neutral-100 rounded-sm px-1 text-sm;
+  @apply bg-neutral-100 rounded-sm px-1 text-sm dark:bg-neutral-800;
 }
 .markdown-body pre code {
   @apply bg-transparent p-0;

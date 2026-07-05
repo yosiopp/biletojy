@@ -20,10 +20,10 @@ function TagItem({ tag, color, onRemove, onClick }: Props) {
   const due = isDate ? dueState(name) : null;
   const dueClass =
     due === 'overdue'
-      ? 'bg-red-50 border-red-500 text-red-700'
+      ? 'bg-red-50 dark:bg-red-950 border-red-500 text-red-700 dark:text-red-300'
       : due === 'soon'
-        ? 'bg-amber-50 border-amber-500 text-amber-800'
-        : 'bg-neutral-100 border-transparent';
+        ? 'bg-amber-50 dark:bg-amber-950 border-amber-500 text-amber-800 dark:text-amber-300'
+        : 'bg-neutral-100 dark:bg-neutral-700 border-transparent';
   const style = !due && color ? { backgroundColor: `${color}20`, borderColor: color } : {};
 
   return (
@@ -34,7 +34,7 @@ function TagItem({ tag, color, onRemove, onClick }: Props) {
     >
       {group != null ? (
         <>
-          <span className="border-r border-neutral-300 pr-1 text-sm opacity-70">{group.replace(/[@#]$/, '')}</span>
+          <span className="border-r border-neutral-300 dark:border-neutral-600 pr-1 text-sm opacity-70">{group.replace(/[@#]$/, '')}</span>
           <span className="pl-2">{nameEl}</span>
         </>
       ) : (
@@ -43,7 +43,7 @@ function TagItem({ tag, color, onRemove, onClick }: Props) {
       {onRemove && (
         <button
           type="button"
-          className="ml-1 text-neutral-400 hover:text-neutral-700"
+          className="ml-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
           onClick={(e) => {
             e.stopPropagation();
             onRemove();

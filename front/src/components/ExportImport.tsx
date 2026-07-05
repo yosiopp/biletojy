@@ -93,7 +93,7 @@ function ExportImport({ q, tags, onImported, onError }: Props) {
   };
 
   const itemClass = (i: number) =>
-    `block w-full text-left px-2 py-1 text-sm ${i === active ? 'bg-blue-100' : ''} hover:bg-neutral-100`;
+    `block w-full text-left px-2 py-1 text-sm ${i === active ? 'bg-blue-100 dark:bg-blue-900' : ''} hover:bg-neutral-100 dark:hover:bg-neutral-700`;
 
   return (
     <span ref={rootRef} className="relative inline-block" onKeyDown={onKeyDown}>
@@ -102,7 +102,7 @@ function ExportImport({ q, tags, onImported, onError }: Props) {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        className="border rounded-sm px-2 py-0.5 hover:bg-neutral-100 disabled:opacity-50"
+        className="border rounded-sm px-2 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
         disabled={importing}
         onClick={() => (open ? close() : setOpen(true))}
       >
@@ -113,7 +113,7 @@ function ExportImport({ q, tags, onImported, onError }: Props) {
         <div
           role="menu"
           aria-label="エクスポート/インポート"
-          className="absolute z-10 right-0 top-full mt-1 bg-white border rounded-sm shadow-md whitespace-nowrap"
+          className="absolute z-10 right-0 top-full mt-1 bg-white dark:bg-neutral-800 border rounded-sm shadow-md whitespace-nowrap"
         >
           {items.map((item, i) =>
             item.href ? (

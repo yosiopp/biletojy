@@ -82,8 +82,8 @@ function TemplateList() {
     >
       <form onSubmit={submit} className="w-[36rem] max-w-full">
         <h2 className="text-lg mb-2">{editing.id == null ? '新規テンプレート' : 'テンプレートの編集'}</h2>
-        {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
-        <label className="block text-sm text-neutral-600 mb-2">
+        {error && <p className="text-red-600 dark:text-red-400 text-sm mb-2">{error}</p>}
+        <label className="block text-sm text-neutral-600 dark:text-neutral-300 mb-2">
           テンプレート名
           <input
             type="text"
@@ -94,7 +94,7 @@ function TemplateList() {
             autoFocus
           />
         </label>
-        <label className="block text-sm text-neutral-600 mb-2">
+        <label className="block text-sm text-neutral-600 dark:text-neutral-300 mb-2">
           タイトル
           <input
             type="text"
@@ -104,7 +104,7 @@ function TemplateList() {
             onChange={(e) => setEditing({ ...editing, title: e.target.value })}
           />
         </label>
-        <label className="block text-sm text-neutral-600 mb-2">
+        <label className="block text-sm text-neutral-600 dark:text-neutral-300 mb-2">
           本文
           <TicketRefTextarea
             className="border rounded-sm w-full p-2 h-40 font-mono text-sm"
@@ -113,14 +113,14 @@ function TemplateList() {
             onChange={(content) => setEditing({ ...editing, content })}
           />
         </label>
-        <div className="text-sm text-neutral-600 mb-3">
+        <div className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
           タグ
           <TagInput value={editing.tags} onChange={(tags) => setEditing({ ...editing, tags })} catalog={catalog} />
         </div>
         <div className="text-right">
           <button
             type="button"
-            className="border rounded-sm px-4 py-1 hover:bg-neutral-100"
+            className="border rounded-sm px-4 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
             onClick={() => setEditing(null)}
           >
             キャンセル
@@ -141,7 +141,7 @@ function TemplateList() {
         <div className="text-right">
           <button
             type="button"
-            className="border rounded-sm px-4 py-1 hover:bg-neutral-100"
+            className="border rounded-sm px-4 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
             onClick={() => setConfirming(null)}
             autoFocus
           >
@@ -174,23 +174,23 @@ function TemplateList() {
           + 新規テンプレート
         </button>
       </div>
-      {error && !editing && <p className="text-red-600 mb-2">{error}</p>}
+      {error && !editing && <p className="text-red-600 dark:text-red-400 mb-2">{error}</p>}
       {editDialog}
       {confirmDialog}
 
-      <div className="hidden sm:flex text-neutral-500 border-b">
+      <div className="hidden sm:flex text-neutral-500 dark:text-neutral-400 border-b">
         <div className="w-1/4 py-1 pl-2">テンプレート名</div>
         <div className="w-1/4 py-1">タイトル</div>
         <div className="flex-1 py-1">タグ</div>
         <div className="flex-none w-32 py-1"></div>
       </div>
       {loaded && templates.length === 0 && (
-        <p className="text-neutral-500 p-4">
+        <p className="text-neutral-500 dark:text-neutral-400 p-4">
           テンプレートはまだありません。「+ 新規テンプレート」から登録すると、チケット作成時に選択して適用できます。
         </p>
       )}
       {templates.map((tpl) => (
-        <div key={tpl.id} className="block sm:flex sm:items-center border-b hover:bg-neutral-100 px-2 py-2 sm:px-0 sm:py-0">
+        <div key={tpl.id} className="block sm:flex sm:items-center border-b hover:bg-neutral-100 dark:hover:bg-neutral-800 px-2 py-2 sm:px-0 sm:py-0">
           <div className="sm:w-1/4 sm:py-2 sm:pl-2">{tpl.name}</div>
           <div className="sm:w-1/4 sm:py-2 text-sm truncate">{tpl.title}</div>
           <div className="sm:flex-1 sm:py-2 mt-1 sm:mt-0">
@@ -201,7 +201,7 @@ function TemplateList() {
           <div className="sm:flex-none sm:w-32 sm:py-2 sm:pr-2 sm:text-right mt-1 sm:mt-0 text-sm">
             <button
               type="button"
-              className="text-blue-700 hover:underline mr-3"
+              className="text-blue-700 dark:text-blue-400 hover:underline mr-3"
               onClick={() => {
                 setError('');
                 setEditing({
@@ -215,7 +215,7 @@ function TemplateList() {
             >
               編集
             </button>
-            <button type="button" className="text-red-600 hover:underline" onClick={() => setConfirming(tpl)}>
+            <button type="button" className="text-red-600 dark:text-red-400 hover:underline" onClick={() => setConfirming(tpl)}>
               削除
             </button>
           </div>

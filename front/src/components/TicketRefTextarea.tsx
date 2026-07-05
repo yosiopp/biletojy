@@ -198,15 +198,15 @@ function TicketRefTextarea({ value, onChange, onKeyDown, onSelect, onBlur, onScr
       />
       {pending != null && (
         <span
-          className="absolute z-10 block w-80 max-w-full bg-white border rounded-sm shadow-md max-h-64 overflow-auto"
+          className="absolute z-10 block w-80 max-w-full bg-white dark:bg-neutral-800 border rounded-sm shadow-md max-h-64 overflow-auto"
           style={{ left: pos.left, top: pos.top }}
           // クリックやスクロールバー操作でtextareaのフォーカスを奪わない（blurで閉じない）
           onMouseDown={(e) => e.preventDefault()}
         >
           {candidates == null ? (
-            <span className="block px-2 py-1 text-sm text-neutral-500">検索中...</span>
+            <span className="block px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">検索中...</span>
           ) : candidates.length === 0 ? (
-            <span className="block px-2 py-1 text-sm text-neutral-500">該当するチケットはありません</span>
+            <span className="block px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">該当するチケットはありません</span>
           ) : (
             <span className="block" role="listbox" aria-label="チケット参照の候補">
               {candidates.map((ticket, i) => (
@@ -216,8 +216,8 @@ function TicketRefTextarea({ value, onChange, onKeyDown, onSelect, onBlur, onScr
                   role="option"
                   aria-selected={i === active}
                   className={`block w-full text-left px-2 py-1 text-sm truncate ${
-                    i === active ? 'bg-blue-100' : ''
-                  } hover:bg-neutral-100`}
+                    i === active ? 'bg-blue-100 dark:bg-blue-900' : ''
+                  } hover:bg-neutral-100 dark:hover:bg-neutral-700`}
                   onClick={() => insert(ticket)}
                   onMouseEnter={() => setActive(i)}
                 >
