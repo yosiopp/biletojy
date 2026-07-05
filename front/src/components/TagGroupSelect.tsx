@@ -27,8 +27,9 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isDate = group.endsWith('@');
   const { not, alts } = parseCond(value);
-  const names = alts.map((a) => parseTag(a).name);
-  const chipLabel = (not ? '-' : '') + names.join('|');
+  const chipLabel = alts.map((a) => parseTag(a).name).join('|');
+  // 除外条件は "-status:CLOSE" の記法に合わせて "-" をグループ名の前に表示する
+  const groupLabel = (not ? '-' : '') + group.replace(/@$/, '');
 
   // キーボード移動の対象: 0=クリア、1..n=選択肢、n+1=除外トグル
   const lastIndex = options.length + 1;
@@ -44,7 +45,7 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
 
   const toggle = () => {
     // 既存タグに時刻付きの値（例: 2026-07-04T10:00）が残っていても日付部分だけをピッカーに渡す
-    if (isDate) setDateValue((names[0] ?? '').slice(0, 10));
+    if (isDate) setDateValue(alts.length > 0 ? parseTag(alts[0]).name.slice(0, 10) : '');
     setActive(open ? -1 : Math.max(options.findIndex((o) => alts.includes(o.value)) + 1, 0));
     setOpen(!open);
   };
@@ -122,7 +123,7 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
         style={chipStyle}
         onClick={toggle}
       >
-        <span className="border-r border-neutral-300 pr-1 text-sm opacity-70">{group.replace(/@$/, '')}</span>
+        <span className="border-r border-neutral-300 pr-1 text-sm opacity-70">{groupLabel}</span>
         <span className={`pl-2 ${value ? '' : 'text-neutral-400'}`}>{chipLabel || '-'}</span>
         <span className="ml-1 text-xs text-neutral-400">▾</span>
       </button>
