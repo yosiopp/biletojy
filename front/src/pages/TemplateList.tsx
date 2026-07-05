@@ -3,6 +3,7 @@ import { api, Template } from '../api/client';
 import Dialog from '../components/Dialog';
 import TagInput from '../components/TagInput';
 import TagItem from '../components/TagItem';
+import TicketRefTextarea from '../components/TicketRefTextarea';
 import { joinTags, splitTags, tagColor } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
 
@@ -105,11 +106,11 @@ function TemplateList() {
         </label>
         <label className="block text-sm text-neutral-600 mb-2">
           本文
-          <textarea
+          <TicketRefTextarea
             className="border rounded-sm w-full p-2 h-40 font-mono text-sm"
             placeholder={'## 再現手順\n\n## 期待する結果\n\n## 実際の結果'}
             value={editing.content}
-            onChange={(e) => setEditing({ ...editing, content: e.target.value })}
+            onChange={(content) => setEditing({ ...editing, content })}
           />
         </label>
         <div className="text-sm text-neutral-600 mb-3">

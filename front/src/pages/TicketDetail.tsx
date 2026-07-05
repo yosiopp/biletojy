@@ -4,6 +4,7 @@ import { api, Comment, Ticket } from '../api/client';
 import CommentHistory from '../components/CommentHistory';
 import Markdown from '../components/Markdown';
 import TagItem from '../components/TagItem';
+import TicketRefTextarea from '../components/TicketRefTextarea';
 import { formatDateTime } from '../lib/date';
 import { pasteImages } from '../lib/imagePaste';
 import { staleGuard } from '../lib/staleGuard';
@@ -152,11 +153,11 @@ function TicketDetail() {
       </div>
 
       <form onSubmit={submitComment} className="mt-4">
-        <textarea
+        <TicketRefTextarea
           className="border rounded-sm w-full p-2 h-24"
-          placeholder="コメントを追加（markdown可、画像ペースト可）"
+          placeholder="コメントを追加（markdown可、画像ペースト可、#でチケット参照）"
           value={commentText}
-          onChange={(e) => setCommentText(e.target.value)}
+          onChange={setCommentText}
           onPaste={(e) => pasteImages(e, setCommentText, setCommentError)}
         />
         <button
