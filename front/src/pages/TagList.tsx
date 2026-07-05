@@ -98,6 +98,9 @@ function TagList() {
     return name.length > 0 ? group : null;
   };
   const sortMembers = (key: string) => catalog.filter((t) => sortKeyOf(t) === key);
+  // 表示上のセクション。並び替えできる範囲がわかるよう境界の罫線を強調する。
+  // タググループは接頭辞、グループでないタグはまとめてひとつ（一覧の並び順と同じ区分）
+  const sectionOf = (tag: Tag): string => parseTag(tag.tag).group ?? '';
   const dragTag = dragId != null ? catalog.find((t) => t.id === dragId) : undefined;
   const dragKey = dragTag ? sortKeyOf(dragTag) : null;
 
@@ -255,15 +258,17 @@ function TagList() {
         <div className="flex-1 py-1">属性</div>
         <div className="flex-none w-32 py-1"></div>
       </div>
-      {catalog.map((tag) => {
+      {catalog.map((tag, i) => {
         const key = sortKeyOf(tag);
         const sortable = key != null && sortMembers(key).length > 1;
+        const next = catalog[i + 1];
+        const sectionEnd = next == null || sectionOf(next) !== sectionOf(tag);
         return (
         <div
           key={tag.id}
-          className={`block sm:flex sm:items-center border-b hover:bg-neutral-100 px-2 py-2 sm:px-0 sm:py-0 ${
-            dropId === tag.id ? 'bg-blue-50' : ''
-          }`}
+          className={`block sm:flex sm:items-center ${
+            sectionEnd ? 'border-b-2 border-b-neutral-300' : 'border-b'
+          } hover:bg-neutral-100 px-2 py-2 sm:px-0 sm:py-0 ${dropId === tag.id ? 'bg-blue-50' : ''}`}
           onDragOver={(e) => {
             if (sortable && dragKey === key && dragId !== tag.id) {
               e.preventDefault();
