@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, Tag } from '../api/client';
 import TagItem from '../components/TagItem';
-import { splitTags } from '../lib/tags';
+import { parseTag, splitTags } from '../lib/tags';
 
 type Editing = {
   id: number | null; // nullは新規作成
@@ -100,7 +100,7 @@ function TagList() {
           ref={tagInputRef}
           type="text"
           className="border rounded-sm px-2 py-1 block w-64"
-          placeholder="status:OPEN / docs/design / due-date@:"
+          placeholder="status:OPEN / docs/design / due-date@: / estimate#:"
           value={editing.tag}
           onChange={(e) => setEditing({ ...editing, tag: e.target.value })}
           autoFocus
@@ -181,7 +181,7 @@ function TagList() {
           <div className="sm:w-1/4 sm:py-2 text-sm">{tag.note}</div>
           <div className="sm:flex-1 sm:py-2 mt-1 sm:mt-0 text-sm text-neutral-500">
             {tag.is_group && <span className="mr-2">グループ</span>}
-            {tag.is_range && <span className="mr-2">日時</span>}
+            {tag.is_range && <span className="mr-2">{parseTag(tag.tag).isNumber ? '数値' : '日時'}</span>}
             {tag.tag.includes('/') && <span className="mr-2">階層</span>}
           </div>
           <div className="sm:flex-none sm:w-32 sm:py-2 mt-1 sm:mt-0 text-sm">

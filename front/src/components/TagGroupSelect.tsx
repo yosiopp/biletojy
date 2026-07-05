@@ -20,19 +20,20 @@ type Props = {
 
 // タググループのチップ。チップ自体をクリックすると選択肢のプルダウンが開く
 // filter時は選択肢を複数選択するとOR条件になり、「除外」を選ぶとNOT条件になる
-// 末尾@のグループは選択肢の代わりに日付ピッカーを表示する
+// 末尾@のグループは選択肢の代わりに日付ピッカー、末尾#のグループは数値入力を表示する
 // キーボード: ↑↓で移動、Enter/Spaceで選択肢を選択（filter時はトグル）、Escで閉じる
 function TagGroupSelect({ group, options, value, color, onChange, filter = false }: Props) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
-  const [dateValue, setDateValue] = useState('');
+  const [rangeValue, setRangeValue] = useState('');
   const rootRef = useRef<HTMLSpanElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isDate = group.endsWith('@');
+  const isRange = isDate || group.endsWith('#');
   const { not, alts } = parseCond(value);
   const chipLabel = alts.map((a) => parseTag(a).name).join('|');
   // 除外条件は "-status:CLOSE" の記法に合わせて "-" をグループ名の前に表示する
-  const groupLabel = (not ? '-' : '') + group.replace(/@$/, '');
+  const groupLabel = (not ? '-' : '') + group.replace(/[@#]$/, '');
 
   // キーボード移動の対象: 0=クリア、1..n=選択肢、（filter時のみ）n+1=除外トグル
   const lastIndex = options.length + (filter ? 1 : 0);
@@ -47,8 +48,11 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
   }, [open]);
 
   const toggle = () => {
-    // 既存タグに時刻付きの値（例: 2026-07-04T10:00）が残っていても日付部分だけをピッカーに渡す
-    if (isDate) setDateValue(alts.length > 0 ? parseTag(alts[0]).name.slice(0, 10) : '');
+    // 日時タグは既存タグに時刻付きの値（例: 2026-07-04T10:00）が残っていても日付部分だけをピッカーに渡す
+    if (isRange) {
+      const name = alts.length > 0 ? parseTag(alts[0]).name : '';
+      setRangeValue(isDate ? name.slice(0, 10) : name);
+    }
     setActive(open ? -1 : Math.max(options.findIndex((o) => alts.includes(o.value)) + 1, 0));
     setOpen(!open);
   };
@@ -91,10 +95,10 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
     if (e.key === 'Escape') {
       e.stopPropagation();
       close();
-    } else if (isDate) {
-      if (e.key === 'Enter' && dateValue) {
+    } else if (isRange) {
+      if (e.key === 'Enter' && rangeValue) {
         e.preventDefault();
-        select(`${group}:${dateValue}`);
+        select(`${group}:${rangeValue}`);
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -138,14 +142,15 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
 
       {open && (
         <div className="absolute z-10 left-0 top-full mt-1 bg-white border rounded-sm shadow-md min-w-full max-h-64 overflow-auto whitespace-nowrap">
-          {isDate ? (
+          {isRange ? (
             <div className="p-2 flex flex-col gap-1">
               <input
-                type="date"
+                type={isDate ? 'date' : 'number'}
+                step={isDate ? undefined : 'any'}
                 className="border rounded-sm px-1 py-0.5"
-                value={dateValue}
+                value={rangeValue}
                 autoFocus
-                onChange={(e) => setDateValue(e.target.value)}
+                onChange={(e) => setRangeValue(e.target.value)}
               />
               <div className="flex gap-1 justify-end">
                 {value && (
@@ -160,8 +165,8 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
                 <button
                   type="button"
                   className="bg-blue-600 text-white rounded-sm px-2 py-0.5 text-sm hover:bg-blue-700 disabled:opacity-50"
-                  disabled={!dateValue}
-                  onClick={() => select(`${group}:${dateValue}`)}
+                  disabled={!rangeValue}
+                  onClick={() => select(`${group}:${rangeValue}`)}
                 >
                   設定
                 </button>

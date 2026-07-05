@@ -11,7 +11,7 @@ type tagCond struct {
 	alts []tagAlt
 }
 
-// OR条件の1択。日時タグの範囲条件、または通常タグ（完全一致か階層の前方一致）
+// OR条件の1択。日時・数値タグの範囲条件、または通常タグ（完全一致か階層の前方一致）
 type tagAlt struct {
 	rng *rangeCond
 	tag string

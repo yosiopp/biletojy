@@ -149,7 +149,7 @@ func ftsValues(t *Ticket) (title, content, tags string) {
 
 // チケット検索。qはbi-gram全文検索、tagsはタグ条件のAND絞り込み。
 // 各条件は完全一致または階層の前方一致で、先頭 "-" で除外（NOT）、"|" 区切りでOR指定できる。
-// 日時タグは "due-date@:>=2026-01-01" のように比較演算子（>, <, >=, <=, =）付きで範囲指定できる。
+// 日時タグ・数値タグは "due-date@:>=2026-01-01" "estimate#:>=2" のように比較演算子（>, <, >=, <=, =）付きで範囲指定できる。
 // NOT/ORを含むタグ条件はSQLに落とし込みにくいため、タグの絞り込みはGo側で行う
 func (dao *Dao) QueryTickets(q string, tags []string) ([]Ticket, error) {
 	query := _SQL_QUERY_TICKETS_BASE

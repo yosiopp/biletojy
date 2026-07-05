@@ -188,6 +188,15 @@ func TestTicketSearch(t *testing.T) {
 	if got := search("", "status:OPEN|status:WIP,-docs"); len(got) != 1 || got[0].Id != t1.Id {
 		t.Errorf("search tags OR+NOT = %+v, want ticket %d", got, t1.Id)
 	}
+
+	// 数値タグの範囲検索（数値として比較され、辞書順の "10" < "9" にならない）
+	t3 := createTicket(t, handler, data.Ticket{Title: "見積り大", Content: "本文", Tags: "estimate#:10"})
+	if got := search("", "estimate#:>=9"); len(got) != 1 || got[0].Id != t3.Id {
+		t.Errorf("search tags numeric range = %+v, want ticket %d", got, t3.Id)
+	}
+	if got := search("", "estimate#:<9"); len(got) != 0 {
+		t.Errorf("search tags numeric range = %+v, want empty", got)
+	}
 }
 
 func TestCommentCreateAndList(t *testing.T) {
@@ -297,6 +306,7 @@ func TestTagCreateDerivesAttributes(t *testing.T) {
 	}{
 		{"priority:HIGH", true, false}, // タググループ
 		{"start-date@:", true, true},   // 日時タグ
+		{"estimate#:", true, true},     // 数値タグ
 		{"docs/manual", false, false},  // 通常タグ
 	}
 	for _, tt := range tests {
@@ -395,6 +405,8 @@ func TestNormalizeTag(t *testing.T) {
 		{"status:OPEN", true, false},
 		{"due-date@:", true, true},
 		{"due-date@:2026-01-01", true, true},
+		{"estimate#:", true, true},
+		{"estimate#:3", true, true},
 		{"docs/design", false, false},
 		{"plain", false, false},
 		{":value", false, false}, // グループ名が空はグループ扱いしない

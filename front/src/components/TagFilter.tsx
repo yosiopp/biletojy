@@ -54,9 +54,9 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
   const groups = useMemo(() => groupCatalog(catalog), [catalog]);
   const hierarchies = useMemo(() => hierarchyOptions(catalog), [catalog]);
 
-  // 絞り込みチップにするグループ（日時グループと選択肢なしグループは除く）
+  // 絞り込みチップにするグループ（日時・数値グループと選択肢なしグループは除く）
   const filterGroups = useMemo(
-    () => [...groups.entries()].filter(([group, tags]) => !group.endsWith('@') && tags.length > 0),
+    () => [...groups.entries()].filter(([group, tags]) => !/[@#]$/.test(group) && tags.length > 0),
     [groups],
   );
 

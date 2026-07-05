@@ -243,11 +243,11 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 	return mux
 }
 
-// タググループ(:を含む)、日時タグ(グループ名末尾@)の属性をタグ名から導出する
+// タググループ(:を含む)、日時・数値タグ(グループ名末尾@/#)の属性をタグ名から導出する
 func normalizeTag(tag *data.Tag) {
 	sep := strings.Index(tag.Tag, ":")
 	tag.IsGroup = sep > 0
-	tag.IsRange = sep > 0 && strings.HasSuffix(tag.Tag[:sep], "@")
+	tag.IsRange = sep > 0 && (strings.HasSuffix(tag.Tag[:sep], "@") || strings.HasSuffix(tag.Tag[:sep], "#"))
 }
 
 // タグ名を検証し、問題があればエラーメッセージを返す。

@@ -25,7 +25,7 @@ function TagItem({ tag, color, onRemove }: Props) {
     >
       {group != null ? (
         <>
-          <span className="border-r border-neutral-300 pr-1 text-sm opacity-70">{group.replace(/@$/, '')}</span>
+          <span className="border-r border-neutral-300 pr-1 text-sm opacity-70">{group.replace(/[@#]$/, '')}</span>
           <span className="pl-2">{name}</span>
         </>
       ) : (

@@ -26,15 +26,15 @@ function withGroupReplaced(list: string[], group: string, tag: string): string[]
 
 // チケットへのタグ付け入力
 // - タググループはチップとして表示し、クリックで選択肢のプルダウンが開く（同グループのタグは置き換え）
-// - 末尾@のグループ（例: due-date@）はプルダウン内の日付ピッカーで入力
-// - 自由入力欄では `xxx@:` と入力すると日付ピッカーが現れる
+// - 末尾@のグループ（例: due-date@）はプルダウン内の日付ピッカー、末尾#（例: estimate#）は数値入力
+// - 自由入力欄では `xxx@:` と入力すると日付ピッカー、`xxx#:` と入力すると数値入力が現れる
 function TagInput({ value, onChange, catalog }: Props) {
   const [text, setText] = useState('');
-  const [dateValue, setDateValue] = useState('');
+  const [rangeValue, setRangeValue] = useState('');
   const groups = useMemo(() => groupCatalog(catalog), [catalog]);
 
-  const dateGroup = useMemo(() => {
-    const match = text.match(/^(.+@):$/);
+  const rangeGroup = useMemo(() => {
+    const match = text.match(/^(.+[@#]):$/);
     return match ? match[1] : null;
   }, [text]);
 
@@ -49,7 +49,7 @@ function TagInput({ value, onChange, catalog }: Props) {
     // 保存時にタグは空白区切りになるため、空白を含む入力は複数タグとして追加する
     let next = value;
     for (const token of splitTags(raw)) {
-      // コロン抜けの日時タグ（例: due-date@2026-07-01）を正しい形式に補正する
+      // コロン抜けの日時・数値タグ（例: due-date@2026-07-01）を正しい形式に補正する
       const tag = normalizeTag(token, groups.keys());
       if (next.includes(tag)) continue;
       const { group } = parseTag(tag);
@@ -72,7 +72,8 @@ function TagInput({ value, onChange, catalog }: Props) {
   const suggestions = useMemo(() => {
     const options = new Set<string>(hierarchyOptions(catalog));
     for (const tag of catalog) {
-      if (!parseTag(tag.tag).isDate) options.add(tag.tag);
+      const { isDate, isNumber } = parseTag(tag.tag);
+      if (!isDate && !isNumber) options.add(tag.tag);
     }
     return [...options].sort();
   }, [catalog]);
@@ -110,7 +111,7 @@ function TagInput({ value, onChange, catalog }: Props) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !dateGroup) {
+          if (e.key === 'Enter' && !rangeGroup) {
             e.preventDefault();
             addTag(text.trim());
             setText('');
@@ -123,22 +124,23 @@ function TagInput({ value, onChange, catalog }: Props) {
         ))}
       </datalist>
 
-      {dateGroup && (
+      {rangeGroup && (
         <span className="flex items-center gap-1 ml-1 mb-1">
           <input
-            type="date"
+            type={rangeGroup.endsWith('#') ? 'number' : 'date'}
+            step={rangeGroup.endsWith('#') ? 'any' : undefined}
             className="border rounded-sm px-1 py-0.5"
-            value={dateValue}
-            onChange={(e) => setDateValue(e.target.value)}
+            value={rangeValue}
+            onChange={(e) => setRangeValue(e.target.value)}
           />
           <button
             type="button"
             className="border rounded-sm px-2 py-0.5 text-sm hover:bg-neutral-100"
             onClick={() => {
-              if (!dateValue) return;
-              addTag(`${dateGroup}:${dateValue}`);
+              if (!rangeValue) return;
+              addTag(`${rangeGroup}:${rangeValue}`);
               setText('');
-              setDateValue('');
+              setRangeValue('');
             }}
           >
             追加

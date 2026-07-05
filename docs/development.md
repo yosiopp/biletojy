@@ -9,7 +9,7 @@
 back/            バックエンド（Go / net/http）
   main.go        エントリポイント（-addr, -static フラグ）
   server.go      APIルーティング・ハンドラ
-  data/          DAO・SQL定義・FTSトークナイズ・日時タグの範囲条件
+  data/          DAO・SQL定義・FTSトークナイズ・日時/数値タグの範囲条件
 front/           フロントエンド（React + TypeScript + Vite + Tailwind CSS）
   src/pages/     画面（チケット一覧/詳細/作成編集、タグ一覧）
   src/components/ 共通コンポーネント
@@ -62,7 +62,7 @@ cd back
 go test -tags sqlite_fts5 ./...
 ```
 * テストは一時ディレクトリにDBを作成するため、`back/biletojy.db` は汚れない
-* 対象はDAO・トークナイザ・日時タグの範囲条件（`back/data/*_test.go`）とAPIハンドラ（`back/server_test.go`）。フロントにテストはない
+* 対象はDAO・トークナイザ・日時/数値タグの範囲条件（`back/data/*_test.go`）とAPIハンドラ（`back/server_test.go`）。フロントにテストはない
 
 ## 関連ドキュメント
 * [API仕様](api.md)

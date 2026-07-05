@@ -2,12 +2,14 @@ import type { Tag } from '../api/client';
 
 // "status:OPEN" -> { group: "status", name: "OPEN" }
 // "due-date@:2026-07-04" -> { group: "due-date@", name: "2026-07-04", isDate: true }
+// "estimate#:3" -> { group: "estimate#", name: "3", isNumber: true }
 // "docs/design/api" -> { group: null, name: "docs/design/api", isHierarchy: true }
 export type ParsedTag = {
   raw: string;
   group: string | null;
   name: string;
   isDate: boolean;
+  isNumber: boolean;
   isHierarchy: boolean;
 };
 
@@ -20,6 +22,7 @@ export function parseTag(raw: string): ParsedTag {
     group,
     name,
     isDate: group != null && group.endsWith('@'),
+    isNumber: group != null && group.endsWith('#'),
     isHierarchy: group == null && name.includes('/'),
   };
 }
@@ -100,13 +103,17 @@ export function hierarchyOptions(catalog: Tag[]): string[] {
   return [...options].sort();
 }
 
-// "due-date@2026-07-01" のようなコロン抜けの日時タグを "due-date@:2026-07-01" に補正する
-// 誤補正を避けるため、既知の @グループか、値が日付形式（比較演算子付き含む）のときのみ補正する
+// "due-date@2026-07-01" のようなコロン抜けの日時・数値タグを "due-date@:2026-07-01" に補正する
+// 誤補正を避けるため、既知の @/# グループか、値がそのタグの形式（比較演算子付き含む）のときのみ補正する
+// 数値タグの値パターンは "issue#123" のような通常タグを巻き込みやすいため、演算子付きに限る
 export function normalizeTag(input: string, groups: Iterable<string>): string {
-  const m = input.match(/^([^:]+@)([^:].*)$/);
+  const m = input.match(/^([^:]+[@#])([^:].*)$/);
   if (!m) return input;
   const [, group, rest] = m;
-  if (new Set(groups).has(group) || /^(?:>=|<=|>|<|=)?\d{4}-\d{2}-\d{2}/.test(rest)) {
+  const valuePattern = group.endsWith('#')
+    ? /^(?:>=|<=|>|<|=)-?\d+(?:\.\d+)?$/
+    : /^(?:>=|<=|>|<|=)?\d{4}-\d{2}-\d{2}/;
+  if (new Set(groups).has(group) || valuePattern.test(rest)) {
     return `${group}:${rest}`;
   }
   return input;
