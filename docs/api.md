@@ -10,6 +10,7 @@
 | `POST /api/tickets` | チケット作成 |
 | `GET /api/tickets/{id}` | チケット取得 |
 | `PUT /api/tickets/{id}` | チケット編集 |
+| `GET /api/tickets/{id}/backlinks` | バックリンク一覧 |
 | `GET /api/tickets/{id}/comments` | コメント一覧 |
 | `POST /api/tickets/{id}/comments` | コメント追加 |
 | `PUT /api/comments/{id}` | コメント編集 |
@@ -27,12 +28,17 @@
     例: `due-date@:>=2026-01-01` で期限が2026-01-01以降のチケットを検索できる。
     日付のみと時刻付き（`2026-01-01T10:00` 形式）が混在する場合は、短い方の精度に切り詰めて比較する
 
+## バックリンク（GET /api/tickets/{id}/backlinks）
+本文またはコメント中に `#123` 形式で対象チケットを参照しているチケットの一覧（Ticketの配列）を、更新日時の降順で返す。
+* 参照は後続が数字でない位置で判定する（`#12` の検索に `#123` はマッチしない）
+* 自分自身の本文・コメントによる参照は含まれない
+
 ## チケット
 ```
 Ticket {
   id: number
   title: string        // 必須
-  content: string      // markdown, mermaid記法
+  content: string      // markdown, mermaid記法。#123 形式で他チケットを参照できる
   tags: string         // スペース区切り
   created_by: string
   created_at: string

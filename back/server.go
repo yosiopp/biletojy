@@ -109,6 +109,19 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		writeJson(w, http.StatusOK, comments)
 	})
 
+	mux.HandleFunc("GET /api/tickets/{id}/backlinks", func(w http.ResponseWriter, r *http.Request) {
+		id, ok := pathId(w, r)
+		if !ok {
+			return
+		}
+		tickets, err := dao.QueryBacklinks(id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJson(w, http.StatusOK, tickets)
+	})
+
 	mux.HandleFunc("POST /api/tickets/{id}/comments", func(w http.ResponseWriter, r *http.Request) {
 		id, ok := pathId(w, r)
 		if !ok {

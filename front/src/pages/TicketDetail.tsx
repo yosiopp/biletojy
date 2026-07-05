@@ -9,6 +9,7 @@ import { currentUser, splitTags, tagColor } from '../lib/tags';
 function TicketDetail() {
   const { id } = useParams();
   const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [backlinks, setBacklinks] = useState<Ticket[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [catalog, setCatalog] = useState<Tag[]>([]);
   const [commentText, setCommentText] = useState('');
@@ -19,6 +20,8 @@ function TicketDetail() {
     if (!id) return;
     api.getTicket(id).then(setTicket).catch((e: Error) => setTicketError(e.message));
     api.listComments(id).then(setComments).catch((e: Error) => setCommentError(e.message));
+    // バックリンクは補助情報のため、失敗しても本文表示は妨げない
+    api.listBacklinks(id).then(setBacklinks).catch(() => setBacklinks([]));
     // カタログはタグの色付けにしか使わないため、失敗しても本文表示は妨げない
     api.listTags().then(setCatalog).catch(() => {});
   }, [id]);
@@ -66,6 +69,22 @@ function TicketDetail() {
       <div className="mb-6">
         <Markdown content={ticket.content} />
       </div>
+
+      {backlinks.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-lg mb-2">このチケットを参照しているチケット</h3>
+          <ul>
+            {backlinks.map((b) => (
+              <li key={b.id}>
+                <Link to={`/tickets/${b.id}`} className="text-blue-700 hover:underline">
+                  <span className="text-neutral-400 mr-1">#{b.id}</span>
+                  {b.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <hr className="border-t-2 border-neutral-300 mb-6" />
 

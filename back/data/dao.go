@@ -2,6 +2,8 @@ package data
 
 import (
 	"database/sql"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -179,6 +181,32 @@ func matchAllRangeConds(conds []*rangeCond, tags string) bool {
 		}
 	}
 	return true
+}
+
+// idのチケットを本文またはコメント中の #id 形式で参照しているチケットを返す（自分自身は除く）。
+// LIKEでは #123 の検索が #1234 にもマッチするため、後続が数字でないことを正規表現で確認する
+func (dao *Dao) QueryBacklinks(id int64) ([]Ticket, error) {
+	idText := strconv.FormatInt(id, 10)
+	ref := regexp.MustCompile(`#` + idText + `(\D|$)`)
+	pattern := `%#` + idText + `%`
+	rows, err := dao.db.Query(_SQL_QUERY_BACKLINKS, id, pattern, pattern)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tickets := []Ticket{}
+	for rows.Next() {
+		var t Ticket
+		var comments string
+		if err := rows.Scan(&t.Id, &t.Title, &t.Content, &t.Tags, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt, &comments); err != nil {
+			return nil, err
+		}
+		if !ref.MatchString(t.Content + " " + comments) {
+			continue
+		}
+		tickets = append(tickets, t)
+	}
+	return tickets, rows.Err()
 }
 
 func (dao *Dao) GetTicket(id int64) (*Ticket, error) {

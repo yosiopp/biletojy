@@ -238,6 +238,44 @@ func TestCommentUpdate(t *testing.T) {
 	assertErrorResponse(t, request(t, handler, "PUT", "/api/comments/9999", data.Comment{Content: "x"}), http.StatusNotFound)
 }
 
+func TestTicketBacklinks(t *testing.T) {
+	handler := newTestServer(t)
+	target := createTicket(t, handler, data.Ticket{Title: "参照される側", Content: "本文"})
+	fromContent := createTicket(t, handler, data.Ticket{Title: "本文から参照", Content: fmt.Sprintf("関連: #%d を参照", target.Id)})
+	fromComment := createTicket(t, handler, data.Ticket{Title: "コメントから参照", Content: "本文"})
+	w := request(t, handler, "POST", fmt.Sprintf("/api/tickets/%d/comments", fromComment.Id),
+		data.Comment{Content: fmt.Sprintf("#%d と同件", target.Id)})
+	assertStatus(t, w, http.StatusCreated)
+
+	// 桁違いのID（#10 など）は #1 のバックリンクに含まれない
+	createTicket(t, handler, data.Ticket{Title: "桁違い", Content: fmt.Sprintf("#%d0 は別件", target.Id)})
+
+	// 自己参照は含まれない
+	w = request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", target.Id),
+		data.Ticket{Title: target.Title, Content: fmt.Sprintf("自分自身 #%d への言及", target.Id)})
+	assertStatus(t, w, http.StatusOK)
+
+	w = request(t, handler, "GET", fmt.Sprintf("/api/tickets/%d/backlinks", target.Id), nil)
+	assertStatus(t, w, http.StatusOK)
+	got := decodeBody[[]data.Ticket](t, w)
+	ids := map[int64]bool{}
+	for _, ticket := range got {
+		ids[ticket.Id] = true
+	}
+	if len(got) != 2 || !ids[fromContent.Id] || !ids[fromComment.Id] {
+		t.Errorf("backlinks = %+v, want tickets %d and %d", got, fromContent.Id, fromComment.Id)
+	}
+
+	// 参照されていないチケットは空配列
+	w = request(t, handler, "GET", fmt.Sprintf("/api/tickets/%d/backlinks", fromContent.Id), nil)
+	assertStatus(t, w, http.StatusOK)
+	if got := decodeBody[[]data.Ticket](t, w); len(got) != 0 {
+		t.Errorf("backlinks of unreferenced ticket = %+v, want empty", got)
+	}
+
+	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/abc/backlinks", nil), http.StatusBadRequest)
+}
+
 func TestTagCreateDerivesAttributes(t *testing.T) {
 	handler := newTestServer(t)
 

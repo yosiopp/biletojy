@@ -105,6 +105,13 @@ const (
 	_SQL_QUERY_TICKETS_BASE = `SELECT t.id, t.title, t.content, t.tags, t.created_by, t.created_at, t.updated_at FROM tickets t`
 	_SQL_QUERY_TICKETS_FTS  = ` JOIN tickets_fts ON t.id = tickets_fts.ticket_id`
 
+	// バックリンク検索。LIKEで候補を絞り、桁違いのIDへの誤マッチ除外はGo側で行う
+	_SQL_QUERY_BACKLINKS = `SELECT t.id, t.title, t.content, t.tags, t.created_by, t.created_at, t.updated_at,
+		COALESCE((SELECT GROUP_CONCAT(c.content, ' ') FROM comments c WHERE c.ticket_id = t.id), '')
+		FROM tickets t
+		WHERE t.id <> ? AND (t.content LIKE ? OR EXISTS (SELECT 1 FROM comments c WHERE c.ticket_id = t.id AND c.content LIKE ?))
+		ORDER BY t.updated_at DESC`
+
 	// FTSインデックス再構築（マイグレーション）
 	_SQL_GET_USER_VERSION      = `PRAGMA user_version`
 	_SQL_SET_USER_VERSION_1    = `PRAGMA user_version = 1`

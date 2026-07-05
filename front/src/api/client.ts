@@ -54,6 +54,7 @@ export const api = {
     request<Ticket>('/api/tickets', { method: 'POST', body: JSON.stringify(data) }),
   updateTicket: (id: number | string, data: Pick<Ticket, 'title' | 'content' | 'tags'>) =>
     request<Ticket>(`/api/tickets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  listBacklinks: (id: number | string) => request<Ticket[]>(`/api/tickets/${id}/backlinks`),
   listComments: (ticketId: number | string) => request<Comment[]>(`/api/tickets/${ticketId}/comments`),
   addComment: (ticketId: number | string, data: Pick<Comment, 'content' | 'created_by'>) =>
     request<Comment>(`/api/tickets/${ticketId}/comments`, { method: 'POST', body: JSON.stringify(data) }),
