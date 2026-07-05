@@ -1,4 +1,5 @@
 dist/
+.goreleaser-dist/
 biletojy.db
 
 # go:embed用のコピー先はプレースホルダのみ登録する

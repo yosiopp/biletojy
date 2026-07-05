@@ -1,0 +1,49 @@
+# GoReleaser設定。タグ（v*）push時にGitHub Actionsから実行される（.github/workflows/release.yml）
+version: 2
+
+# 出力先。デフォルトのdist/はjust buildの成果物・動作確認用DBと衝突するため変更している
+dist: .goreleaser-dist
+
+# フロントをビルドし、go:embed用に back/webui/dist へコピーしてからバックエンドをビルドする
+before:
+  hooks:
+    - npm --prefix front install
+    - npm --prefix front run build
+    - rm -rf back/webui/dist
+    - mkdir -p back/webui/dist
+    - cp -R front/dist/. back/webui/dist/
+    - touch back/webui/dist/.gitkeep
+
+builds:
+  - dir: back
+    binary: biletojy
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github-native

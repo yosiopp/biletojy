@@ -77,6 +77,21 @@ cd front
 npm run dev
 ```
 
+## リリース
+`v` から始まるタグ（例: `v1.0.0`）をpushすると、GitHub Actions（`.github/workflows/release.yml`）がGoReleaser（`.goreleaser.yaml`）を実行し、
+Linux（amd64/arm64）・macOS（amd64/arm64）・Windows（amd64）のバイナリをGitHub Releasesへ添付する。
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+ローカルで成果物を確認する場合はスナップショットビルドを使う（成果物は `.goreleaser-dist/`）。
+
+```sh
+goreleaser release --snapshot --clean --skip=publish
+```
+
 ## テスト
 ```sh
 just test             # バックエンドのテスト一式
