@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, Comment, Tag, Ticket } from '../api/client';
 import Markdown from '../components/Markdown';
 import TagItem from '../components/TagItem';
+import { formatDateTime } from '../lib/date';
 import { currentUser, splitTags, tagColor } from '../lib/tags';
 
 function TicketDetail() {
@@ -54,7 +55,7 @@ function TicketDetail() {
         </Link>
       </div>
       <div className="text-sm text-neutral-500 mb-2">
-        {ticket.created_by} が作成 ・ 更新 {new Date(ticket.updated_at).toLocaleString()}
+        {ticket.created_by} が作成 ・ 更新 {formatDateTime(ticket.updated_at)}
       </div>
       <div className="mb-4">
         {splitTags(ticket.tags).map((tag) => (
@@ -71,7 +72,7 @@ function TicketDetail() {
       {comments.map((comment) => (
         <div key={comment.id} className="border rounded-sm p-3 mb-2">
           <div className="text-sm text-neutral-500 mb-1">
-            {comment.created_by} ・ {new Date(comment.created_at).toLocaleString()}
+            {comment.created_by} ・ {formatDateTime(comment.created_at)}
           </div>
           <Markdown content={comment.content} />
         </div>

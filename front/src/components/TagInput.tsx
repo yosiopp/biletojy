@@ -12,8 +12,8 @@ type Props = {
 
 // チケットへのタグ付け入力
 // - タググループはチップとして表示し、クリックで選択肢のプルダウンが開く（同グループのタグは置き換え）
-// - 末尾@のグループ（例: due-date@）はプルダウン内の日時ピッカーで入力
-// - 自由入力欄では `xxx@:` と入力すると日時ピッカーが現れる
+// - 末尾@のグループ（例: due-date@）はプルダウン内の日付ピッカーで入力
+// - 自由入力欄では `xxx@:` と入力すると日付ピッカーが現れる
 function TagInput({ value, onChange, catalog }: Props) {
   const [text, setText] = useState('');
   const [dateValue, setDateValue] = useState('');
@@ -107,7 +107,7 @@ function TagInput({ value, onChange, catalog }: Props) {
       {dateGroup && (
         <span className="flex items-center gap-1 ml-1 mb-1">
           <input
-            type="datetime-local"
+            type="date"
             className="border rounded-sm px-1 py-0.5"
             value={dateValue}
             onChange={(e) => setDateValue(e.target.value)}

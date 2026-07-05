@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { Tag, Ticket } from '../api/client';
+import { formatDateTime } from '../lib/date';
 import { splitTags, tagColor } from '../lib/tags';
 import TagItem from './TagItem';
 
@@ -22,7 +23,7 @@ function TicketRow({ ticket, catalog }: { ticket: Ticket; catalog: Tag[] }) {
         ))}
       </div>
       <div className="sm:flex-none sm:w-40 sm:py-2 sm:pr-4 text-sm text-neutral-500">
-        {new Date(updated_at).toLocaleString()}
+        {formatDateTime(updated_at)}
       </div>
     </Link>
   );

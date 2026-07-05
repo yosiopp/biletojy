@@ -16,7 +16,7 @@ type Props = {
 };
 
 // タググループのチップ。チップ自体をクリックすると選択肢のプルダウンが開く
-// 末尾@のグループは選択肢の代わりに日時ピッカーを表示する
+// 末尾@のグループは選択肢の代わりに日付ピッカーを表示する
 // キーボード: ↑↓で選択肢を移動、Enterで確定、Escで閉じる
 function TagGroupSelect({ group, options, value, color, onChange }: Props) {
   const [open, setOpen] = useState(false);
@@ -40,7 +40,8 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
   }, [open]);
 
   const toggle = () => {
-    if (isDate) setDateValue(selectedName);
+    // 既存タグに時刻付きの値（例: 2026-07-04T10:00）が残っていても日付部分だけをピッカーに渡す
+    if (isDate) setDateValue(selectedName.slice(0, 10));
     setActive(open ? -1 : Math.max(items.findIndex((item) => item.value === value), 0));
     setOpen(!open);
   };
@@ -112,7 +113,7 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
           {isDate ? (
             <div className="p-2 flex flex-col gap-1">
               <input
-                type="datetime-local"
+                type="date"
                 className="border rounded-sm px-1 py-0.5"
                 value={dateValue}
                 autoFocus
