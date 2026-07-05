@@ -111,7 +111,8 @@ func rebuildFtsIfNeeded(db *sql.DB) error {
 	}
 	rows.Close()
 	for _, t := range tickets {
-		if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, t.Id, Bigram(t.Title), Bigram(StripMarkdown(t.Content)), Bigram(t.Tags), ""); err != nil {
+		title, content, tags := ftsValues(&t)
+		if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, t.Id, title, content, tags, ""); err != nil {
 			return err
 		}
 		if err := refreshCommentsFts(tx, t.Id); err != nil {
@@ -132,6 +133,18 @@ func (dao *Dao) Close() {
 func IsUniqueConstraintErr(err error) bool {
 	var se sqlite3.Error
 	return errors.As(err, &se) && se.ExtendedCode == sqlite3.ErrConstraintUnique
+}
+
+// チケットの7カラム（id〜updated_at）をスキャンする。extraで追加カラムの格納先を渡せる
+func scanTicket(row interface{ Scan(...any) error }, extra ...any) (Ticket, error) {
+	var t Ticket
+	dest := append([]any{&t.Id, &t.Title, &t.Content, &t.Tags, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt}, extra...)
+	return t, row.Scan(dest...)
+}
+
+// FTSへ格納する値（bi-gramトークナイズ済みのtitle, content, tags）を組み立てる
+func ftsValues(t *Ticket) (title, content, tags string) {
+	return Bigram(t.Title), Bigram(StripMarkdown(t.Content)), Bigram(t.Tags)
 }
 
 // チケット検索。qはbi-gram全文検索、tagsはタグ条件のAND絞り込み。
@@ -162,8 +175,8 @@ func (dao *Dao) QueryTickets(q string, tags []string) ([]Ticket, error) {
 	defer rows.Close()
 	tickets := []Ticket{}
 	for rows.Next() {
-		var t Ticket
-		if err := rows.Scan(&t.Id, &t.Title, &t.Content, &t.Tags, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		t, err := scanTicket(rows)
+		if err != nil {
 			return nil, err
 		}
 		if !matchAllTagConds(conds, t.Tags) {
@@ -196,9 +209,9 @@ func (dao *Dao) QueryBacklinks(id int64) ([]Ticket, error) {
 	defer rows.Close()
 	tickets := []Ticket{}
 	for rows.Next() {
-		var t Ticket
 		var comments string
-		if err := rows.Scan(&t.Id, &t.Title, &t.Content, &t.Tags, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt, &comments); err != nil {
+		t, err := scanTicket(rows, &comments)
+		if err != nil {
 			return nil, err
 		}
 		if !ref.MatchString(t.Content + " " + comments) {
@@ -210,8 +223,7 @@ func (dao *Dao) QueryBacklinks(id int64) ([]Ticket, error) {
 }
 
 func (dao *Dao) GetTicket(id int64) (*Ticket, error) {
-	var t Ticket
-	err := dao.db.QueryRow(_SQL_GET_TICKET, id).Scan(&t.Id, &t.Title, &t.Content, &t.Tags, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
+	t, err := scanTicket(dao.db.QueryRow(_SQL_GET_TICKET, id))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -239,7 +251,8 @@ func (dao *Dao) AddTicket(ticket *Ticket) error {
 	if _, err := tx.Exec(_SQL_ADD_TICKET_HISTORY, ticket.Id, ticket.Title, ticket.Content, ticket.Tags, ticket.CreatedBy, now); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, ticket.Id, Bigram(ticket.Title), Bigram(StripMarkdown(ticket.Content)), Bigram(ticket.Tags), ""); err != nil {
+	title, content, tags := ftsValues(ticket)
+	if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, ticket.Id, title, content, tags, ""); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -260,7 +273,8 @@ func (dao *Dao) EditTicket(ticket *Ticket) error {
 	if _, err := tx.Exec(_SQL_ADD_TICKET_HISTORY, ticket.Id, ticket.Title, ticket.Content, ticket.Tags, ticket.CreatedBy, now); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(_SQL_EDIT_TICKET_FTS, Bigram(ticket.Title), Bigram(StripMarkdown(ticket.Content)), Bigram(ticket.Tags), ticket.Id); err != nil {
+	title, content, tags := ftsValues(ticket)
+	if _, err := tx.Exec(_SQL_EDIT_TICKET_FTS, title, content, tags, ticket.Id); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -342,18 +356,18 @@ func (dao *Dao) EditComment(comment *Comment) error {
 
 // チケットの全コメントを結合してFTSのcommentsカラムを再構築する
 func refreshCommentsFts(tx *sql.Tx, ticketId int64) error {
-	rows, err := tx.Query(_SQL_QUERY_COMMENTS, ticketId)
+	rows, err := tx.Query(_SQL_QUERY_COMMENT_CONTENTS, ticketId)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	contents := []string{}
 	for rows.Next() {
-		var c Comment
-		if err := rows.Scan(&c.Id, &c.TicketId, &c.Content, &c.CreatedBy, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		var content string
+		if err := rows.Scan(&content); err != nil {
 			return err
 		}
-		contents = append(contents, c.Content)
+		contents = append(contents, content)
 	}
 	if err := rows.Err(); err != nil {
 		return err

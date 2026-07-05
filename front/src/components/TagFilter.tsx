@@ -1,13 +1,15 @@
-import { useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import type { Tag } from '../api/client';
 import {
   buildCond,
   condGroup,
   groupCatalog,
+  groupOptions,
   hierarchyOptions,
   normalizeTag,
   parseCond,
   parseTag,
+  splitTags,
   tagColor,
 } from '../lib/tags';
 import TagGroupSelect from './TagGroupSelect';
@@ -20,6 +22,27 @@ type Props = {
   onQueryChange: (query: string) => void;
   catalog: Tag[];
 };
+
+// NOT/OR条件・全文検索ワード用のチップ。labelがあれば区切り線付きの前置ラベルを表示する
+function ConditionChip({
+  label,
+  onRemove,
+  children,
+}: {
+  label?: string;
+  onRemove: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <span className="inline-flex items-center rounded-lg border border-neutral-300 bg-white py-0.5 px-2 mr-1 mb-1 whitespace-nowrap">
+      {label && <span className="border-r border-neutral-300 pr-1 text-sm text-neutral-500">{label}</span>}
+      <span className={label ? 'pl-2' : ''}>{children}</span>
+      <button type="button" className="ml-1 text-neutral-400 hover:text-neutral-700" onClick={onRemove}>
+        ×
+      </button>
+    </span>
+  );
+}
 
 // チケット一覧の絞り込み・全文検索バー
 // - タググループはチップとして表示し、クリックで選択肢のプルダウンが開く（複数選択でOR、「除外」でNOT）
@@ -37,7 +60,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
     [groups],
   );
 
-  const queryWords = query.split(/\s+/).filter((w) => w.length > 0);
+  const queryWords = splitTags(query);
 
   const addTag = (tag: string) => {
     if (!tag || selected.includes(tag)) return;
@@ -75,7 +98,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
     if (expanded.length > 0 && expanded.every(isTagQuery)) {
       addTag(buildCond(not, expanded));
     } else {
-      const words = input.split(/\s+/).filter((w) => !queryWords.includes(w));
+      const words = splitTags(input).filter((w) => !queryWords.includes(w));
       if (words.length > 0) onQueryChange([...queryWords, ...words].join(' '));
     }
     setText('');
@@ -128,7 +151,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
             <TagGroupSelect
               key={group}
               group={group}
-              options={tags.map((t) => ({ value: t.tag, label: parseTag(t.tag).name, note: t.note }))}
+              options={groupOptions(tags)}
               value={groupSelected}
               color={tagColor(catalog, groupSelected || `${group}:`)}
               onChange={(tag) => replaceGroupTag(group, tag)}
@@ -158,33 +181,19 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
             return <TagItem key={cond} tag={alts[0]} color={tagColor(catalog, alts[0])} onRemove={remove} />;
           }
           return (
-            <span
-              key={cond}
-              className="inline-flex items-center rounded-lg border border-neutral-300 bg-white py-0.5 px-2 mr-1 mb-1 whitespace-nowrap"
-            >
-              {not && <span className="border-r border-neutral-300 pr-1 text-sm text-neutral-500">除外</span>}
-              <span className={not ? 'pl-2' : ''}>{alts.join(' | ')}</span>
-              <button type="button" className="ml-1 text-neutral-400 hover:text-neutral-700" onClick={remove}>
-                ×
-              </button>
-            </span>
+            <ConditionChip key={cond} label={not ? '除外' : undefined} onRemove={remove}>
+              {alts.join(' | ')}
+            </ConditionChip>
           );
         })}
         {queryWords.map((word) => (
-          <span
+          <ConditionChip
             key={word}
-            className="inline-flex items-center rounded-lg border border-neutral-300 bg-white py-0.5 px-2 mr-1 mb-1 whitespace-nowrap"
+            label="全文"
+            onRemove={() => onQueryChange(queryWords.filter((w) => w !== word).join(' '))}
           >
-            <span className="border-r border-neutral-300 pr-1 text-sm text-neutral-500">全文</span>
-            <span className="pl-2">{word}</span>
-            <button
-              type="button"
-              className="ml-1 text-neutral-400 hover:text-neutral-700"
-              onClick={() => onQueryChange(queryWords.filter((w) => w !== word).join(' '))}
-            >
-              ×
-            </button>
-          </span>
+            {word}
+          </ConditionChip>
         ))}
       </div>
     </div>

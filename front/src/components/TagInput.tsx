@@ -1,6 +1,14 @@
 import { useMemo, useState } from 'react';
 import type { Tag } from '../api/client';
-import { groupCatalog, hierarchyOptions, normalizeTag, parseTag, tagColor } from '../lib/tags';
+import {
+  groupCatalog,
+  groupOptions,
+  hierarchyOptions,
+  normalizeTag,
+  parseTag,
+  splitTags,
+  tagColor,
+} from '../lib/tags';
 import TagGroupSelect from './TagGroupSelect';
 import TagItem from './TagItem';
 
@@ -9,6 +17,12 @@ type Props = {
   onChange: (tags: string[]) => void;
   catalog: Tag[];
 };
+
+// リストから同グループのタグを除き、指定タグに置き換える
+function withGroupReplaced(list: string[], group: string, tag: string): string[] {
+  const rest = list.filter((v) => parseTag(v).group !== group);
+  return tag ? [...rest, tag] : rest;
+}
 
 // チケットへのタグ付け入力
 // - タググループはチップとして表示し、クリックで選択肢のプルダウンが開く（同グループのタグは置き換え）
@@ -28,21 +42,20 @@ function TagInput({ value, onChange, catalog }: Props) {
     value.find((tag) => parseTag(tag).group === group) ?? '';
 
   const replaceGroupTag = (group: string, tag: string) => {
-    const rest = value.filter((v) => parseTag(v).group !== group);
-    onChange(tag ? [...rest, tag] : rest);
+    onChange(withGroupReplaced(value, group, tag));
   };
 
   const addTag = (raw: string) => {
     // 保存時にタグは空白区切りになるため、空白を含む入力は複数タグとして追加する
     let next = value;
-    for (const token of raw.split(/\s+/).filter((t) => t.length > 0)) {
+    for (const token of splitTags(raw)) {
       // コロン抜けの日時タグ（例: due-date@2026-07-01）を正しい形式に補正する
       const tag = normalizeTag(token, groups.keys());
       if (next.includes(tag)) continue;
       const { group } = parseTag(tag);
       if (group) {
         // 同グループの既存タグは置き換える
-        next = [...next.filter((v) => parseTag(v).group !== group), tag];
+        next = withGroupReplaced(next, group, tag);
       } else {
         next = [...next, tag];
       }
@@ -72,7 +85,7 @@ function TagInput({ value, onChange, catalog }: Props) {
           <TagGroupSelect
             key={group}
             group={group}
-            options={tags.map((t) => ({ value: t.tag, label: parseTag(t.tag).name, note: t.note }))}
+            options={groupOptions(tags)}
             value={selected}
             color={tagColor(catalog, selected || `${group}:`)}
             onChange={(tag) => replaceGroupTag(group, tag)}

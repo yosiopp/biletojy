@@ -442,6 +442,17 @@ func TestStaticSpaFallback(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 }
 
+func TestApiNotFoundWithoutStatic(t *testing.T) {
+	handler := newTestServer(t)
+
+	// 静的配信なしでも未定義の/apiパスはJSONの404を返す
+	w := request(t, handler, "GET", "/api/unknown", nil)
+	assertErrorResponse(t, w, http.StatusNotFound)
+	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+}
+
 func TestRequestBodyTooLarge(t *testing.T) {
 	handler := newTestServer(t)
 

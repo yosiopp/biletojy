@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { api, Tag, Ticket } from '../api/client';
+import { api, Ticket } from '../api/client';
 import TagFilter from '../components/TagFilter';
 import TicketRow from '../components/TicketRow';
+import { staleGuard } from '../lib/staleGuard';
+import { useCatalog } from '../lib/useCatalog';
 
 function TicketList() {
   const [searchParams, setSearchParams] = useSearchParams();
   // null はロード中（初回フェッチ完了前に空表示を出さないため）
   const [tickets, setTickets] = useState<Ticket[] | null>(null);
-  const [catalog, setCatalog] = useState<Tag[]>([]);
+  const catalog = useCatalog();
   const [error, setError] = useState('');
 
   const q = searchParams.get('q') ?? '';
@@ -16,23 +18,13 @@ function TicketList() {
   const hasFilter = q.length > 0 || tags.length > 0;
 
   useEffect(() => {
-    api.listTags().then(setCatalog).catch((e: Error) => setError(e.message));
-  }, []);
-
-  useEffect(() => {
     // 検索条件が変わった後に古いレスポンスで上書きされないようにする
-    let stale = false;
+    const { fresh, cancel } = staleGuard();
     api
       .listTickets(q, tags)
-      .then((t) => {
-        if (!stale) setTickets(t);
-      })
-      .catch((e: Error) => {
-        if (!stale) setError(e.message);
-      });
-    return () => {
-      stale = true;
-    };
+      .then(fresh(setTickets))
+      .catch(fresh((e: Error) => setError(e.message)));
+    return cancel;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 

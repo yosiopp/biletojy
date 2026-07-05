@@ -1,17 +1,19 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api, Comment, Tag, Ticket } from '../api/client';
+import { api, Comment, Ticket } from '../api/client';
 import Markdown from '../components/Markdown';
 import TagItem from '../components/TagItem';
 import { formatDateTime } from '../lib/date';
+import { staleGuard } from '../lib/staleGuard';
 import { currentUser, splitTags, tagColor } from '../lib/tags';
+import { useCatalog } from '../lib/useCatalog';
 
 function TicketDetail() {
   const { id } = useParams();
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [backlinks, setBacklinks] = useState<Ticket[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
-  const [catalog, setCatalog] = useState<Tag[]>([]);
+  const catalog = useCatalog();
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [ticketError, setTicketError] = useState('');
@@ -22,48 +24,18 @@ function TicketDetail() {
     // idが変わったら前のチケットの表示を消し、遅れて届いた古いレスポンスは捨てる
     // 表示のリセットが目的のため、ここでのsetStateは意図したもの
     /* eslint-disable react-hooks/set-state-in-effect */
-    let stale = false;
     setTicket(null);
     setComments([]);
     setBacklinks([]);
     setTicketError('');
     setCommentError('');
     /* eslint-enable react-hooks/set-state-in-effect */
-    api
-      .getTicket(id)
-      .then((t) => {
-        if (!stale) setTicket(t);
-      })
-      .catch((e: Error) => {
-        if (!stale) setTicketError(e.message);
-      });
-    api
-      .listComments(id)
-      .then((c) => {
-        if (!stale) setComments(c);
-      })
-      .catch((e: Error) => {
-        if (!stale) setCommentError(e.message);
-      });
+    const { fresh, cancel } = staleGuard();
+    api.getTicket(id).then(fresh(setTicket)).catch(fresh((e: Error) => setTicketError(e.message)));
+    api.listComments(id).then(fresh(setComments)).catch(fresh((e: Error) => setCommentError(e.message)));
     // バックリンクは補助情報のため、失敗しても本文表示は妨げない
-    api
-      .listBacklinks(id)
-      .then((b) => {
-        if (!stale) setBacklinks(b);
-      })
-      .catch(() => {
-        if (!stale) setBacklinks([]);
-      });
-    // カタログはタグの色付けにしか使わないため、失敗しても本文表示は妨げない
-    api
-      .listTags()
-      .then((c) => {
-        if (!stale) setCatalog(c);
-      })
-      .catch(() => {});
-    return () => {
-      stale = true;
-    };
+    api.listBacklinks(id).then(fresh(setBacklinks)).catch(fresh(() => setBacklinks([])));
+    return cancel;
   }, [id]);
 
   const submitComment = async (e: FormEvent) => {
@@ -71,10 +43,11 @@ function TicketDetail() {
     if (!id || !commentText.trim() || submitting) return;
     setSubmitting(true);
     try {
-      await api.addComment(id, { content: commentText, created_by: currentUser() });
+      // 作成されたコメントが全フィールド付きで返り、一覧はcreated_at昇順のため末尾に足すだけでよい
+      const created = await api.addComment(id, { content: commentText, created_by: currentUser() });
       setCommentText('');
       setCommentError('');
-      setComments(await api.listComments(id));
+      setComments((prev) => [...prev, created]);
     } catch (err) {
       setCommentError((err as Error).message);
     } finally {

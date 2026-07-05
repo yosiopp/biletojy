@@ -62,9 +62,13 @@ function TagList() {
   const remove = async (tag: Tag) => {
     let message = `タグ「${tag.tag}」を削除しますか？`;
     try {
-      // 検索APIは前方一致や日時の範囲解釈をするため、件数は全チケットから文字列一致で数える
+      // 検索APIは前方一致や日時の範囲解釈をするため、件数は取得結果から文字列一致で数える
       // グループエントリ（"status:" 等）はそのグループの値を持つチケットを数える
-      const all = await api.listTickets('', []);
+      // 単純なタグならタグ検索は完全一致の上位集合を返すため、事前絞り込みで取得量を減らせる
+      // （過去に作られたタグは , | 空白 などの検索メタ文字を含み得るため、その場合は全件取得する）
+      const canPrefilter =
+        !tag.tag.endsWith(':') && !tag.tag.startsWith('-') && !/[,|\s]/.test(tag.tag);
+      const all = await api.listTickets('', canPrefilter ? [tag.tag] : []);
       const used = all.filter((ticket) => {
         const tags = splitTags(ticket.tags);
         if (tag.tag.endsWith(':')) return tags.some((t) => t.startsWith(tag.tag));

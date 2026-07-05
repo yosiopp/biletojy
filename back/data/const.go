@@ -11,8 +11,9 @@ const (
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP NOT NULL
 	);
-	CREATE INDEX IF NOT EXISTS tickets_at_idx ON tickets (created_at);
-	CREATE INDEX IF NOT EXISTS tickets_by_idx ON tickets (created_by);
+	CREATE INDEX IF NOT EXISTS tickets_updated_idx ON tickets (updated_at);
+	DROP INDEX IF EXISTS tickets_at_idx;
+	DROP INDEX IF EXISTS tickets_by_idx;
 
 	CREATE TABLE IF NOT EXISTS ticket_histories (
 		id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -96,6 +97,8 @@ const (
 	// コメント
 	_SQL_GET_COMMENT         = `SELECT id, ticket_id, content, created_by, created_at, updated_at FROM comments WHERE id = ?`
 	_SQL_QUERY_COMMENTS      = `SELECT id, ticket_id, content, created_by, created_at, updated_at FROM comments WHERE ticket_id = ? ORDER BY created_at ASC`
+	// FTS再構築用（コメント本文のみ。並び順は_SQL_QUERY_COMMENTSと揃える）
+	_SQL_QUERY_COMMENT_CONTENTS = `SELECT content FROM comments WHERE ticket_id = ? ORDER BY created_at ASC`
 	_SQL_ADD_COMMENT         = `INSERT INTO comments (ticket_id, content, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`
 	_SQL_ADD_COMMENT_HISTORY = `INSERT INTO comment_histories (comment_id, content, created_at) VALUES (?, ?, ?)`
 	_SQL_EDIT_COMMENT        = `UPDATE comments SET content = ?, updated_at = ? WHERE id = ?`

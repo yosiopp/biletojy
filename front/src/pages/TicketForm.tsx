@@ -1,9 +1,10 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useBlocker, useNavigate, useParams } from 'react-router-dom';
-import { api, Tag } from '../api/client';
+import { api } from '../api/client';
 import Markdown from '../components/Markdown';
 import TagInput from '../components/TagInput';
 import { currentUser, joinTags, setCurrentUser, splitTags } from '../lib/tags';
+import { useCatalog } from '../lib/useCatalog';
 
 type Draft = { title: string; content: string; tags: string };
 
@@ -17,7 +18,7 @@ function TicketForm() {
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [user, setUser] = useState(currentUser());
-  const [catalog, setCatalog] = useState<Tag[]>([]);
+  const catalog = useCatalog();
   const [preview, setPreview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -28,7 +29,6 @@ function TicketForm() {
   const submittedRef = useRef(false);
 
   useEffect(() => {
-    api.listTags().then(setCatalog).catch((e: Error) => setError(e.message));
     if (isEdit) {
       api
         .getTicket(id)

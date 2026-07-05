@@ -125,12 +125,9 @@ export function dueState(name: string): 'overdue' | 'soon' | null {
   return null;
 }
 
-// グループにも階層にも属さない通常タグ
-export function plainTags(catalog: Tag[]): Tag[] {
-  return catalog.filter((t) => {
-    const parsed = parseTag(t.tag);
-    return parsed.group == null && !parsed.isHierarchy;
-  });
+// グループ内のタグをTagGroupSelectの選択肢に変換する
+export function groupOptions(tags: Tag[]): { value: string; label: string; note: string | null }[] {
+  return tags.map((t) => ({ value: t.tag, label: parseTag(t.tag).name, note: t.note }));
 }
 
 const USER_KEY = 'biletojy.user';

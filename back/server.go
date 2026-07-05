@@ -54,13 +54,8 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		if !ok {
 			return
 		}
-		ticket, err := dao.GetTicket(id)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		if ticket == nil {
-			writeErrorMessage(w, http.StatusNotFound, "ticket not found")
+		ticket, ok := fetchOr404(w, dao.GetTicket, id, "ticket")
+		if !ok {
 			return
 		}
 		writeJson(w, http.StatusOK, ticket)
@@ -71,13 +66,8 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		if !ok {
 			return
 		}
-		current, err := dao.GetTicket(id)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		if current == nil {
-			writeErrorMessage(w, http.StatusNotFound, "ticket not found")
+		current, ok := fetchOr404(w, dao.GetTicket, id, "ticket")
+		if !ok {
 			return
 		}
 		var ticket data.Ticket
@@ -129,13 +119,7 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		if !ok {
 			return
 		}
-		ticket, err := dao.GetTicket(id)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		if ticket == nil {
-			writeErrorMessage(w, http.StatusNotFound, "ticket not found")
+		if _, ok := fetchOr404(w, dao.GetTicket, id, "ticket"); !ok {
 			return
 		}
 		var comment data.Comment
@@ -162,13 +146,8 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		if !ok {
 			return
 		}
-		current, err := dao.GetComment(id)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		if current == nil {
-			writeErrorMessage(w, http.StatusNotFound, "comment not found")
+		current, ok := fetchOr404(w, dao.GetComment, id, "comment")
+		if !ok {
 			return
 		}
 		var comment data.Comment
@@ -197,21 +176,8 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 	})
 
 	mux.HandleFunc("POST /api/tags", func(w http.ResponseWriter, r *http.Request) {
-		var tag data.Tag
-		if !readJson(w, r, &tag) {
-			return
-		}
-		if msg := validateTag(tag.Tag); msg != "" {
-			writeErrorMessage(w, http.StatusBadRequest, msg)
-			return
-		}
-		normalizeTag(&tag)
-		if err := dao.AddTag(&tag); err != nil {
-			if data.IsUniqueConstraintErr(err) {
-				writeErrorMessage(w, http.StatusConflict, "tag already exists")
-				return
-			}
-			writeError(w, http.StatusInternalServerError, err)
+		tag := saveTag(w, r, dao.AddTag)
+		if tag == nil {
 			return
 		}
 		writeJson(w, http.StatusCreated, tag)
@@ -222,31 +188,14 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		if !ok {
 			return
 		}
-		current, err := dao.GetTag(id)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
+		if _, ok := fetchOr404(w, dao.GetTag, id, "tag"); !ok {
 			return
 		}
-		if current == nil {
-			writeErrorMessage(w, http.StatusNotFound, "tag not found")
-			return
-		}
-		var tag data.Tag
-		if !readJson(w, r, &tag) {
-			return
-		}
-		if msg := validateTag(tag.Tag); msg != "" {
-			writeErrorMessage(w, http.StatusBadRequest, msg)
-			return
-		}
-		tag.Id = id
-		normalizeTag(&tag)
-		if err := dao.EditTag(&tag); err != nil {
-			if data.IsUniqueConstraintErr(err) {
-				writeErrorMessage(w, http.StatusConflict, "tag already exists")
-				return
-			}
-			writeError(w, http.StatusInternalServerError, err)
+		tag := saveTag(w, r, func(tag *data.Tag) error {
+			tag.Id = id
+			return dao.EditTag(tag)
+		})
+		if tag == nil {
 			return
 		}
 		writeJson(w, http.StatusOK, tag)
@@ -269,15 +218,17 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
+	// 未定義・メソッド違いの /api リクエストはJSONの404を返す（上の個別パターンが優先される）
+	apiNotFound := func(w http.ResponseWriter, r *http.Request) {
+		writeErrorMessage(w, http.StatusNotFound, "not found")
+	}
+	mux.HandleFunc("/api/", apiNotFound)
+	mux.HandleFunc("/api", apiNotFound)
+
 	// フロントのビルド成果物を配信（SPAのためパスが無ければindex.htmlへフォールバック）
 	if staticDir != "" {
 		fs := http.FileServer(http.Dir(staticDir))
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			// 未定義・メソッド違いの /api リクエストはSPAへフォールバックさせず404を返す
-			if r.URL.Path == "/api" || strings.HasPrefix(r.URL.Path, "/api/") {
-				writeErrorMessage(w, http.StatusNotFound, "not found")
-				return
-			}
 			path := filepath.Join(staticDir, filepath.Clean(r.URL.Path))
 			if info, err := os.Stat(path); err != nil || info.IsDir() {
 				if r.URL.Path != "/" {
@@ -313,6 +264,42 @@ func validateTag(name string) string {
 		return "tag must not contain whitespace"
 	}
 	return ""
+}
+
+// エンティティを取得する。エラーなら500、存在しなければ404（"<name> not found"）を書き込みfalseを返す
+func fetchOr404[T any](w http.ResponseWriter, get func(int64) (*T, error), id int64, name string) (*T, bool) {
+	v, err := get(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return nil, false
+	}
+	if v == nil {
+		writeErrorMessage(w, http.StatusNotFound, name+" not found")
+		return nil, false
+	}
+	return v, true
+}
+
+// タグの保存処理（検証 → 属性導出 → 保存。重複は409）。レスポンス書き込み済みならnilを返す
+func saveTag(w http.ResponseWriter, r *http.Request, save func(*data.Tag) error) *data.Tag {
+	var tag data.Tag
+	if !readJson(w, r, &tag) {
+		return nil
+	}
+	if msg := validateTag(tag.Tag); msg != "" {
+		writeErrorMessage(w, http.StatusBadRequest, msg)
+		return nil
+	}
+	normalizeTag(&tag)
+	if err := save(&tag); err != nil {
+		if data.IsUniqueConstraintErr(err) {
+			writeErrorMessage(w, http.StatusConflict, "tag already exists")
+			return nil
+		}
+		writeError(w, http.StatusInternalServerError, err)
+		return nil
+	}
+	return &tag
 }
 
 func pathId(w http.ResponseWriter, r *http.Request) (int64, bool) {
