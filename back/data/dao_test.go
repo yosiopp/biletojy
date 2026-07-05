@@ -882,3 +882,73 @@ func TestTicketRegistersUnknownTags(t *testing.T) {
 		t.Errorf("plain tags should be listed last in registration order: %+v", tags)
 	}
 }
+
+func TestAddAndGetFile(t *testing.T) {
+	dao := newTestDao(t)
+
+	file := &File{Name: "app.log", Mime: "text/plain", Data: []byte("2026-07-06 ERROR boom")}
+	if err := dao.AddFile(file); err != nil {
+		t.Fatalf("AddFile: %v", err)
+	}
+	if file.Id <= 0 || file.CreatedAt.IsZero() {
+		t.Errorf("file after add = %+v", file)
+	}
+
+	got, err := dao.GetFile(file.Id)
+	if err != nil {
+		t.Fatalf("GetFile: %v", err)
+	}
+	if got == nil || got.Name != "app.log" || got.Mime != "text/plain" || string(got.Data) != "2026-07-06 ERROR boom" {
+		t.Errorf("GetFile = %+v", got)
+	}
+
+	// 存在しないIDはエラーではなくnilを返す
+	missing, err := dao.GetFile(9999)
+	if err != nil || missing != nil {
+		t.Errorf("GetFile(missing) = %+v, %v", missing, err)
+	}
+}
+
+func TestMigrateImagesToFiles(t *testing.T) {
+	t.Chdir(t.TempDir())
+	db, err := sql.Open("sqlite", _DB_FILE)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	for _, q := range []string{
+		// v4時点のimagesテーブルと既存データ（本文は /api/images/3 を参照している想定）
+		`CREATE TABLE images (
+			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+			mime VARCHAR(100) NOT NULL,
+			data BLOB NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`INSERT INTO images (id, mime, data, created_at) VALUES (3, 'image/png', x'89504e47', '2026-01-01 00:00:00')`,
+		`PRAGMA user_version = 4`,
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatalf("exec %q: %v", q, err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	dao, err := NewDao()
+	if err != nil {
+		t.Fatalf("NewDao: %v", err)
+	}
+	t.Cleanup(dao.Close)
+
+	// IDを引き継いでfilesへ移行される（旧URLの /api/images/3 が引き続き同じ内容を返せる）
+	file, err := dao.GetFile(3)
+	if err != nil {
+		t.Fatalf("GetFile: %v", err)
+	}
+	if file == nil || file.Name != "" || file.Mime != "image/png" || len(file.Data) != 4 {
+		t.Errorf("migrated file = %+v", file)
+	}
+	if n := countRows(t, dao, `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'images'`); n != 0 {
+		t.Errorf("images table still exists: %d", n)
+	}
+}

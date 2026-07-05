@@ -45,8 +45,10 @@ export type CommentHistory = {
   created_at: string;
 };
 
-export type Image = {
+// 添付ファイル（画像を含む）。バイナリ本体は配信API（/api/files/{id}）で返る
+export type AttachedFile = {
   id: number;
+  name: string;
   mime: string;
   created_at: string;
 };
@@ -108,13 +110,13 @@ export const api = {
     request<Comment>(`/api/tickets/${ticketId}/comments`, { method: 'POST', body: JSON.stringify(data) }),
   updateComment: (id: number, data: Pick<Comment, 'content' | 'updated_by'>) =>
     request<Comment>(`/api/comments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  uploadImage: (file: File) =>
-    request<Image>('/api/images', {
+  uploadFile: (file: File) =>
+    request<AttachedFile>(`/api/files?name=${encodeURIComponent(file.name)}`, {
       method: 'POST',
-      headers: { 'Content-Type': file.type },
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
       body: file,
     }),
-  imageUrl: (id: number) => `/api/images/${id}`,
+  fileUrl: (id: number) => `/api/files/${id}`,
   listTemplates: () => request<Template[]>('/api/templates'),
   createTemplate: (data: Pick<Template, 'name' | 'title' | 'content' | 'tags'>) =>
     request<Template>('/api/templates', { method: 'POST', body: JSON.stringify(data) }),

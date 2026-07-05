@@ -92,9 +92,10 @@ function Markdown({ content }: Props) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkTicketLinks]}
         components={{
-          // アプリ内リンク（#123 のチケット参照）はSPA遷移にする
+          // アプリ内リンク（#123 のチケット参照）はSPA遷移にする。
+          // /api/ 配下（添付ファイルのダウンロードリンク等）はサーバーが応答するため通常のアンカーにする
           a({ href, children }) {
-            if (href?.startsWith('/')) {
+            if (href?.startsWith('/') && !href.startsWith('/api/')) {
               return <Link to={href}>{children}</Link>;
             }
             return <a href={href}>{children}</a>;

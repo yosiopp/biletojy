@@ -69,9 +69,10 @@ type CommentHistory struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
-// 貼り付け添付された画像。バイナリ本体はJSONに含めず配信APIで返す
-type Image struct {
+// 貼り付け・ドロップで添付されたファイル（画像を含む）。バイナリ本体はJSONに含めず配信APIで返す
+type File struct {
 	Id        int64     `json:"id"`
+	Name      string    `json:"name"`
 	Mime      string    `json:"mime"`
 	Data      []byte    `json:"-"`
 	CreatedAt time.Time `json:"created_at"`
@@ -130,6 +131,7 @@ func NewDao() (*Dao, error) {
 //   - v2未満: 旧形式（bi-gram化前や旧トークナイズ）で格納されたFTSデータを再構築する
 //   - v3未満: sub関連カラムを追加する（新規DBは_SQL_INITで作成済みのため、カラムの有無で判定する）
 //   - v4未満: tag_catalogへsort_orderカラムを追加する（同上）
+//   - v5未満: 旧imagesテーブルの内容をfilesテーブルへ移行する（テーブルの有無で判定する）
 func migrate(db *sql.DB) error {
 	var version int
 	if err := db.QueryRow(_SQL_GET_USER_VERSION).Scan(&version); err != nil {
@@ -163,6 +165,18 @@ func migrate(db *sql.DB) error {
 		}
 		// カラム追加直後（＝並び替え未設定）に限り、プリセットのstatusタグへシードと同じ並び順を設定する
 		if _, err := db.Exec(_SQL_BACKFILL_STATUS_ORDER); err != nil {
+			return err
+		}
+	}
+	if err := db.QueryRow(_SQL_COUNT_IMAGES_TABLE).Scan(&count); err != nil {
+		return err
+	}
+	if count > 0 {
+		// 既存本文が参照する /api/images/{id} のIDを引き継いでfilesへ移す（ファイル名は記録がないため空）
+		if _, err := db.Exec(_SQL_MIGRATE_IMAGES_TO_FILES); err != nil {
+			return err
+		}
+		if _, err := db.Exec(_SQL_DROP_IMAGES_TABLE); err != nil {
 			return err
 		}
 	}
@@ -527,26 +541,26 @@ func refreshCommentsFts(tx *sql.Tx, ticketId int64) error {
 	return err
 }
 
-func (dao *Dao) AddImage(image *Image) error {
-	image.CreatedAt = time.Now()
-	res, err := dao.db.Exec(_SQL_ADD_IMAGE, image.Mime, image.Data, image.CreatedAt)
+func (dao *Dao) AddFile(file *File) error {
+	file.CreatedAt = time.Now()
+	res, err := dao.db.Exec(_SQL_ADD_FILE, file.Name, file.Mime, file.Data, file.CreatedAt)
 	if err != nil {
 		return err
 	}
-	image.Id, _ = res.LastInsertId()
+	file.Id, _ = res.LastInsertId()
 	return nil
 }
 
-func (dao *Dao) GetImage(id int64) (*Image, error) {
-	var img Image
-	err := dao.db.QueryRow(_SQL_GET_IMAGE, id).Scan(&img.Id, &img.Mime, &img.Data, &img.CreatedAt)
+func (dao *Dao) GetFile(id int64) (*File, error) {
+	var f File
+	err := dao.db.QueryRow(_SQL_GET_FILE, id).Scan(&f.Id, &f.Name, &f.Mime, &f.Data, &f.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &img, nil
+	return &f, nil
 }
 
 // テンプレートを名前順（同名は登録順）に返す

@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, Comment, Ticket } from '../api/client';
 import CommentHistory from '../components/CommentHistory';
@@ -6,7 +6,7 @@ import Markdown from '../components/Markdown';
 import TagItem from '../components/TagItem';
 import TicketRefTextarea from '../components/TicketRefTextarea';
 import { formatDateTime } from '../lib/date';
-import { pasteImages } from '../lib/imagePaste';
+import { dropFiles, pasteFiles, selectFiles } from '../lib/attachFiles';
 import { staleGuard } from '../lib/staleGuard';
 import { currentUser, splitTags, tagColor } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
@@ -23,6 +23,7 @@ function TicketDetail() {
   const [commentError, setCommentError] = useState('');
   // 履歴を開いているコメントのID
   const [openHistories, setOpenHistories] = useState<Record<number, boolean>>({});
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -155,10 +156,11 @@ function TicketDetail() {
       <form onSubmit={submitComment} className="mt-4">
         <TicketRefTextarea
           className="border rounded-sm w-full p-2 h-24"
-          placeholder="コメントを追加（markdown可、画像ペースト可、#でチケット参照）"
+          placeholder="コメントを追加（markdown可、画像・ファイル添付可（ペースト/ドロップ）、#でチケット参照）"
           value={commentText}
           onChange={setCommentText}
-          onPaste={(e) => pasteImages(e, setCommentText, setCommentError)}
+          onPaste={(e) => pasteFiles(e, setCommentText, setCommentError)}
+          onDrop={(e) => dropFiles(e, setCommentText, setCommentError)}
         />
         <button
           type="submit"
@@ -167,6 +169,20 @@ function TicketDetail() {
         >
           コメント
         </button>
+        <button
+          type="button"
+          className="text-sm text-blue-700 hover:underline ml-3"
+          onClick={() => fileRef.current?.click()}
+        >
+          ファイルを添付
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => selectFiles(e, setCommentText, setCommentError)}
+        />
       </form>
     </>
   );

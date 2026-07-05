@@ -733,7 +733,19 @@ func TestNormalizeTag(t *testing.T) {
 	}
 }
 
-func TestImageUploadAndServe(t *testing.T) {
+// アップロード用のリクエストを送る（bodyはバイナリそのまま。contentTypeが空の場合はヘッダを付けない）
+func uploadFile(t *testing.T, handler http.Handler, path, contentType string, body []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest("POST", path, bytes.NewReader(body))
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	return w
+}
+
+func TestFileUploadAndServe(t *testing.T) {
 	handler := newTestServer(t)
 	// 1x1透過PNG
 	png := []byte{
@@ -744,31 +756,26 @@ func TestImageUploadAndServe(t *testing.T) {
 		0x42, 0x60, 0x82,
 	}
 
-	upload := func(contentType string, body []byte) *httptest.ResponseRecorder {
-		t.Helper()
-		req := httptest.NewRequest("POST", "/api/images", bytes.NewReader(body))
-		req.Header.Set("Content-Type", contentType)
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-		return w
-	}
-
-	w := upload("image/png", png)
+	w := uploadFile(t, handler, "/api/files?name=shot.png", "image/png", png)
 	assertStatus(t, w, http.StatusCreated)
-	created := decodeBody[data.Image](t, w)
-	if created.Id <= 0 || created.Mime != "image/png" || created.CreatedAt.IsZero() {
+	created := decodeBody[data.File](t, w)
+	if created.Id <= 0 || created.Name != "shot.png" || created.Mime != "image/png" || created.CreatedAt.IsZero() {
 		t.Errorf("created = %+v", created)
 	}
 
-	// アップロードした画像がそのままのバイト列・MIMEで配信される
-	imagePath := fmt.Sprintf("/api/images/%d", created.Id)
-	w = request(t, handler, "GET", imagePath, nil)
+	// アップロードしたファイルがそのままのバイト列・MIMEで配信される
+	filePath := fmt.Sprintf("/api/files/%d", created.Id)
+	w = request(t, handler, "GET", filePath, nil)
 	assertStatus(t, w, http.StatusOK)
 	if ct := w.Header().Get("Content-Type"); ct != "image/png" {
 		t.Errorf("Content-Type = %q, want image/png", ct)
 	}
 	if !bytes.Equal(w.Body.Bytes(), png) {
-		t.Errorf("served image = %d bytes, want %d bytes (same content)", w.Body.Len(), len(png))
+		t.Errorf("served file = %d bytes, want %d bytes (same content)", w.Body.Len(), len(png))
+	}
+	// 画像はこれまで通りインライン表示（Content-Dispositionなし）
+	if cd := w.Header().Get("Content-Disposition"); cd != "" {
+		t.Errorf("Content-Disposition = %q, want empty for image", cd)
 	}
 
 	// キャッシュ系ヘッダが付与される
@@ -784,7 +791,7 @@ func TestImageUploadAndServe(t *testing.T) {
 	}
 
 	// 条件付きGETは304を返す
-	req := httptest.NewRequest("GET", imagePath, nil)
+	req := httptest.NewRequest("GET", filePath, nil)
 	req.Header.Set("If-None-Match", etag)
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -793,15 +800,67 @@ func TestImageUploadAndServe(t *testing.T) {
 		t.Errorf("304 response has body: %d bytes", w.Body.Len())
 	}
 
+	// 旧URL（/api/images/{id}）でも同じ内容が配信される（既存本文の画像リンクの後方互換）
+	w = request(t, handler, "GET", fmt.Sprintf("/api/images/%d", created.Id), nil)
+	assertStatus(t, w, http.StatusOK)
+	if !bytes.Equal(w.Body.Bytes(), png) {
+		t.Errorf("served via /api/images = %d bytes, want %d bytes (same content)", w.Body.Len(), len(png))
+	}
+
 	// バリデーションと404
-	assertErrorResponse(t, upload("text/html", []byte("<html></html>")), http.StatusBadRequest)
-	assertErrorResponse(t, upload("application/json", []byte("{}")), http.StatusBadRequest)
-	assertErrorResponse(t, upload("image/png", nil), http.StatusBadRequest)
+	assertErrorResponse(t, uploadFile(t, handler, "/api/files", "text/plain", nil), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "GET", "/api/files/9999", nil), http.StatusNotFound)
+	assertErrorResponse(t, request(t, handler, "GET", "/api/files/abc", nil), http.StatusBadRequest)
 	assertErrorResponse(t, request(t, handler, "GET", "/api/images/9999", nil), http.StatusNotFound)
-	assertErrorResponse(t, request(t, handler, "GET", "/api/images/abc", nil), http.StatusBadRequest)
+
+	// アップロードは/api/filesへ一般化されたため、旧POST /api/imagesは404を返す
+	assertErrorResponse(t, uploadFile(t, handler, "/api/images", "image/png", png), http.StatusNotFound)
 
 	// 10MiB超は413
-	assertErrorResponse(t, upload("image/png", bytes.Repeat([]byte{0}, 10<<20+1)), http.StatusRequestEntityTooLarge)
+	assertErrorResponse(t, uploadFile(t, handler, "/api/files", "image/png", bytes.Repeat([]byte{0}, 10<<20+1)), http.StatusRequestEntityTooLarge)
+}
+
+func TestFileServeNonImageAsAttachment(t *testing.T) {
+	handler := newTestServer(t)
+
+	upload := func(path, contentType string, body []byte) data.File {
+		t.Helper()
+		w := uploadFile(t, handler, path, contentType, body)
+		assertStatus(t, w, http.StatusCreated)
+		return decodeBody[data.File](t, w)
+	}
+
+	// 画像以外はダウンロード（attachment）として配信され、ファイル名がfilenameに入る
+	created := upload("/api/files?name=app.log", "text/plain", []byte("2026-07-06 ERROR boom"))
+	w := request(t, handler, "GET", fmt.Sprintf("/api/files/%d", created.Id), nil)
+	assertStatus(t, w, http.StatusOK)
+	if ct := w.Header().Get("Content-Type"); ct != "text/plain" {
+		t.Errorf("Content-Type = %q, want text/plain", ct)
+	}
+	if cd := w.Header().Get("Content-Disposition"); cd != `attachment; filename=app.log` {
+		t.Errorf("Content-Disposition = %q", cd)
+	}
+	if xcto := w.Header().Get("X-Content-Type-Options"); xcto != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q, want nosniff", xcto)
+	}
+
+	// Content-Type未指定はapplication/octet-streamとして保存する。name未指定はfilenameなしのattachment
+	created = upload("/api/files", "", []byte{0x00, 0x01})
+	if created.Mime != "application/octet-stream" || created.Name != "" {
+		t.Errorf("created = %+v", created)
+	}
+	w = request(t, handler, "GET", fmt.Sprintf("/api/files/%d", created.Id), nil)
+	assertStatus(t, w, http.StatusOK)
+	if cd := w.Header().Get("Content-Disposition"); cd != "attachment" {
+		t.Errorf("Content-Disposition = %q, want attachment", cd)
+	}
+
+	// 非ASCIIのファイル名はRFC 2231のfilename*形式でエンコードされる
+	created = upload("/api/files?name="+url.QueryEscape("ログ.txt"), "text/plain", []byte("x"))
+	w = request(t, handler, "GET", fmt.Sprintf("/api/files/%d", created.Id), nil)
+	if cd := w.Header().Get("Content-Disposition"); !strings.Contains(cd, "filename*=utf-8''") {
+		t.Errorf("Content-Disposition = %q, want filename* encoding", cd)
+	}
 }
 
 func TestStaticSpaFallback(t *testing.T) {

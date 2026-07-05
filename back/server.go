@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"mime"
 	"net/http"
 	"path"
 	"strconv"
@@ -16,10 +17,11 @@ import (
 	"github.com/yosiopp/biletojy/data"
 )
 
-// 貼り付け添付画像の上限サイズと受け付けるMIMEタイプ
-const _MAX_IMAGE_BYTES = 10 << 20
+// 貼り付け・ドロップで添付するファイルの上限サイズ
+const _MAX_FILE_BYTES = 10 << 20
 
-var allowedImageMimes = map[string]bool{
+// インライン表示で配信する画像のMIMEタイプ。これ以外はHTML等の埋め込み実行を防ぐためダウンロードとして配信する
+var inlineImageMimes = map[string]bool{
 	"image/png":  true,
 	"image/jpeg": true,
 	"image/gif":  true,
@@ -227,50 +229,62 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		writeJson(w, http.StatusOK, current)
 	})
 
-	mux.HandleFunc("POST /api/images", func(w http.ResponseWriter, r *http.Request) {
-		mime := r.Header.Get("Content-Type")
-		if !allowedImageMimes[mime] {
-			writeErrorMessage(w, http.StatusBadRequest, "unsupported image type")
-			return
+	mux.HandleFunc("POST /api/files", func(w http.ResponseWriter, r *http.Request) {
+		mimeType := r.Header.Get("Content-Type")
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
 		}
-		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, _MAX_IMAGE_BYTES))
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, _MAX_FILE_BYTES))
 		if err != nil {
 			var maxBytesErr *http.MaxBytesError
 			if errors.As(err, &maxBytesErr) {
-				writeErrorMessage(w, http.StatusRequestEntityTooLarge, "image too large")
+				writeErrorMessage(w, http.StatusRequestEntityTooLarge, "file too large")
 				return
 			}
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
 		if len(body) == 0 {
-			writeErrorMessage(w, http.StatusBadRequest, "image is required")
+			writeErrorMessage(w, http.StatusBadRequest, "file is required")
 			return
 		}
-		image := data.Image{Mime: mime, Data: body}
-		if err := dao.AddImage(&image); err != nil {
+		file := data.File{Name: r.URL.Query().Get("name"), Mime: mimeType, Data: body}
+		if err := dao.AddFile(&file); err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
-		writeJson(w, http.StatusCreated, image)
+		writeJson(w, http.StatusCreated, file)
 	})
 
-	mux.HandleFunc("GET /api/images/{id}", func(w http.ResponseWriter, r *http.Request) {
+	serveFile := func(w http.ResponseWriter, r *http.Request) {
 		id, ok := pathId(w, r)
 		if !ok {
 			return
 		}
-		image, ok := fetchOr404(w, dao.GetImage, id, "image")
+		file, ok := fetchOr404(w, dao.GetFile, id, "file")
 		if !ok {
 			return
 		}
-		// 画像は編集されないため長期キャッシュを許可し、IDをそのままETagにする。
+		// ファイルは編集されないため長期キャッシュを許可し、IDをそのままETagにする。
 		// ServeContentがLast-Modifiedの付与とIf-None-Match/If-Modified-Sinceによる304応答を処理する
-		w.Header().Set("Content-Type", image.Mime)
+		w.Header().Set("Content-Type", file.Mime)
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		w.Header().Set("ETag", `"`+strconv.FormatInt(image.Id, 10)+`"`)
-		http.ServeContent(w, r, "", image.CreatedAt, bytes.NewReader(image.Data))
-	})
+		w.Header().Set("ETag", `"`+strconv.FormatInt(file.Id, 10)+`"`)
+		// 画像以外はインライン表示させずダウンロードとして配信する（text/html等の埋め込み実行を防ぐ）
+		if !inlineImageMimes[file.Mime] {
+			disposition := "attachment"
+			if file.Name != "" {
+				// 非ASCIIのファイル名はRFC 2231のfilename*形式でエンコードされる
+				disposition = mime.FormatMediaType("attachment", map[string]string{"filename": file.Name})
+			}
+			w.Header().Set("Content-Disposition", disposition)
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+		}
+		http.ServeContent(w, r, "", file.CreatedAt, bytes.NewReader(file.Data))
+	}
+	mux.HandleFunc("GET /api/files/{id}", serveFile)
+	// ファイル一般化前の画像URL（/api/images/{id}）を参照している既存チケット本文のための後方互換エイリアス
+	mux.HandleFunc("GET /api/images/{id}", serveFile)
 
 	mux.HandleFunc("GET /api/templates", func(w http.ResponseWriter, r *http.Request) {
 		templates, err := dao.QueryTemplates()

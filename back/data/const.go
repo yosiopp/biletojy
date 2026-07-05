@@ -63,8 +63,9 @@ const (
 		sort_order INTEGER NOT NULL DEFAULT 0
 	);
 
-	CREATE TABLE IF NOT EXISTS images (
+	CREATE TABLE IF NOT EXISTS files (
 		id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+		name VARCHAR(255) NOT NULL DEFAULT '',
 		mime VARCHAR(100) NOT NULL,
 		data BLOB NOT NULL,
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -157,9 +158,9 @@ const (
 	_SQL_QUERY_TICKET_HISTORIES  = `SELECT id, ticket_id, title, content, COALESCE(tags, ''), created_by, created_sub, created_at FROM ticket_histories WHERE ticket_id = ? ORDER BY id ASC`
 	_SQL_QUERY_COMMENT_HISTORIES = `SELECT id, comment_id, content, created_by, created_sub, created_at FROM comment_histories WHERE comment_id = ? ORDER BY id ASC`
 
-	// 画像
-	_SQL_ADD_IMAGE = `INSERT INTO images (mime, data, created_at) VALUES (?, ?, ?)`
-	_SQL_GET_IMAGE = `SELECT id, mime, data, created_at FROM images WHERE id = ?`
+	// 添付ファイル
+	_SQL_ADD_FILE = `INSERT INTO files (name, mime, data, created_at) VALUES (?, ?, ?, ?)`
+	_SQL_GET_FILE = `SELECT id, name, mime, data, created_at FROM files WHERE id = ?`
 
 	// テンプレート（チケット作成時に適用するタイトル・本文・タグの雛形。一覧は名前順）
 	_SQL_QUERY_TEMPLATES = `SELECT id, name, title, content, tags, created_at, updated_at FROM templates ORDER BY name ASC, id ASC`
@@ -179,16 +180,21 @@ const (
 		WHERE t.id <> ? AND (t.content LIKE ? OR EXISTS (SELECT 1 FROM comments c WHERE c.ticket_id = t.id AND c.content LIKE ?))
 		ORDER BY t.updated_at DESC`
 
-	// マイグレーション（v2: FTSインデックス再構築、v3: subカラム追加、v4: sort_orderカラム追加）
-	_SCHEMA_VERSION            = 4
+	// マイグレーション（v2: FTSインデックス再構築、v3: subカラム追加、v4: sort_orderカラム追加、
+	// v5: imagesテーブルをfilesテーブルへ移行）
+	_SCHEMA_VERSION            = 5
 	_SQL_GET_USER_VERSION      = `PRAGMA user_version`
-	_SQL_SET_USER_VERSION      = `PRAGMA user_version = 4`
+	_SQL_SET_USER_VERSION      = `PRAGMA user_version = 5`
 	_SQL_DELETE_ALL_TICKET_FTS = `DELETE FROM tickets_fts`
 	_SQL_QUERY_TICKETS_FOR_FTS = `SELECT id, title, content, COALESCE(tags, '') FROM tickets`
 	// カラムの有無で既存DB（ALTERが必要）か新規DB（_SQL_INITで作成済み）かを判定する
 	_SQL_COUNT_SUB_COLUMN        = `SELECT COUNT(*) FROM pragma_table_info('tickets') WHERE name = 'created_sub'`
 	_SQL_COUNT_SORT_ORDER_COLUMN = `SELECT COUNT(*) FROM pragma_table_info('tag_catalog') WHERE name = 'sort_order'`
 	_SQL_ADD_SORT_ORDER_COLUMN   = `ALTER TABLE tag_catalog ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0`
+	// 旧imagesテーブル（v5でfilesへ一般化）の移行。既存本文が参照する /api/images/{id} のIDを引き継ぐ
+	_SQL_COUNT_IMAGES_TABLE      = `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'images'`
+	_SQL_MIGRATE_IMAGES_TO_FILES = `INSERT INTO files (id, name, mime, data, created_at) SELECT id, '', mime, data, created_at FROM images`
+	_SQL_DROP_IMAGES_TABLE       = `DROP TABLE images`
 	// シード済みの既存DBにも_SQL_INIT_TAG_CATALOGと同じstatusの並び順を設定する
 	_SQL_BACKFILL_STATUS_ORDER = `UPDATE tag_catalog SET sort_order = CASE tag
 		WHEN 'status:OPEN' THEN 1
