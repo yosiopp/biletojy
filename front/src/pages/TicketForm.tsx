@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import Markdown from '../components/Markdown';
 import TagInput from '../components/TagInput';
 import { pasteImages } from '../lib/imagePaste';
-import { currentUser, joinTags, setCurrentUser, splitTags, USER_CHANGED_EVENT } from '../lib/tags';
+import { currentUser, joinTags, splitTags } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
 
 type Draft = { title: string; content: string; tags: string };
@@ -18,7 +18,6 @@ function TicketForm() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [user, setUser] = useState(currentUser());
   const catalog = useCatalog();
   const [preview, setPreview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -28,13 +27,6 @@ function TicketForm() {
   const [initial, setInitial] = useState<Draft>({ title: '', content: '', tags: '' });
   const titleRef = useRef<HTMLInputElement>(null);
   const submittedRef = useRef(false);
-
-  // フォーム表示中にユーザ名設定ダイアログで名前が保存された場合、作成者欄へ反映する
-  useEffect(() => {
-    const handler = () => setUser(currentUser());
-    window.addEventListener(USER_CHANGED_EVENT, handler);
-    return () => window.removeEventListener(USER_CHANGED_EVENT, handler);
-  }, []);
 
   useEffect(() => {
     if (isEdit) {
@@ -85,13 +77,13 @@ function TicketForm() {
       titleRef.current?.focus();
       return;
     }
-    setCurrentUser(user);
     setSubmitting(true);
     try {
+      // 作成者・更新者は常にlocalStorageのユーザ名（ヘッダーの設定ダイアログで変更できる）
       const data = { title, content, tags: joinTags(tags) };
       const ticket = isEdit
-        ? await api.updateTicket(id, { ...data, updated_by: user })
-        : await api.createTicket({ ...data, created_by: user });
+        ? await api.updateTicket(id, { ...data, updated_by: currentUser() })
+        : await api.createTicket({ ...data, created_by: currentUser() });
       submittedRef.current = true;
       navigate(`/tickets/${ticket.id}`);
     } catch (err) {
@@ -154,18 +146,6 @@ function TicketForm() {
         <div className="text-sm text-neutral-500 mb-1">タグ</div>
         <TagInput value={tags} onChange={setTags} catalog={catalog} />
       </div>
-
-      {!isEdit && (
-        <label className="block mb-2 text-sm text-neutral-600">
-          作成者
-          <input
-            type="text"
-            className="border rounded-sm px-2 py-1 ml-2"
-            value={user}
-            onChange={(e) => setUser(e.target.value)}
-          />
-        </label>
-      )}
 
       <button
         type="submit"
