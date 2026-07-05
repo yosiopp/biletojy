@@ -51,6 +51,13 @@ const (
 		is_range INTEGER NOT NULL DEFAULT 0
 	);
 
+	CREATE TABLE IF NOT EXISTS images (
+		id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+		mime VARCHAR(100) NOT NULL,
+		data BLOB NOT NULL,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
 	CREATE VIRTUAL TABLE IF NOT EXISTS tickets_fts USING fts5 (
 		ticket_id UNINDEXED,
 		title,
@@ -103,6 +110,10 @@ const (
 	_SQL_ADD_COMMENT_HISTORY = `INSERT INTO comment_histories (comment_id, content, created_at) VALUES (?, ?, ?)`
 	_SQL_EDIT_COMMENT        = `UPDATE comments SET content = ?, updated_at = ? WHERE id = ?`
 	_SQL_EDIT_COMMENT_FTS    = `UPDATE tickets_fts SET comments = ? WHERE ticket_id = ?`
+
+	// 画像
+	_SQL_ADD_IMAGE = `INSERT INTO images (mime, data, created_at) VALUES (?, ?, ?)`
+	_SQL_GET_IMAGE = `SELECT id, mime, data, created_at FROM images WHERE id = ?`
 
 	// チケット検索
 	_SQL_QUERY_TICKETS_BASE = `SELECT t.id, t.title, t.content, COALESCE(t.tags, ''), t.created_by, t.created_at, t.updated_at FROM tickets t`

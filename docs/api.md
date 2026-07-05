@@ -2,7 +2,7 @@
 
 ベースパスは `/api`。リクエスト/レスポンスともJSON。エラー時は `{"error": "メッセージ"}` を返す。
 認証/認可は持たない。`created_by` が空の場合は `anonymous` が設定される。
-リクエストボディは1MiBまでで、超えた場合は `413 Request Entity Too Large` を返す。
+リクエストボディは1MiBまで（画像アップロードは10MiBまで）で、超えた場合は `413 Request Entity Too Large` を返す。
 
 ## エンドポイント一覧
 | メソッド/パス | 内容 |
@@ -15,6 +15,8 @@
 | `GET /api/tickets/{id}/comments` | コメント一覧 |
 | `POST /api/tickets/{id}/comments` | コメント追加 |
 | `PUT /api/comments/{id}` | コメント編集 |
+| `POST /api/images` | 画像アップロード |
+| `GET /api/images/{id}` | 画像配信 |
 | `GET /api/tags` | タグカタログ一覧 |
 | `POST /api/tags` | タグ作成 |
 | `PUT /api/tags/{id}` | タグ編集 |
@@ -74,6 +76,28 @@ Comment {
 }
 ```
 * 編集のたびに履歴テーブル（`comment_histories`）へ保存される
+
+## 画像
+チケット・コメントの編集エリアへの貼り付け添付用。本文には `![image](/api/images/{id})` 形式のmarkdown画像リンクとして挿入する。
+
+### アップロード（POST /api/images）
+リクエストボディに画像のバイナリをそのまま送り、`Content-Type` ヘッダでMIMEタイプを指定する（JSONではない）。
+
+* 受け付けるMIMEタイプは `image/png`, `image/jpeg`, `image/gif`, `image/webp`。それ以外は `400 Bad Request` を返す
+* ボディは10MiBまでで、超えた場合は `413 Request Entity Too Large` を返す
+* 成功時は `201 Created` で以下を返す
+
+```
+Image {
+  id: number
+  mime: string         // アップロード時のContent-Type
+  created_at: string
+}
+```
+
+### 配信（GET /api/images/{id}）
+アップロードしたバイナリを `Content-Type: {mime}` で返す。画像は編集されないため `Cache-Control: public, max-age=31536000, immutable` を付与する。
+存在しない場合は `404 Not Found`（JSON）を返す。
 
 ## タグカタログ
 ```

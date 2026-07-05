@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,6 +13,16 @@ import (
 
 	"github.com/yosiopp/biletojy/data"
 )
+
+// 貼り付け添付画像の上限サイズと受け付けるMIMEタイプ
+const _MAX_IMAGE_BYTES = 10 << 20
+
+var allowedImageMimes = map[string]bool{
+	"image/png":  true,
+	"image/jpeg": true,
+	"image/gif":  true,
+	"image/webp": true,
+}
 
 func newServer(dao *data.Dao, staticDir string) http.Handler {
 	mux := http.NewServeMux()
@@ -164,6 +175,49 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 			return
 		}
 		writeJson(w, http.StatusOK, current)
+	})
+
+	mux.HandleFunc("POST /api/images", func(w http.ResponseWriter, r *http.Request) {
+		mime := r.Header.Get("Content-Type")
+		if !allowedImageMimes[mime] {
+			writeErrorMessage(w, http.StatusBadRequest, "unsupported image type")
+			return
+		}
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, _MAX_IMAGE_BYTES))
+		if err != nil {
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(err, &maxBytesErr) {
+				writeErrorMessage(w, http.StatusRequestEntityTooLarge, "image too large")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		if len(body) == 0 {
+			writeErrorMessage(w, http.StatusBadRequest, "image is required")
+			return
+		}
+		image := data.Image{Mime: mime, Data: body}
+		if err := dao.AddImage(&image); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJson(w, http.StatusCreated, image)
+	})
+
+	mux.HandleFunc("GET /api/images/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, ok := pathId(w, r)
+		if !ok {
+			return
+		}
+		image, ok := fetchOr404(w, dao.GetImage, id, "image")
+		if !ok {
+			return
+		}
+		// 画像は編集されないため長期キャッシュを許可する
+		w.Header().Set("Content-Type", image.Mime)
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		w.Write(image.Data)
 	})
 
 	mux.HandleFunc("GET /api/tags", func(w http.ResponseWriter, r *http.Request) {

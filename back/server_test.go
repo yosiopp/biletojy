@@ -420,6 +420,54 @@ func TestNormalizeTag(t *testing.T) {
 	}
 }
 
+func TestImageUploadAndServe(t *testing.T) {
+	handler := newTestServer(t)
+	// 1x1透過PNG
+	png := []byte{
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+		0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+		0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+		0x42, 0x60, 0x82,
+	}
+
+	upload := func(contentType string, body []byte) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest("POST", "/api/images", bytes.NewReader(body))
+		req.Header.Set("Content-Type", contentType)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w
+	}
+
+	w := upload("image/png", png)
+	assertStatus(t, w, http.StatusCreated)
+	created := decodeBody[data.Image](t, w)
+	if created.Id <= 0 || created.Mime != "image/png" || created.CreatedAt.IsZero() {
+		t.Errorf("created = %+v", created)
+	}
+
+	// アップロードした画像がそのままのバイト列・MIMEで配信される
+	w = request(t, handler, "GET", fmt.Sprintf("/api/images/%d", created.Id), nil)
+	assertStatus(t, w, http.StatusOK)
+	if ct := w.Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("Content-Type = %q, want image/png", ct)
+	}
+	if !bytes.Equal(w.Body.Bytes(), png) {
+		t.Errorf("served image = %d bytes, want %d bytes (same content)", w.Body.Len(), len(png))
+	}
+
+	// バリデーションと404
+	assertErrorResponse(t, upload("text/html", []byte("<html></html>")), http.StatusBadRequest)
+	assertErrorResponse(t, upload("application/json", []byte("{}")), http.StatusBadRequest)
+	assertErrorResponse(t, upload("image/png", nil), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "GET", "/api/images/9999", nil), http.StatusNotFound)
+	assertErrorResponse(t, request(t, handler, "GET", "/api/images/abc", nil), http.StatusBadRequest)
+
+	// 10MiB超は413
+	assertErrorResponse(t, upload("image/png", bytes.Repeat([]byte{0}, 10<<20+1)), http.StatusRequestEntityTooLarge)
+}
+
 func TestStaticSpaFallback(t *testing.T) {
 	t.Chdir(t.TempDir())
 	staticDir := t.TempDir()

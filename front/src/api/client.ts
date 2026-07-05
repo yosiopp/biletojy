@@ -17,6 +17,12 @@ export type Comment = {
   updated_at: string;
 };
 
+export type Image = {
+  id: number;
+  mime: string;
+  created_at: string;
+};
+
 export type Tag = {
   id: number;
   tag: string;
@@ -60,6 +66,13 @@ export const api = {
     request<Comment>(`/api/tickets/${ticketId}/comments`, { method: 'POST', body: JSON.stringify(data) }),
   updateComment: (id: number, data: Pick<Comment, 'content'>) =>
     request<Comment>(`/api/comments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  uploadImage: (file: File) =>
+    request<Image>('/api/images', {
+      method: 'POST',
+      headers: { 'Content-Type': file.type },
+      body: file,
+    }),
+  imageUrl: (id: number) => `/api/images/${id}`,
   listTags: () => request<Tag[]>('/api/tags'),
   createTag: (data: Pick<Tag, 'tag' | 'note' | 'color'>) =>
     request<Tag>('/api/tags', { method: 'POST', body: JSON.stringify(data) }),

@@ -3,6 +3,7 @@ import { useBlocker, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import Markdown from '../components/Markdown';
 import TagInput from '../components/TagInput';
+import { pasteImages } from '../lib/imagePaste';
 import { currentUser, joinTags, setCurrentUser, splitTags } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
 
@@ -135,9 +136,10 @@ function TicketForm() {
       ) : (
         <textarea
           className="border rounded-sm w-full p-2 h-64 mb-2 font-mono text-sm"
-          placeholder={'本文（markdown / mermaid可）\n\n```mermaid\ngraph TD; A-->B;\n```'}
+          placeholder={'本文（markdown / mermaid可、画像ペースト可）\n\n```mermaid\ngraph TD; A-->B;\n```'}
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          onPaste={(e) => pasteImages(e, setContent, setError)}
         />
       )}
 

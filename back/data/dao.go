@@ -38,6 +38,14 @@ type Comment struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// 貼り付け添付された画像。バイナリ本体はJSONに含めず配信APIで返す
+type Image struct {
+	Id        int64     `json:"id"`
+	Mime      string    `json:"mime"`
+	Data      []byte    `json:"-"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type Tag struct {
 	Id      int64   `json:"id"`
 	Tag     string  `json:"tag"`
@@ -375,6 +383,28 @@ func refreshCommentsFts(tx *sql.Tx, ticketId int64) error {
 	joined := Bigram(StripMarkdown(strings.Join(contents, " ")))
 	_, err = tx.Exec(_SQL_EDIT_COMMENT_FTS, joined, ticketId)
 	return err
+}
+
+func (dao *Dao) AddImage(image *Image) error {
+	image.CreatedAt = time.Now()
+	res, err := dao.db.Exec(_SQL_ADD_IMAGE, image.Mime, image.Data, image.CreatedAt)
+	if err != nil {
+		return err
+	}
+	image.Id, _ = res.LastInsertId()
+	return nil
+}
+
+func (dao *Dao) GetImage(id int64) (*Image, error) {
+	var img Image
+	err := dao.db.QueryRow(_SQL_GET_IMAGE, id).Scan(&img.Id, &img.Mime, &img.Data, &img.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &img, nil
 }
 
 func (dao *Dao) QueryTags() ([]Tag, error) {

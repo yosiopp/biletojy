@@ -4,6 +4,7 @@ import { api, Comment, Ticket } from '../api/client';
 import Markdown from '../components/Markdown';
 import TagItem from '../components/TagItem';
 import { formatDateTime } from '../lib/date';
+import { pasteImages } from '../lib/imagePaste';
 import { staleGuard } from '../lib/staleGuard';
 import { currentUser, splitTags, tagColor } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
@@ -120,9 +121,10 @@ function TicketDetail() {
       <form onSubmit={submitComment} className="mt-4">
         <textarea
           className="border rounded-sm w-full p-2 h-24"
-          placeholder="コメントを追加（markdown可）"
+          placeholder="コメントを追加（markdown可、画像ペースト可）"
           value={commentText}
           onChange={(e) => setCommentText(e.target.value)}
+          onPaste={(e) => pasteImages(e, setCommentText, setCommentError)}
         />
         <button
           type="submit"
