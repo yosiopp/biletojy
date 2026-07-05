@@ -122,4 +122,5 @@ CREATE VIRTUAL TABLE tickets_fts USING fts5 (
 * v2未満: FTSインデックスを全件再構築する（旧トークナイズ形式からの移行）
 * v3未満: `tickets` / `comments` / `ticket_histories` / `comment_histories` へsub関連カラムを
   `ALTER TABLE ... ADD COLUMN` で追加する（新規DBはDDLで作成済みのため、カラムの有無で判定する）
-* v4未満: `tag_catalog` へ `sort_order` カラムを `ALTER TABLE ... ADD COLUMN` で追加する（同上）
+* v4未満: `tag_catalog` へ `sort_order` カラムを `ALTER TABLE ... ADD COLUMN` で追加する（同上）。
+  追加時、プリセットの `status` タグにはシードと同じ並び順（OPEN → WIP → DONE → CLOSE）を設定する

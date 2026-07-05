@@ -466,7 +466,8 @@ func TestCommentsFullText(t *testing.T) {
 }
 
 // v3時点のDB（tag_catalogにsort_orderカラムがない）からの移行。
-// カラムが追加され、既存タグを保ったまま（シードを再投入せず）起動できる
+// カラムが追加され、既存タグを保ったまま（シードを再投入せず）起動でき、
+// プリセットのstatusタグにはシードと同じ並び順が設定される
 func TestMigrateAddsSortOrderColumn(t *testing.T) {
 	t.Chdir(t.TempDir())
 	db, err := sql.Open("sqlite", _DB_FILE)
@@ -482,7 +483,9 @@ func TestMigrateAddsSortOrderColumn(t *testing.T) {
 			is_group INTEGER NOT NULL DEFAULT 0,
 			is_range INTEGER NOT NULL DEFAULT 0
 		)`,
-		`INSERT INTO tag_catalog (tag, is_group) VALUES ('status:OPEN', 1)`,
+		// v3時点のシード相当（アルファベット順で返っていた）と独自タグ
+		`INSERT INTO tag_catalog (tag, is_group) VALUES
+			('status:OPEN', 1), ('status:WIP', 1), ('status:DONE', 1), ('status:CLOSE', 1), ('mytag', 0)`,
 		`PRAGMA user_version = 3`,
 	} {
 		if _, err := db.Exec(q); err != nil {
@@ -503,15 +506,17 @@ func TestMigrateAddsSortOrderColumn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("QueryTags: %v", err)
 	}
-	if len(tags) != 1 || tags[0].Tag != "status:OPEN" || tags[0].SortOrder != 0 {
-		t.Errorf("tags after migration = %+v", tags)
+	names := []string{}
+	for _, tag := range tags {
+		names = append(names, tag.Tag)
 	}
-	if err := dao.ReorderTags([]int64{tags[0].Id}); err != nil {
-		t.Fatalf("ReorderTags: %v", err)
+	// statusはシード順、独自タグはsort_order 0のまま残る
+	want := []string{"mytag", "status:OPEN", "status:WIP", "status:DONE", "status:CLOSE"}
+	if !slices.Equal(names, want) {
+		t.Errorf("tags after migration = %v, want %v", names, want)
 	}
-	got, _ := dao.GetTag(tags[0].Id)
-	if got.SortOrder != 1 {
-		t.Errorf("SortOrder after reorder = %d, want 1", got.SortOrder)
+	if tags[0].SortOrder != 0 || tags[1].SortOrder != 1 {
+		t.Errorf("sort_order after migration = %+v", tags)
 	}
 }
 

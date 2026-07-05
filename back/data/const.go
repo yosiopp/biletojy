@@ -156,6 +156,14 @@ const (
 	_SQL_COUNT_SUB_COLUMN        = `SELECT COUNT(*) FROM pragma_table_info('tickets') WHERE name = 'created_sub'`
 	_SQL_COUNT_SORT_ORDER_COLUMN = `SELECT COUNT(*) FROM pragma_table_info('tag_catalog') WHERE name = 'sort_order'`
 	_SQL_ADD_SORT_ORDER_COLUMN   = `ALTER TABLE tag_catalog ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0`
+	// シード済みの既存DBにも_SQL_INIT_TAG_CATALOGと同じstatusの並び順を設定する
+	_SQL_BACKFILL_STATUS_ORDER = `UPDATE tag_catalog SET sort_order = CASE tag
+		WHEN 'status:OPEN' THEN 1
+		WHEN 'status:WIP' THEN 2
+		WHEN 'status:DONE' THEN 3
+		WHEN 'status:CLOSE' THEN 4
+		END
+		WHERE tag IN ('status:OPEN', 'status:WIP', 'status:DONE', 'status:CLOSE')`
 )
 
 // v3で追加されたカラムを既存DBへ足すALTER文

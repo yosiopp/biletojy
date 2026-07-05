@@ -150,6 +150,10 @@ func migrate(db *sql.DB) error {
 		if _, err := db.Exec(_SQL_ADD_SORT_ORDER_COLUMN); err != nil {
 			return err
 		}
+		// カラム追加直後（＝並び替え未設定）に限り、プリセットのstatusタグへシードと同じ並び順を設定する
+		if _, err := db.Exec(_SQL_BACKFILL_STATUS_ORDER); err != nil {
+			return err
+		}
 	}
 	_, err := db.Exec(_SQL_SET_USER_VERSION)
 	return err
