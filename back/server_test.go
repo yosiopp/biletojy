@@ -177,6 +177,15 @@ func TestTicketSearch(t *testing.T) {
 	if got := search("ログイン", "docs"); len(got) != 0 {
 		t.Errorf("search q+tags mismatch = %+v, want empty", got)
 	}
+	if got := search("", "-status:WIP"); len(got) != 1 || got[0].Id != t1.Id {
+		t.Errorf("search tags NOT = %+v, want ticket %d", got, t1.Id)
+	}
+	if got := search("", "status:OPEN|status:WIP"); len(got) != 2 {
+		t.Errorf("search tags OR = %d tickets, want 2", len(got))
+	}
+	if got := search("", "status:OPEN|status:WIP,-docs"); len(got) != 1 || got[0].Id != t1.Id {
+		t.Errorf("search tags OR+NOT = %+v, want ticket %d", got, t1.Id)
+	}
 }
 
 func TestCommentCreateAndList(t *testing.T) {

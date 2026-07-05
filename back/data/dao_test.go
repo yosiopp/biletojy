@@ -181,6 +181,43 @@ func TestQueryTicketsByTags(t *testing.T) {
 	}
 }
 
+func TestQueryTicketsNotOr(t *testing.T) {
+	dao := newTestDao(t)
+
+	t1 := addTestTicket(t, dao, "対応中のバグ", "内容1", "status:OPEN type:BUG")
+	t2 := addTestTicket(t, dao, "作業中の設計", "内容2", "status:WIP docs/design")
+	t3 := addTestTicket(t, dao, "完了済み", "内容3", "status:CLOSE type:BUG")
+	t4 := addTestTicket(t, dao, "期限あり", "内容4", "status:WIP due-date@:2026-02-01")
+
+	tests := []struct {
+		tags []string
+		want []int64
+	}{
+		{[]string{"-status:CLOSE"}, []int64{t4.Id, t2.Id, t1.Id}},                 // NOT
+		{[]string{"-docs"}, []int64{t4.Id, t3.Id, t1.Id}},                         // 階層の前方一致のNOT
+		{[]string{"status:OPEN|status:WIP"}, []int64{t4.Id, t2.Id, t1.Id}},        // OR
+		{[]string{"status:OPEN|docs/design"}, []int64{t2.Id, t1.Id}},              // グループを跨ぐOR
+		{[]string{"-status:OPEN|status:WIP"}, []int64{t3.Id}},                     // NOTはOR全体に掛かる
+		{[]string{"type:BUG", "-status:CLOSE"}, []int64{t1.Id}},                   // ANDとの組み合わせ
+		{[]string{"-status:CLOSE", "-status:WIP"}, []int64{t1.Id}},                // NOT同士のAND
+		{[]string{"status:OPEN|status:CLOSE", "type:BUG"}, []int64{t3.Id, t1.Id}}, // ORとANDの組み合わせ
+		{[]string{"due-date@:>=2026-01-01|status:OPEN"}, []int64{t4.Id, t1.Id}},   // 範囲条件を含むOR
+		{[]string{"-due-date@:>=2026-01-01"}, []int64{t3.Id, t2.Id, t1.Id}},       // 範囲条件のNOT（タグなしも含む）
+		{[]string{"-"}, []int64{t4.Id, t3.Id, t2.Id, t1.Id}},                      // 空の条件は無視
+		{[]string{"status:OPEN|"}, []int64{t1.Id}},                                // 空の択は無視
+	}
+	for _, tt := range tests {
+		if got := queryTicketIds(t, dao, "", tt.tags); !slices.Equal(got, tt.want) {
+			t.Errorf("QueryTickets(tags=%v) = %v, want %v", tt.tags, got, tt.want)
+		}
+	}
+
+	// 全文検索との組み合わせ
+	if got := queryTicketIds(t, dao, "バグ", []string{"-status:CLOSE"}); !slices.Equal(got, []int64{t1.Id}) {
+		t.Errorf("QueryTickets(q + NOT) = %v, want [%d]", got, t1.Id)
+	}
+}
+
 func TestQueryTicketsByRangeCond(t *testing.T) {
 	dao := newTestDao(t)
 

@@ -24,6 +24,33 @@ export function parseTag(raw: string): ParsedTag {
   };
 }
 
+// タグ絞り込み条件の1要素。先頭 "-" で除外（NOT）、"|" 区切りでOR
+// （例: "-status:CLOSE", "status:OPEN|status:WIP"）。NOTはOR全体に掛かる
+export type ParsedCond = {
+  raw: string;
+  not: boolean;
+  alts: string[];
+};
+
+export function parseCond(raw: string): ParsedCond {
+  const not = raw.startsWith('-');
+  const body = not ? raw.slice(1) : raw;
+  return { raw, not, alts: body.split('|').filter((a) => a.length > 0) };
+}
+
+export function buildCond(not: boolean, alts: string[]): string {
+  if (alts.length === 0) return '';
+  return (not ? '-' : '') + alts.join('|');
+}
+
+// 条件のすべての択が同じタググループに属する場合そのグループ名、それ以外はnull
+export function condGroup(cond: string): string | null {
+  const { alts } = parseCond(cond);
+  if (alts.length === 0) return null;
+  const groups = alts.map((a) => parseTag(a).group);
+  return groups[0] != null && groups.every((g) => g === groups[0]) ? groups[0] : null;
+}
+
 export function splitTags(tags: string): string[] {
   return tags.split(/\s+/).filter((t) => t.length > 0);
 }

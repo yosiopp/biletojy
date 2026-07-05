@@ -127,33 +127,25 @@ func (dao *Dao) Close() {
 	dao.db = nil
 }
 
-// チケット検索。qはbi-gram全文検索、tagsはタグの完全一致または階層の前方一致で絞り込む。
-// 日時タグは "due-date@:>=2026-01-01" のように比較演算子（>, <, >=, <=, =）付きで範囲指定できる
+// チケット検索。qはbi-gram全文検索、tagsはタグ条件のAND絞り込み。
+// 各条件は完全一致または階層の前方一致で、先頭 "-" で除外（NOT）、"|" 区切りでOR指定できる。
+// 日時タグは "due-date@:>=2026-01-01" のように比較演算子（>, <, >=, <=, =）付きで範囲指定できる。
+// NOT/ORを含むタグ条件はSQLに落とし込みにくいため、タグの絞り込みはGo側で行う
 func (dao *Dao) QueryTickets(q string, tags []string) ([]Ticket, error) {
 	query := _SQL_QUERY_TICKETS_BASE
-	where := []string{}
 	args := []any{}
 	if q != "" {
-		query += _SQL_QUERY_TICKETS_FTS
-		where = append(where, `tickets_fts MATCH ?`)
+		query += _SQL_QUERY_TICKETS_FTS + ` WHERE tickets_fts MATCH ?`
 		args = append(args, BigramQuery(q))
 	}
-	conds := []*rangeCond{}
-	for _, tag := range tags {
-		if c := parseRangeCond(tag); c != nil {
-			// 値の比較はGo側で行い、SQLではグループの存在だけで絞り込む
-			conds = append(conds, c)
-			where = append(where, `' ' || t.tags LIKE '% ' || ? || '%'`)
-			args = append(args, c.group)
-			continue
-		}
-		where = append(where, `(' ' || t.tags || ' ' LIKE '% ' || ? || ' %' OR ' ' || t.tags || ' ' LIKE '% ' || ? || '/%')`)
-		args = append(args, tag, tag)
-	}
-	if len(where) > 0 {
-		query += ` WHERE ` + strings.Join(where, ` AND `)
-	}
 	query += ` ORDER BY t.updated_at DESC`
+
+	conds := []*tagCond{}
+	for _, tag := range tags {
+		if c := parseTagCond(tag); c != nil {
+			conds = append(conds, c)
+		}
+	}
 
 	rows, err := dao.db.Query(query, args...)
 	if err != nil {
@@ -166,7 +158,7 @@ func (dao *Dao) QueryTickets(q string, tags []string) ([]Ticket, error) {
 		if err := rows.Scan(&t.Id, &t.Title, &t.Content, &t.Tags, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
-		if !matchAllRangeConds(conds, t.Tags) {
+		if !matchAllTagConds(conds, t.Tags) {
 			continue
 		}
 		tickets = append(tickets, t)
@@ -174,7 +166,7 @@ func (dao *Dao) QueryTickets(q string, tags []string) ([]Ticket, error) {
 	return tickets, rows.Err()
 }
 
-func matchAllRangeConds(conds []*rangeCond, tags string) bool {
+func matchAllTagConds(conds []*tagCond, tags string) bool {
 	for _, c := range conds {
 		if !c.match(tags) {
 			return false

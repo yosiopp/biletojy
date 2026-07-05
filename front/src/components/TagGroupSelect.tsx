@@ -1,5 +1,5 @@
 import { KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react';
-import { parseTag } from '../lib/tags';
+import { buildCond, parseCond, parseTag } from '../lib/tags';
 
 export type TagGroupOption = {
   value: string; // 選択時に onChange へ渡す値（"status:OPEN" 形式）
@@ -10,14 +10,15 @@ export type TagGroupOption = {
 type Props = {
   group: string; // "status" や "due-date@"
   options: TagGroupOption[];
-  value: string; // 選択中のタグ（"status:OPEN" 形式）。未選択は ''
+  value: string; // 選択中の条件（"status:OPEN"、OR: "status:OPEN|status:WIP"、NOT: "-status:CLOSE"）。未選択は ''
   color?: string | null;
-  onChange: (tag: string) => void; // '' でクリア
+  onChange: (cond: string) => void; // '' でクリア
 };
 
 // タググループのチップ。チップ自体をクリックすると選択肢のプルダウンが開く
+// 選択肢は複数選択するとOR条件になり、「除外」を選ぶとNOT条件になる
 // 末尾@のグループは選択肢の代わりに日付ピッカーを表示する
-// キーボード: ↑↓で選択肢を移動、Enterで確定、Escで閉じる
+// キーボード: ↑↓で移動、Enter/Spaceで選択肢をトグル、Escで閉じる
 function TagGroupSelect({ group, options, value, color, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -25,10 +26,12 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
   const rootRef = useRef<HTMLSpanElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isDate = group.endsWith('@');
-  const selectedName = value ? parseTag(value).name : '';
+  const { not, alts } = parseCond(value);
+  const names = alts.map((a) => parseTag(a).name);
+  const chipLabel = (not ? '-' : '') + names.join('|');
 
-  // 先頭にクリア用の選択肢を加えたリスト（キーボード移動の対象）
-  const items: TagGroupOption[] = [{ value: '', label: '-' }, ...options];
+  // キーボード移動の対象: 0=クリア、1..n=選択肢、n+1=除外トグル
+  const lastIndex = options.length + 1;
 
   useEffect(() => {
     if (!open) return;
@@ -41,15 +44,25 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
 
   const toggle = () => {
     // 既存タグに時刻付きの値（例: 2026-07-04T10:00）が残っていても日付部分だけをピッカーに渡す
-    if (isDate) setDateValue(selectedName.slice(0, 10));
-    setActive(open ? -1 : Math.max(items.findIndex((item) => item.value === value), 0));
+    if (isDate) setDateValue((names[0] ?? '').slice(0, 10));
+    setActive(open ? -1 : Math.max(options.findIndex((o) => alts.includes(o.value)) + 1, 0));
     setOpen(!open);
   };
 
-  const select = (tag: string) => {
-    onChange(tag);
+  const select = (cond: string) => {
+    onChange(cond);
     setOpen(false);
     setActive(-1);
+  };
+
+  // 選択肢のトグル。複数選択でOR条件になる（プルダウンは開いたまま）
+  const toggleAlt = (tag: string) => {
+    const next = alts.includes(tag) ? alts.filter((a) => a !== tag) : [...alts, tag];
+    onChange(buildCond(not, next));
+  };
+
+  const toggleNot = () => {
+    if (alts.length > 0) onChange(buildCond(!not, alts));
   };
 
   const close = () => {
@@ -76,13 +89,19 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setActive((i) => Math.min(i + 1, items.length - 1));
+      setActive((i) => Math.min(i + 1, lastIndex));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setActive((i) => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter') {
+    } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      if (active >= 0) select(items[active].value);
+      if (active === 0) {
+        select('');
+      } else if (active === lastIndex) {
+        toggleNot();
+      } else if (active > 0) {
+        toggleAlt(options[active - 1].value);
+      }
     }
   };
 
@@ -104,7 +123,7 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
         onClick={toggle}
       >
         <span className="border-r border-neutral-300 pr-1 text-sm opacity-70">{group.replace(/@$/, '')}</span>
-        <span className={`pl-2 ${value ? '' : 'text-neutral-400'}`}>{selectedName || '-'}</span>
+        <span className={`pl-2 ${value ? '' : 'text-neutral-400'}`}>{chipLabel || '-'}</span>
         <span className="ml-1 text-xs text-neutral-400">▾</span>
       </button>
 
@@ -140,23 +159,51 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
               </div>
             </div>
           ) : (
-            <div role="listbox" aria-label={group}>
-              {items.map((option, index) => (
-                <button
-                  key={option.value || '-'}
-                  type="button"
-                  role="option"
-                  aria-selected={option.value === value}
-                  className={`block w-full text-left px-2 py-1 text-sm ${
-                    index === active ? 'bg-blue-100' : option.value === value ? 'bg-blue-50' : ''
-                  } ${option.value === '' ? 'text-neutral-400' : ''} hover:bg-neutral-100`}
-                  onClick={() => select(option.value)}
-                  onMouseEnter={() => setActive(index)}
-                >
-                  {option.label}
-                  {option.note && <span className="text-neutral-400 ml-1">（{option.note}）</span>}
-                </button>
-              ))}
+            <div role="listbox" aria-label={group} aria-multiselectable="true">
+              <button
+                type="button"
+                role="option"
+                aria-selected={value === ''}
+                className={`block w-full text-left px-2 py-1 text-sm text-neutral-400 ${
+                  active === 0 ? 'bg-blue-100' : ''
+                } hover:bg-neutral-100`}
+                onClick={() => select('')}
+                onMouseEnter={() => setActive(0)}
+              >
+                <span className="inline-block w-4" />-
+              </button>
+              {options.map((option, i) => {
+                const index = i + 1;
+                const checked = alts.includes(option.value);
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="option"
+                    aria-selected={checked}
+                    className={`block w-full text-left px-2 py-1 text-sm ${
+                      index === active ? 'bg-blue-100' : checked ? 'bg-blue-50' : ''
+                    } hover:bg-neutral-100`}
+                    onClick={() => toggleAlt(option.value)}
+                    onMouseEnter={() => setActive(index)}
+                  >
+                    <span className="inline-block w-4 text-blue-700">{checked ? '✓' : ''}</span>
+                    {option.label}
+                    {option.note && <span className="text-neutral-400 ml-1">（{option.note}）</span>}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                className={`block w-full text-left px-2 py-1 text-sm border-t ${
+                  active === lastIndex ? 'bg-blue-100' : ''
+                } ${alts.length === 0 ? 'text-neutral-300' : ''} hover:bg-neutral-100`}
+                onClick={toggleNot}
+                onMouseEnter={() => setActive(lastIndex)}
+              >
+                <span className="inline-block w-4 text-blue-700">{not ? '✓' : ''}</span>
+                除外（マッチしないもの）
+              </button>
             </div>
           )}
         </div>

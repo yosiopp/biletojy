@@ -1,6 +1,15 @@
 import { useMemo, useState } from 'react';
 import type { Tag } from '../api/client';
-import { groupCatalog, hierarchyOptions, normalizeTag, parseTag, tagColor } from '../lib/tags';
+import {
+  buildCond,
+  condGroup,
+  groupCatalog,
+  hierarchyOptions,
+  normalizeTag,
+  parseCond,
+  parseTag,
+  tagColor,
+} from '../lib/tags';
 import TagGroupSelect from './TagGroupSelect';
 import TagItem from './TagItem';
 
@@ -13,9 +22,10 @@ type Props = {
 };
 
 // チケット一覧の絞り込み・全文検索バー
-// - タググループはチップとして表示し、クリックで選択肢のプルダウンが開く
+// - タググループはチップとして表示し、クリックで選択肢のプルダウンが開く（複数選択でOR、「除外」でNOT）
 // - 階層タグも「階層」チップのプルダウンから選択。中間階層を選ぶと配下すべてにマッチ（前方一致）
 // - 入力欄は共通: 既存のタグ・階層・グループ値ならタグ絞り込み、それ以外は全文検索ワードになる
+//   タグ絞り込みは先頭 - で除外（NOT）、| 区切りでOR条件を指定できる
 function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props) {
   const [text, setText] = useState('');
   const groups = useMemo(() => groupCatalog(catalog), [catalog]);
@@ -34,7 +44,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
     onChange([...selected, tag]);
   };
 
-  // 入力値をタグ絞り込みとして扱えるか（カタログ一致・階層・既存グループの値指定）
+  // タグ1つ分をタグ絞り込みとして扱えるか（カタログ一致・階層・既存グループの値指定）
   const isTagQuery = (input: string) => {
     if (catalog.some((t) => t.tag === input)) return true;
     if (hierarchies.includes(input)) return true;
@@ -43,11 +53,13 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
   };
 
   const submit = (raw: string) => {
-    // コロン抜けの日時タグ（例: due-date@2026-07-01）を正しい形式に補正する
-    const input = normalizeTag(raw.trim(), groups.keys());
+    const input = raw.trim();
     if (!input) return;
-    if (isTagQuery(input)) {
-      addTag(input);
+    // 先頭 - は除外、| 区切りはOR条件。各択のコロン抜け日時タグ（例: due-date@2026-07-01）を補正する
+    const { not, alts } = parseCond(input);
+    const normalized = alts.map((a) => normalizeTag(a, groups.keys()));
+    if (normalized.length > 0 && normalized.every(isTagQuery)) {
+      addTag(buildCond(not, normalized));
     } else {
       const words = input.split(/\s+/).filter((w) => !queryWords.includes(w));
       if (words.length > 0) onQueryChange([...queryWords, ...words].join(' '));
@@ -55,27 +67,25 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
     setText('');
   };
 
+  // グループのチップが担当する条件（すべての択がそのグループの値のもの）
   const selectedInGroup = (group: string) =>
-    selected.find((tag) => parseTag(tag).group === group) ?? '';
+    selected.find((cond) => condGroup(cond) === group) ?? '';
 
-  const replaceGroupTag = (group: string, tag: string) => {
-    const rest = selected.filter((t) => parseTag(t).group !== group);
-    onChange(tag ? [...rest, tag] : rest);
+  const replaceGroupTag = (group: string, cond: string) => {
+    const rest = selected.filter((c) => condGroup(c) !== group);
+    onChange(cond ? [...rest, cond] : rest);
   };
 
-  // グループチップで表示されないタグ（階層・自由入力など）
-  const chipGroups = useMemo(() => new Set(filterGroups.map(([group]) => group)), [filterGroups]);
-  const restTags = selected.filter((tag) => {
-    const { group } = parseTag(tag);
-    return group == null || !chipGroups.has(group);
-  });
+  // グループチップで表示されない条件（階層・自由入力・グループを跨ぐORなど）
+  const chipConds = new Set(filterGroups.map(([group]) => selectedInGroup(group)).filter((c) => c !== ''));
+  const restTags = selected.filter((cond) => !chipConds.has(cond));
 
   return (
     <div className="border rounded-sm p-2 mb-2">
       <input
         type="search"
         className="border rounded-sm px-2 py-1 w-full"
-        placeholder="タグまたは全文検索（タイトル・本文・コメント / Enterで確定）"
+        placeholder="タグまたは全文検索（タイトル・本文・コメント / -タグで除外、タグ|タグでOR / Enterで確定）"
         list="tag-filter-suggestions"
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -121,14 +131,26 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
           />
         )}
 
-        {restTags.map((tag) => (
-          <TagItem
-            key={tag}
-            tag={tag}
-            color={tagColor(catalog, tag)}
-            onRemove={() => onChange(selected.filter((t) => t !== tag))}
-          />
-        ))}
+        {restTags.map((cond) => {
+          const { not, alts } = parseCond(cond);
+          const remove = () => onChange(selected.filter((t) => t !== cond));
+          // 単純な条件は通常のタグチップで表示（色・期限表示を活かす）。NOT/OR条件は専用チップにする
+          if (!not && alts.length === 1) {
+            return <TagItem key={cond} tag={alts[0]} color={tagColor(catalog, alts[0])} onRemove={remove} />;
+          }
+          return (
+            <span
+              key={cond}
+              className="inline-flex items-center rounded-lg border border-neutral-300 bg-white py-0.5 px-2 mr-1 mb-1 whitespace-nowrap"
+            >
+              {not && <span className="border-r border-neutral-300 pr-1 text-sm text-neutral-500">除外</span>}
+              <span className={not ? 'pl-2' : ''}>{alts.join(' | ')}</span>
+              <button type="button" className="ml-1 text-neutral-400 hover:text-neutral-700" onClick={remove}>
+                ×
+              </button>
+            </span>
+          );
+        })}
         {queryWords.map((word) => (
           <span
             key={word}
