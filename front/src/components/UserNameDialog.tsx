@@ -1,34 +1,32 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { hasCurrentUser, setCurrentUser } from '../lib/tags';
+import { currentUser, hasCurrentUser, setCurrentUser } from '../lib/tags';
 
-// ユーザ名（localStorageのbiletojy.user）が未設定の場合に、初回アクセス時へ設定を促すダイアログ。
-// 閉じるだけなら未設定のままとなり、次回アクセス時に再度表示される
-function UserNameDialog() {
-  const [open, setOpen] = useState(() => !hasCurrentUser());
-  const [name, setName] = useState('');
+// ユーザ名（localStorageのbiletojy.user）を設定するダイアログ。
+// 未設定での初回アクセス時に自動表示されるほか、ヘッダーのユーザ名クリックでも開ける（Layout参照）。
+// 保存せずに閉じた場合は未設定のままとなり、次回アクセス時に再度自動表示される
+function UserNameDialog({ onClose }: { onClose: () => void }) {
+  // 再設定の場合は現在の名前を初期値にする
+  const [name, setName] = useState(() => (hasCurrentUser() ? currentUser() : ''));
 
   useEffect(() => {
-    if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [open]);
-
-  if (!open) return null;
+  }, [onClose]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     setCurrentUser(name.trim());
-    setOpen(false);
+    onClose();
   };
 
   return (
     <div
       className="fixed inset-0 z-20 bg-black/30 flex items-center justify-center"
-      onClick={() => setOpen(false)}
+      onClick={onClose}
     >
       <form
         role="dialog"
@@ -43,7 +41,7 @@ function UserNameDialog() {
             type="button"
             className="text-neutral-400 hover:text-neutral-700"
             aria-label="閉じる"
-            onClick={() => setOpen(false)}
+            onClick={onClose}
           >
             ×
           </button>
@@ -64,9 +62,9 @@ function UserNameDialog() {
           <button
             type="button"
             className="border rounded-sm px-4 py-1 hover:bg-neutral-100"
-            onClick={() => setOpen(false)}
+            onClick={onClose}
           >
-            あとで
+            {hasCurrentUser() ? 'キャンセル' : 'あとで'}
           </button>
           <button
             type="submit"

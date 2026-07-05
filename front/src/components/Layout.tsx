@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { hasCurrentUser } from '../lib/tags';
 import Header from './Header';
 import UserNameDialog from './UserNameDialog';
 
@@ -27,6 +28,8 @@ function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showHelp, setShowHelp] = useState(false);
+  // ユーザ名が未設定の場合は初回アクセス時に設定ダイアログを自動表示する
+  const [showUserDialog, setShowUserDialog] = useState(() => !hasCurrentUser());
 
   useEffect(() => {
     const eventListener = (event: KeyboardEvent) => {
@@ -65,12 +68,12 @@ function Layout() {
 
   return (
     <>
-      <Header />
+      <Header onUserClick={() => setShowUserDialog(true)} />
       <main className="p-2">
         <Outlet />
       </main>
 
-      <UserNameDialog />
+      {showUserDialog && <UserNameDialog onClose={() => setShowUserDialog(false)} />}
 
       <button
         type="button"
