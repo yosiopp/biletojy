@@ -74,12 +74,14 @@ export function hierarchyOptions(catalog: Tag[]): string[] {
 }
 
 // "due-date@2026-07-01" のようなコロン抜けの日時タグを "due-date@:2026-07-01" に補正する
-// 誤補正を避けるため、既知の @グループか、値が日付形式のときのみ補正する
+// 誤補正を避けるため、既知の @グループか、値が日付形式（比較演算子付き含む）のときのみ補正する
 export function normalizeTag(input: string, groups: Iterable<string>): string {
   const m = input.match(/^([^:]+@)([^:].*)$/);
   if (!m) return input;
   const [, group, rest] = m;
-  if (new Set(groups).has(group) || /^\d{4}-\d{2}-\d{2}/.test(rest)) return `${group}:${rest}`;
+  if (new Set(groups).has(group) || /^(?:>=|<=|>|<|=)?\d{4}-\d{2}-\d{2}/.test(rest)) {
+    return `${group}:${rest}`;
+  }
   return input;
 }
 

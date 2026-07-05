@@ -125,7 +125,8 @@ func (dao *Dao) Close() {
 	dao.db = nil
 }
 
-// チケット検索。qはbi-gram全文検索、tagsはタグの完全一致または階層の前方一致で絞り込む
+// チケット検索。qはbi-gram全文検索、tagsはタグの完全一致または階層の前方一致で絞り込む。
+// 日時タグは "due-date@:>=2026-01-01" のように比較演算子（>, <, >=, <=, =）付きで範囲指定できる
 func (dao *Dao) QueryTickets(q string, tags []string) ([]Ticket, error) {
 	query := _SQL_QUERY_TICKETS_BASE
 	where := []string{}
@@ -135,7 +136,15 @@ func (dao *Dao) QueryTickets(q string, tags []string) ([]Ticket, error) {
 		where = append(where, `tickets_fts MATCH ?`)
 		args = append(args, BigramQuery(q))
 	}
+	conds := []*rangeCond{}
 	for _, tag := range tags {
+		if c := parseRangeCond(tag); c != nil {
+			// 値の比較はGo側で行い、SQLではグループの存在だけで絞り込む
+			conds = append(conds, c)
+			where = append(where, `' ' || t.tags LIKE '% ' || ? || '%'`)
+			args = append(args, c.group)
+			continue
+		}
 		where = append(where, `(' ' || t.tags || ' ' LIKE '% ' || ? || ' %' OR ' ' || t.tags || ' ' LIKE '% ' || ? || '/%')`)
 		args = append(args, tag, tag)
 	}
@@ -155,9 +164,21 @@ func (dao *Dao) QueryTickets(q string, tags []string) ([]Ticket, error) {
 		if err := rows.Scan(&t.Id, &t.Title, &t.Content, &t.Tags, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
+		if !matchAllRangeConds(conds, t.Tags) {
+			continue
+		}
 		tickets = append(tickets, t)
 	}
 	return tickets, rows.Err()
+}
+
+func matchAllRangeConds(conds []*rangeCond, tags string) bool {
+	for _, c := range conds {
+		if !c.match(tags) {
+			return false
+		}
+	}
+	return true
 }
 
 func (dao *Dao) GetTicket(id int64) (*Ticket, error) {
