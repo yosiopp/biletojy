@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api, Ticket } from '../api/client';
 import TagFilter from '../components/TagFilter';
 import TicketRow from '../components/TicketRow';
+import { buildSort, parseSort, sortTickets, SortSpec } from '../lib/sort';
 import { staleGuard } from '../lib/staleGuard';
 import { useCatalog } from '../lib/useCatalog';
 
@@ -14,24 +15,36 @@ function TicketList() {
   const [error, setError] = useState('');
 
   const q = searchParams.get('q') ?? '';
-  const tags = (searchParams.get('tags') ?? '').split(',').filter((t) => t.length > 0);
+  const tagsParam = searchParams.get('tags') ?? '';
+  const tags = tagsParam.split(',').filter((t) => t.length > 0);
   const hasFilter = q.length > 0 || tags.length > 0;
+  const sort = parseSort(searchParams.get('sort'));
 
   useEffect(() => {
     // 検索条件が変わった後に古いレスポンスで上書きされないようにする
+    // （ソートはクライアント側で行うため再取得しない）
     const { fresh, cancel } = staleGuard();
     api
-      .listTickets(q, tags)
+      .listTickets(q, tagsParam.split(',').filter((t) => t.length > 0))
       .then(fresh(setTickets))
       .catch(fresh((e: Error) => setError(e.message)));
     return cancel;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [q, tagsParam]);
 
   const updateParams = (nextQ: string, nextTags: string[]) => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(searchParams);
     if (nextQ) params.set('q', nextQ);
+    else params.delete('q');
     if (nextTags.length > 0) params.set('tags', nextTags.join(','));
+    else params.delete('tags');
+    setSearchParams(params);
+  };
+
+  const updateSort = (next: SortSpec) => {
+    const params = new URLSearchParams(searchParams);
+    const value = buildSort(next);
+    if (value) params.set('sort', value);
+    else params.delete('sort');
     setSearchParams(params);
   };
 
@@ -47,6 +60,28 @@ function TicketList() {
 
       {error && <p className="text-red-600 mb-2">{error}</p>}
 
+      <div className="flex items-center justify-end gap-1 mb-2 text-sm">
+        <label htmlFor="ticket-sort" className="text-neutral-500">
+          並び替え:
+        </label>
+        <select
+          id="ticket-sort"
+          className="border rounded-sm px-1 py-0.5"
+          value={sort.key}
+          onChange={(e) => updateSort({ ...sort, key: e.target.value })}
+        >
+          <option value="updated">updated</option>
+          <option value="id">id</option>
+        </select>
+        <button
+          type="button"
+          className="border rounded-sm px-2 py-0.5 hover:bg-neutral-100"
+          onClick={() => updateSort({ ...sort, desc: !sort.desc })}
+        >
+          {sort.desc ? '↓ 降順' : '↑ 昇順'}
+        </button>
+      </div>
+
       <div className="hidden sm:flex text-neutral-500 border-b">
         <div className="flex-none w-16 py-1 pl-4">id</div>
         <div className="w-2/4 py-1">title</div>
@@ -54,9 +89,10 @@ function TicketList() {
         <div className="flex-none w-40 py-1 pr-4">updated</div>
       </div>
       {tickets == null && !error && <p className="text-neutral-500 p-4">読み込み中...</p>}
-      {tickets?.map((ticket) => (
-        <TicketRow key={ticket.id} ticket={ticket} catalog={catalog} />
-      ))}
+      {tickets != null &&
+        sortTickets(tickets, sort).map((ticket) => (
+          <TicketRow key={ticket.id} ticket={ticket} catalog={catalog} />
+        ))}
       {tickets != null && tickets.length === 0 && (
         <div className="text-neutral-500 p-4">
           {hasFilter ? (
