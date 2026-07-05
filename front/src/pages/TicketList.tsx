@@ -13,7 +13,6 @@ function TicketList() {
 
   const q = searchParams.get('q') ?? '';
   const tags = (searchParams.get('tags') ?? '').split(',').filter((t) => t.length > 0);
-  const [text, setText] = useState(q);
 
   useEffect(() => {
     api.listTags().then(setCatalog).catch((e: Error) => setError(e.message));
@@ -36,20 +35,13 @@ function TicketList() {
 
   return (
     <>
-      <div className="mb-2">
-        <input
-          type="search"
-          className="border rounded-sm px-2 py-1 w-full"
-          placeholder="全文検索（タイトル・本文・コメント・タグ / Enterで検索）"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') updateParams(text.trim(), tags);
-          }}
-        />
-      </div>
-
-      <TagFilter selected={tags} onChange={(next) => updateParams(q, next)} catalog={catalog} />
+      <TagFilter
+        selected={tags}
+        onChange={(next) => updateParams(q, next)}
+        query={q}
+        onQueryChange={(next) => updateParams(next, tags)}
+        catalog={catalog}
+      />
 
       {error && <p className="text-red-600 mb-2">{error}</p>}
 
