@@ -12,9 +12,9 @@ back/            バックエンド（Go / net/http）
   data/          DAO・SQL定義・FTSトークナイズ・日時/数値タグの範囲条件
   webui/         フロントのビルド成果物の埋め込み（go:embed。dist/はビルド時にコピー）
 front/           フロントエンド（React + TypeScript + Vite + Tailwind CSS）
-  src/pages/     画面（チケット一覧/詳細/作成編集、タグ一覧）
+  src/pages/     画面（チケット一覧/詳細/作成編集/履歴、タグ一覧）
   src/components/ 共通コンポーネント
-  src/lib/       タグ・日付のユーティリティ
+  src/lib/       タグ・日付などのユーティリティ
   src/api/       APIクライアント
 docs/            開発向けドキュメント
 justfile         ビルド・起動タスク

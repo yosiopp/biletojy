@@ -48,7 +48,7 @@ cd front && npm run build                # tsc -b && vite build
 SQLiteドライバは `modernc.org/sqlite`（pure Go、cgo不要、FTS5標準対応）。全文検索はSQLite FTS5 + Go側でのbi-gramトークナイズ。FTSテーブルへは登録・検索の両方でトークナイズ済みテキストを渡す。コメント編集時は `refreshCommentsFts` でチケット単位に再構築される。チケット・コメントの編集は毎回履歴テーブル（`ticket_histories` / `comment_histories`）へ保存される。
 
 ### フロントエンド（front/src/）
-* ルーティングは `App.tsx`（react-router）。ページは `pages/`（TicketList / TicketDetail / TicketForm / TagList）
+* ルーティングは `App.tsx`（react-router）。ページは `pages/`（TicketList / TicketDetail / TicketForm / TicketHistory / TagList）
 * APIクライアントは `api/client.ts` に集約
 * 本文・コメントは markdown + mermaid（`components/Markdown.tsx`）
 * ショートカットキー対応が要件（ctrl+n 作成、ctrl+e 編集、ctrl+l 一覧、ctrl+t タグ一覧 等）。キーボードだけで操作が完結すること
