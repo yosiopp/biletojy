@@ -96,8 +96,11 @@ Image {
 ```
 
 ### 配信（GET /api/images/{id}）
-アップロードしたバイナリを `Content-Type: {mime}` で返す。画像は編集されないため `Cache-Control: public, max-age=31536000, immutable` を付与する。
-存在しない場合は `404 Not Found`（JSON）を返す。
+アップロードしたバイナリを `Content-Type: {mime}` で返す。存在しない場合は `404 Not Found`（JSON）を返す。
+
+画像は編集されないため、キャッシュ用に以下のレスポンスヘッダを付与する:
+* `Cache-Control: public, max-age=31536000, immutable`
+* `ETag`（画像ID）と `Last-Modified`（作成日時）— `If-None-Match` / `If-Modified-Since` 付きの条件付きGETには `304 Not Modified` を返す
 
 ## タグカタログ
 ```

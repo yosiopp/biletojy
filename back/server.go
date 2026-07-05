@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -214,10 +215,12 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		if !ok {
 			return
 		}
-		// 画像は編集されないため長期キャッシュを許可する
+		// 画像は編集されないため長期キャッシュを許可し、IDをそのままETagにする。
+		// ServeContentがLast-Modifiedの付与とIf-None-Match/If-Modified-Sinceによる304応答を処理する
 		w.Header().Set("Content-Type", image.Mime)
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		w.Write(image.Data)
+		w.Header().Set("ETag", `"`+strconv.FormatInt(image.Id, 10)+`"`)
+		http.ServeContent(w, r, "", image.CreatedAt, bytes.NewReader(image.Data))
 	})
 
 	mux.HandleFunc("GET /api/tags", func(w http.ResponseWriter, r *http.Request) {

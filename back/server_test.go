@@ -448,13 +448,36 @@ func TestImageUploadAndServe(t *testing.T) {
 	}
 
 	// アップロードした画像がそのままのバイト列・MIMEで配信される
-	w = request(t, handler, "GET", fmt.Sprintf("/api/images/%d", created.Id), nil)
+	imagePath := fmt.Sprintf("/api/images/%d", created.Id)
+	w = request(t, handler, "GET", imagePath, nil)
 	assertStatus(t, w, http.StatusOK)
 	if ct := w.Header().Get("Content-Type"); ct != "image/png" {
 		t.Errorf("Content-Type = %q, want image/png", ct)
 	}
 	if !bytes.Equal(w.Body.Bytes(), png) {
 		t.Errorf("served image = %d bytes, want %d bytes (same content)", w.Body.Len(), len(png))
+	}
+
+	// キャッシュ系ヘッダが付与される
+	if cc := w.Header().Get("Cache-Control"); !strings.Contains(cc, "immutable") {
+		t.Errorf("Cache-Control = %q, want immutable", cc)
+	}
+	etag := w.Header().Get("ETag")
+	if etag == "" {
+		t.Error("ETag not set")
+	}
+	if w.Header().Get("Last-Modified") == "" {
+		t.Error("Last-Modified not set")
+	}
+
+	// 条件付きGETは304を返す
+	req := httptest.NewRequest("GET", imagePath, nil)
+	req.Header.Set("If-None-Match", etag)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	assertStatus(t, w, http.StatusNotModified)
+	if w.Body.Len() != 0 {
+		t.Errorf("304 response has body: %d bytes", w.Body.Len())
 	}
 
 	// バリデーションと404
