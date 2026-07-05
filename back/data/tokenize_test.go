@@ -41,13 +41,15 @@ func TestBigram(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"hello", "he el ll lo"},
+		// 2文字以上の単語は末尾1文字のunigramも出力する（1文字の前方一致検索で拾うため）
+		{"hello", "he el ll lo o"},
 		{"a", "a"},
 		{"", ""},
-		{"ログイン", "ログ グイ イン"},
-		{"ab cd", "ab cd"},
-		{"ABC", "ab bc"},
-		{"エラー 発生", "エラ ラー 発生"},
+		{"ログイン", "ログ グイ イン ン"},
+		{"ab cd", "ab b cd d"},
+		{"ABC", "ab bc c"},
+		{"エラー 発生", "エラ ラー ー 発生 生"},
+		{"柴犬", "柴犬 犬"},
 	}
 	for _, tt := range tests {
 		if got := Bigram(tt.input); got != tt.want {
@@ -67,6 +69,12 @@ func TestBigramQuery(t *testing.T) {
 		{"エラー 発生", `"エラ ラー" AND "発生"`},
 		{"ABC", `"ab bc"`},
 		{`a"b`, `"a"" ""b"`},
+		// 索引側と同じ前処理（記号の除去）を通す
+		{"e-mail", `"e" * AND "ma ai il"`},
+		{"2026-01-01", `"20 02 26" AND "01" AND "01"`},
+		// 空白のみ・除去される記号のみは空になる
+		{"   ", ``},
+		{"---", ``},
 	}
 	for _, tt := range tests {
 		if got := BigramQuery(tt.input); got != tt.want {

@@ -2,11 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/yosiopp/biletojy/data"
 )
@@ -199,12 +201,16 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		if !readJson(w, r, &tag) {
 			return
 		}
-		if tag.Tag == "" {
-			writeErrorMessage(w, http.StatusBadRequest, "tag is required")
+		if msg := validateTag(tag.Tag); msg != "" {
+			writeErrorMessage(w, http.StatusBadRequest, msg)
 			return
 		}
 		normalizeTag(&tag)
 		if err := dao.AddTag(&tag); err != nil {
+			if data.IsUniqueConstraintErr(err) {
+				writeErrorMessage(w, http.StatusConflict, "tag already exists")
+				return
+			}
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
@@ -229,13 +235,17 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		if !readJson(w, r, &tag) {
 			return
 		}
-		if tag.Tag == "" {
-			writeErrorMessage(w, http.StatusBadRequest, "tag is required")
+		if msg := validateTag(tag.Tag); msg != "" {
+			writeErrorMessage(w, http.StatusBadRequest, msg)
 			return
 		}
 		tag.Id = id
 		normalizeTag(&tag)
 		if err := dao.EditTag(&tag); err != nil {
+			if data.IsUniqueConstraintErr(err) {
+				writeErrorMessage(w, http.StatusConflict, "tag already exists")
+				return
+			}
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
@@ -247,8 +257,13 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		if !ok {
 			return
 		}
-		if err := dao.DeleteTag(id); err != nil {
+		deleted, err := dao.DeleteTag(id)
+		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		if !deleted {
+			writeErrorMessage(w, http.StatusNotFound, "tag not found")
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -258,6 +273,11 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 	if staticDir != "" {
 		fs := http.FileServer(http.Dir(staticDir))
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			// 未定義・メソッド違いの /api リクエストはSPAへフォールバックさせず404を返す
+			if r.URL.Path == "/api" || strings.HasPrefix(r.URL.Path, "/api/") {
+				writeErrorMessage(w, http.StatusNotFound, "not found")
+				return
+			}
 			path := filepath.Join(staticDir, filepath.Clean(r.URL.Path))
 			if info, err := os.Stat(path); err != nil || info.IsDir() {
 				if r.URL.Path != "/" {
@@ -269,7 +289,7 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		})
 	}
 
-	return withCors(mux)
+	return mux
 }
 
 // タググループ(:を含む)、日時タグ(グループ名末尾@)の属性をタグ名から導出する
@@ -279,17 +299,20 @@ func normalizeTag(tag *data.Tag) {
 	tag.IsRange = sep > 0 && strings.HasSuffix(tag.Tag[:sep], "@")
 }
 
-func withCors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+// タグ名を検証し、問題があればエラーメッセージを返す。
+// "," "|" 空白は検索構文（カンマ区切り・OR・タグのスペース区切り）のメタ文字、先頭 "-" はNOT指定と衝突するため使えない
+func validateTag(name string) string {
+	switch {
+	case name == "":
+		return "tag is required"
+	case strings.HasPrefix(name, "-"):
+		return "tag must not start with '-'"
+	case strings.ContainsAny(name, ",|"):
+		return "tag must not contain ',' or '|'"
+	case strings.ContainsFunc(name, unicode.IsSpace):
+		return "tag must not contain whitespace"
+	}
+	return ""
 }
 
 func pathId(w http.ResponseWriter, r *http.Request) (int64, bool) {
@@ -302,7 +325,13 @@ func pathId(w http.ResponseWriter, r *http.Request) (int64, bool) {
 }
 
 func readJson(w http.ResponseWriter, r *http.Request, v any) bool {
-	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+	body := http.MaxBytesReader(w, r.Body, 1<<20)
+	if err := json.NewDecoder(body).Decode(v); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			writeErrorMessage(w, http.StatusRequestEntityTooLarge, "request body too large")
+			return false
+		}
 		writeErrorMessage(w, http.StatusBadRequest, "invalid json: "+err.Error())
 		return false
 	}

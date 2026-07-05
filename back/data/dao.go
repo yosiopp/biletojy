@@ -2,12 +2,13 @@ package data
 
 import (
 	"database/sql"
+	"errors"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 )
 
 const (
@@ -73,13 +74,14 @@ func NewDao() (*Dao, error) {
 	return &Dao{db: db}, nil
 }
 
-// bi-gram化されずに格納された旧FTSデータを再構築する（user_version=0の場合のみ一度だけ実行）
+// 旧形式（bi-gram化前や旧トークナイズ）で格納されたFTSデータを再構築する
+// （user_versionが現行より古い場合のみ一度だけ実行）
 func rebuildFtsIfNeeded(db *sql.DB) error {
 	var version int
 	if err := db.QueryRow(_SQL_GET_USER_VERSION).Scan(&version); err != nil {
 		return err
 	}
-	if version >= 1 {
+	if version >= 2 {
 		return nil
 	}
 	tx, err := db.Begin()
@@ -109,14 +111,14 @@ func rebuildFtsIfNeeded(db *sql.DB) error {
 	}
 	rows.Close()
 	for _, t := range tickets {
-		if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, t.Id, Bigram(t.Title), Bigram(StripMarkdown(t.Content)), t.Tags, ""); err != nil {
+		if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, t.Id, Bigram(t.Title), Bigram(StripMarkdown(t.Content)), Bigram(t.Tags), ""); err != nil {
 			return err
 		}
 		if err := refreshCommentsFts(tx, t.Id); err != nil {
 			return err
 		}
 	}
-	if _, err := tx.Exec(_SQL_SET_USER_VERSION_1); err != nil {
+	if _, err := tx.Exec(_SQL_SET_USER_VERSION); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -124,7 +126,12 @@ func rebuildFtsIfNeeded(db *sql.DB) error {
 
 func (dao *Dao) Close() {
 	dao.db.Close()
-	dao.db = nil
+}
+
+// SQLiteのUNIQUE制約違反エラーかどうか
+func IsUniqueConstraintErr(err error) bool {
+	var se sqlite3.Error
+	return errors.As(err, &se) && se.ExtendedCode == sqlite3.ErrConstraintUnique
 }
 
 // チケット検索。qはbi-gram全文検索、tagsはタグ条件のAND絞り込み。
@@ -134,9 +141,10 @@ func (dao *Dao) Close() {
 func (dao *Dao) QueryTickets(q string, tags []string) ([]Ticket, error) {
 	query := _SQL_QUERY_TICKETS_BASE
 	args := []any{}
-	if q != "" {
+	// 空白のみ・記号のみの検索語は空のMATCH式（構文エラー）になるため、変換後に判定する
+	if match := BigramQuery(q); match != "" {
 		query += _SQL_QUERY_TICKETS_FTS + ` WHERE tickets_fts MATCH ?`
-		args = append(args, BigramQuery(q))
+		args = append(args, match)
 	}
 	query += ` ORDER BY t.updated_at DESC`
 
@@ -231,7 +239,7 @@ func (dao *Dao) AddTicket(ticket *Ticket) error {
 	if _, err := tx.Exec(_SQL_ADD_TICKET_HISTORY, ticket.Id, ticket.Title, ticket.Content, ticket.Tags, ticket.CreatedBy, now); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, ticket.Id, Bigram(ticket.Title), Bigram(StripMarkdown(ticket.Content)), ticket.Tags, ""); err != nil {
+	if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, ticket.Id, Bigram(ticket.Title), Bigram(StripMarkdown(ticket.Content)), Bigram(ticket.Tags), ""); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -252,7 +260,7 @@ func (dao *Dao) EditTicket(ticket *Ticket) error {
 	if _, err := tx.Exec(_SQL_ADD_TICKET_HISTORY, ticket.Id, ticket.Title, ticket.Content, ticket.Tags, ticket.CreatedBy, now); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(_SQL_EDIT_TICKET_FTS, Bigram(ticket.Title), Bigram(StripMarkdown(ticket.Content)), ticket.Tags, ticket.Id); err != nil {
+	if _, err := tx.Exec(_SQL_EDIT_TICKET_FTS, Bigram(ticket.Title), Bigram(StripMarkdown(ticket.Content)), Bigram(ticket.Tags), ticket.Id); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -398,7 +406,15 @@ func (dao *Dao) EditTag(tag *Tag) error {
 	return err
 }
 
-func (dao *Dao) DeleteTag(id int64) error {
-	_, err := dao.db.Exec(_SQL_DELETE_TAG, id)
-	return err
+// タグを削除する。該当行がなければfalseを返す
+func (dao *Dao) DeleteTag(id int64) (bool, error) {
+	res, err := dao.db.Exec(_SQL_DELETE_TAG, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }

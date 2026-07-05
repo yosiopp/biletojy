@@ -33,15 +33,21 @@ function TagInput({ value, onChange, catalog }: Props) {
   };
 
   const addTag = (raw: string) => {
-    // コロン抜けの日時タグ（例: due-date@2026-07-01）を正しい形式に補正する
-    const tag = normalizeTag(raw, groups.keys());
-    if (!tag || value.includes(tag)) return;
-    const { group } = parseTag(tag);
-    if (group) {
-      replaceGroupTag(group, tag);
-    } else {
-      onChange([...value, tag]);
+    // 保存時にタグは空白区切りになるため、空白を含む入力は複数タグとして追加する
+    let next = value;
+    for (const token of raw.split(/\s+/).filter((t) => t.length > 0)) {
+      // コロン抜けの日時タグ（例: due-date@2026-07-01）を正しい形式に補正する
+      const tag = normalizeTag(token, groups.keys());
+      if (next.includes(tag)) continue;
+      const { group } = parseTag(tag);
+      if (group) {
+        // 同グループの既存タグは置き換える
+        next = [...next.filter((v) => parseTag(v).group !== group), tag];
+      } else {
+        next = [...next, tag];
+      }
     }
+    if (next !== value) onChange(next);
   };
 
   // グループチップで表示されないタグ（自由タグ・カタログ外グループのタグ）

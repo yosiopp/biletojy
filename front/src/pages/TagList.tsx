@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, Tag } from '../api/client';
 import TagItem from '../components/TagItem';
+import { splitTags } from '../lib/tags';
 
 type Editing = {
   id: number | null; // nullは新規作成
@@ -61,7 +62,14 @@ function TagList() {
   const remove = async (tag: Tag) => {
     let message = `タグ「${tag.tag}」を削除しますか？`;
     try {
-      const used = await api.listTickets('', [tag.tag]);
+      // 検索APIは前方一致や日時の範囲解釈をするため、件数は全チケットから文字列一致で数える
+      // グループエントリ（"status:" 等）はそのグループの値を持つチケットを数える
+      const all = await api.listTickets('', []);
+      const used = all.filter((ticket) => {
+        const tags = splitTags(ticket.tags);
+        if (tag.tag.endsWith(':')) return tags.some((t) => t.startsWith(tag.tag));
+        return tags.includes(tag.tag);
+      });
       if (used.length > 0) {
         message =
           `タグ「${tag.tag}」は ${used.length} 件のチケットで使用されています。\n` +
@@ -152,24 +160,27 @@ function TagList() {
       {error && <p className="text-red-600 mb-2">{error}</p>}
       {form}
 
-      <div className="flex text-neutral-500 border-b">
+      <div className="hidden sm:flex text-neutral-500 border-b">
         <div className="w-1/3 py-1 pl-2">tag</div>
         <div className="w-1/4 py-1">説明</div>
         <div className="flex-1 py-1">属性</div>
         <div className="flex-none w-32 py-1"></div>
       </div>
       {catalog.map((tag) => (
-        <div key={tag.id} className="flex items-center border-b hover:bg-neutral-100">
-          <div className="w-1/3 py-2 pl-2">
+        <div
+          key={tag.id}
+          className="block sm:flex sm:items-center border-b hover:bg-neutral-100 px-2 py-2 sm:px-0 sm:py-0"
+        >
+          <div className="sm:w-1/3 sm:py-2 sm:pl-2">
             <TagItem tag={tag.tag} color={tag.color} />
           </div>
-          <div className="w-1/4 py-2 text-sm">{tag.note}</div>
-          <div className="flex-1 py-2 text-sm text-neutral-500">
+          <div className="sm:w-1/4 sm:py-2 text-sm">{tag.note}</div>
+          <div className="sm:flex-1 sm:py-2 mt-1 sm:mt-0 text-sm text-neutral-500">
             {tag.is_group && <span className="mr-2">グループ</span>}
             {tag.is_range && <span className="mr-2">日時</span>}
             {tag.tag.includes('/') && <span className="mr-2">階層</span>}
           </div>
-          <div className="flex-none w-32 py-2 text-sm">
+          <div className="sm:flex-none sm:w-32 sm:py-2 mt-1 sm:mt-0 text-sm">
             <button
               type="button"
               className="text-blue-700 hover:underline mr-3"

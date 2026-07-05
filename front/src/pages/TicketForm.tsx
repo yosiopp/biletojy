@@ -19,6 +19,7 @@ function TicketForm() {
   const [user, setUser] = useState(currentUser());
   const [catalog, setCatalog] = useState<Tag[]>([]);
   const [preview, setPreview] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [titleError, setTitleError] = useState(false);
   // 未保存判定の基準値（編集時はロードしたチケットの内容）
@@ -69,6 +70,7 @@ function TicketForm() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!title.trim()) {
       setError('タイトルを入力してください');
       setTitleError(true);
@@ -76,6 +78,7 @@ function TicketForm() {
       return;
     }
     setCurrentUser(user);
+    setSubmitting(true);
     try {
       const data = { title, content, tags: joinTags(tags) };
       const ticket = isEdit
@@ -85,6 +88,7 @@ function TicketForm() {
       navigate(`/tickets/${ticket.id}`);
     } catch (err) {
       setError((err as Error).message);
+      setSubmitting(false);
     }
   };
 
@@ -154,7 +158,11 @@ function TicketForm() {
         </label>
       )}
 
-      <button type="submit" className="bg-blue-600 text-white rounded-sm px-4 py-1 hover:bg-blue-700">
+      <button
+        type="submit"
+        className="bg-blue-600 text-white rounded-sm px-4 py-1 hover:bg-blue-700 disabled:opacity-50"
+        disabled={submitting}
+      >
         {isEdit ? '更新' : '作成'}
       </button>
       <button

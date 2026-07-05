@@ -63,7 +63,10 @@ function Mermaid({ code }: { code: string }) {
     loadMermaid()
       .then((mermaid) => mermaid.render(`mermaid${id}`, code))
       .then(({ svg }) => {
-        if (!cancelled) setSvg(svg);
+        if (!cancelled) {
+          setSvg(svg);
+          setError('');
+        }
       })
       .catch((e: Error) => {
         if (!cancelled) setError(e.message);

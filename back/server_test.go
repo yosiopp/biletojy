@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -343,6 +345,45 @@ func TestTagListUpdateDelete(t *testing.T) {
 	if got := len(decodeBody[[]data.Tag](t, w)); got != seeded {
 		t.Errorf("tags after delete = %d, want %d", got, seeded)
 	}
+
+	// 存在しないタグ（削除済みを含む）の削除は404
+	assertErrorResponse(t, request(t, handler, "DELETE", fmt.Sprintf("/api/tags/%d", created.Id), nil), http.StatusNotFound)
+	assertErrorResponse(t, request(t, handler, "DELETE", "/api/tags/9999", nil), http.StatusNotFound)
+}
+
+func TestTagDuplicateConflict(t *testing.T) {
+	handler := newTestServer(t)
+
+	w := request(t, handler, "POST", "/api/tags", data.Tag{Tag: "priority:HIGH"})
+	assertStatus(t, w, http.StatusCreated)
+
+	// 同名タグの作成は409
+	assertErrorResponse(t, request(t, handler, "POST", "/api/tags", data.Tag{Tag: "priority:HIGH"}), http.StatusConflict)
+
+	// 既存タグ名への変更も409
+	w = request(t, handler, "POST", "/api/tags", data.Tag{Tag: "priority:LOW"})
+	assertStatus(t, w, http.StatusCreated)
+	other := decodeBody[data.Tag](t, w)
+	assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d", other.Id), data.Tag{Tag: "priority:HIGH"}), http.StatusConflict)
+}
+
+func TestTagNameValidation(t *testing.T) {
+	handler := newTestServer(t)
+
+	// 検索構文のメタ文字を含むタグ名は400
+	invalid := []string{"a,b", "a|b", "a b", "a\tb", "全角　空白", "-lead"}
+	for _, name := range invalid {
+		assertErrorResponse(t, request(t, handler, "POST", "/api/tags", data.Tag{Tag: name}), http.StatusBadRequest)
+	}
+
+	w := request(t, handler, "POST", "/api/tags", data.Tag{Tag: "valid-tag"})
+	assertStatus(t, w, http.StatusCreated)
+	created := decodeBody[data.Tag](t, w)
+
+	// 編集時も同じ検証が働く
+	for _, name := range invalid {
+		assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d", created.Id), data.Tag{Tag: name}), http.StatusBadRequest)
+	}
 }
 
 func TestNormalizeTag(t *testing.T) {
@@ -367,20 +408,44 @@ func TestNormalizeTag(t *testing.T) {
 	}
 }
 
-func TestCors(t *testing.T) {
-	handler := newTestServer(t)
+func TestStaticSpaFallback(t *testing.T) {
+	t.Chdir(t.TempDir())
+	staticDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(staticDir, "index.html"), []byte("<html>spa-index</html>"), 0644); err != nil {
+		t.Fatalf("write index.html: %v", err)
+	}
+	dao, err := data.NewDao()
+	if err != nil {
+		t.Fatalf("NewDao: %v", err)
+	}
+	t.Cleanup(dao.Close)
+	handler := newServer(dao, staticDir)
 
-	// プリフライトは204で応答する
-	w := request(t, handler, "OPTIONS", "/api/tickets", nil)
-	assertStatus(t, w, http.StatusNoContent)
-	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Errorf("Access-Control-Allow-Origin = %q, want *", got)
+	// 未定義の/apiパスはSPAへフォールバックせずJSONの404を返す
+	w := request(t, handler, "GET", "/api/unknown", nil)
+	assertErrorResponse(t, w, http.StatusNotFound)
+	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+	// メソッド違いの/apiパスも404
+	assertErrorResponse(t, request(t, handler, "DELETE", "/api/tickets/1", nil), http.StatusNotFound)
+
+	// /api以外の未知パスはindex.htmlへフォールバックする
+	w = request(t, handler, "GET", "/unknown-page", nil)
+	assertStatus(t, w, http.StatusOK)
+	if !strings.Contains(w.Body.String(), "spa-index") {
+		t.Errorf("SPA fallback body = %q, want index.html content", w.Body.String())
 	}
 
-	// 通常リクエストにもCORSヘッダが付く
+	// APIは通常通り応答する
 	w = request(t, handler, "GET", "/api/tags", nil)
 	assertStatus(t, w, http.StatusOK)
-	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Errorf("Access-Control-Allow-Origin = %q, want *", got)
-	}
+}
+
+func TestRequestBodyTooLarge(t *testing.T) {
+	handler := newTestServer(t)
+
+	// 1MiBを超えるリクエストボディは413
+	body := fmt.Sprintf(`{"title":"large","content":"%s"}`, strings.Repeat("a", 1<<20))
+	assertErrorResponse(t, request(t, handler, "POST", "/api/tickets", body), http.StatusRequestEntityTooLarge)
 }

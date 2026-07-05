@@ -82,7 +82,7 @@ const (
 	_SQL_DELETE_TAG = `DELETE FROM tag_catalog WHERE id = ?`
 
 	// チケット取得
-	_SQL_GET_TICKET = `SELECT id, title, content, tags, created_by, created_at, updated_at FROM tickets WHERE id = ?`
+	_SQL_GET_TICKET = `SELECT id, title, content, COALESCE(tags, ''), created_by, created_at, updated_at FROM tickets WHERE id = ?`
 
 	// チケット追加
 	_SQL_ADD_TICKET         = `INSERT INTO tickets (title, content, tags, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
@@ -102,11 +102,11 @@ const (
 	_SQL_EDIT_COMMENT_FTS    = `UPDATE tickets_fts SET comments = ? WHERE ticket_id = ?`
 
 	// チケット検索
-	_SQL_QUERY_TICKETS_BASE = `SELECT t.id, t.title, t.content, t.tags, t.created_by, t.created_at, t.updated_at FROM tickets t`
+	_SQL_QUERY_TICKETS_BASE = `SELECT t.id, t.title, t.content, COALESCE(t.tags, ''), t.created_by, t.created_at, t.updated_at FROM tickets t`
 	_SQL_QUERY_TICKETS_FTS  = ` JOIN tickets_fts ON t.id = tickets_fts.ticket_id`
 
 	// バックリンク検索。LIKEで候補を絞り、桁違いのIDへの誤マッチ除外はGo側で行う
-	_SQL_QUERY_BACKLINKS = `SELECT t.id, t.title, t.content, t.tags, t.created_by, t.created_at, t.updated_at,
+	_SQL_QUERY_BACKLINKS = `SELECT t.id, t.title, t.content, COALESCE(t.tags, ''), t.created_by, t.created_at, t.updated_at,
 		COALESCE((SELECT GROUP_CONCAT(c.content, ' ') FROM comments c WHERE c.ticket_id = t.id), '')
 		FROM tickets t
 		WHERE t.id <> ? AND (t.content LIKE ? OR EXISTS (SELECT 1 FROM comments c WHERE c.ticket_id = t.id AND c.content LIKE ?))
@@ -114,7 +114,7 @@ const (
 
 	// FTSインデックス再構築（マイグレーション）
 	_SQL_GET_USER_VERSION      = `PRAGMA user_version`
-	_SQL_SET_USER_VERSION_1    = `PRAGMA user_version = 1`
+	_SQL_SET_USER_VERSION      = `PRAGMA user_version = 2`
 	_SQL_DELETE_ALL_TICKET_FTS = `DELETE FROM tickets_fts`
 	_SQL_QUERY_TICKETS_FOR_FTS = `SELECT id, title, content, COALESCE(tags, '') FROM tickets`
 )

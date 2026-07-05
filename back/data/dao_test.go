@@ -2,6 +2,7 @@ package data
 
 import (
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -148,6 +149,116 @@ func TestQueryTicketsFullText(t *testing.T) {
 	}
 }
 
+func TestQueryTicketsWhitespaceQuery(t *testing.T) {
+	dao := newTestDao(t)
+
+	t1 := addTestTicket(t, dao, "チケット1", "内容1", "")
+	t2 := addTestTicket(t, dao, "チケット2", "内容2", "")
+
+	// 空白のみ・除去される記号のみの検索語はエラーにならず全件を返す
+	for _, q := range []string{"   ", "\t\n", "---"} {
+		if got := queryTicketIds(t, dao, q, nil); !slices.Equal(got, []int64{t2.Id, t1.Id}) {
+			t.Errorf("QueryTickets(q=%q) = %v, want [%d %d]", q, got, t2.Id, t1.Id)
+		}
+	}
+}
+
+func TestQueryTicketsMatchesTags(t *testing.T) {
+	dao := newTestDao(t)
+
+	t1 := addTestTicket(t, dao, "タグ検索対象", "本文1", "urgent docs/design")
+	addTestTicket(t, dao, "別チケット", "本文2", "status:OPEN")
+
+	// qはタグにのみ現れる語にもマッチする
+	if got := queryTicketIds(t, dao, "urgent", nil); !slices.Equal(got, []int64{t1.Id}) {
+		t.Errorf("QueryTickets(q=urgent) = %v, want [%d]", got, t1.Id)
+	}
+	if got := queryTicketIds(t, dao, "design", nil); !slices.Equal(got, []int64{t1.Id}) {
+		t.Errorf("QueryTickets(q=design) = %v, want [%d]", got, t1.Id)
+	}
+
+	// 編集後は新しいタグで検索できる
+	t1.Tags = "priority:HIGH"
+	if err := dao.EditTicket(t1); err != nil {
+		t.Fatalf("EditTicket: %v", err)
+	}
+	if got := queryTicketIds(t, dao, "high", nil); !slices.Equal(got, []int64{t1.Id}) {
+		t.Errorf("QueryTickets(q=high after edit) = %v, want [%d]", got, t1.Id)
+	}
+	if got := queryTicketIds(t, dao, "urgent", nil); len(got) != 0 {
+		t.Errorf("QueryTickets(q=old tag) = %v, want empty", got)
+	}
+}
+
+func TestQueryTicketsWordsWithPunctuation(t *testing.T) {
+	dao := newTestDao(t)
+
+	t1 := addTestTicket(t, dao, "連絡手段", "問い合わせはe-mailで受け付ける", "")
+	t2 := addTestTicket(t, dao, "リリース日", "リリースは2026-01-01を予定している", "")
+
+	// 記号を含む検索語も索引側と同じ前処理で一致する
+	if got := queryTicketIds(t, dao, "e-mail", nil); !slices.Equal(got, []int64{t1.Id}) {
+		t.Errorf("QueryTickets(q=e-mail) = %v, want [%d]", got, t1.Id)
+	}
+	if got := queryTicketIds(t, dao, "2026-01-01", nil); !slices.Equal(got, []int64{t2.Id}) {
+		t.Errorf("QueryTickets(q=2026-01-01) = %v, want [%d]", got, t2.Id)
+	}
+}
+
+func TestQueryTicketsSingleCharQuery(t *testing.T) {
+	dao := newTestDao(t)
+
+	t1 := addTestTicket(t, dao, "ペット", "飼っているのは 柴犬", "")
+	addTestTicket(t, dao, "別のペット", "飼っているのは 三毛猫", "")
+
+	// 1文字の検索語は単語末尾の文字（柴犬の「犬」）にもマッチする
+	if got := queryTicketIds(t, dao, "犬", nil); !slices.Equal(got, []int64{t1.Id}) {
+		t.Errorf("QueryTickets(q=犬) = %v, want [%d]", got, t1.Id)
+	}
+}
+
+func TestQueryTicketsNullTags(t *testing.T) {
+	dao := newTestDao(t)
+
+	target := addTestTicket(t, dao, "参照される側", "本文", "")
+
+	// tagsがNULLの行（旧データや手動投入）があっても検索・取得できる
+	now := time.Now()
+	res, err := dao.db.Exec(`INSERT INTO tickets (title, content, tags, created_by, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?)`,
+		"NULLタグ", "#"+strconv.FormatInt(target.Id, 10)+" を参照", "tester", now, now)
+	if err != nil {
+		t.Fatalf("insert null tags ticket: %v", err)
+	}
+	id, _ := res.LastInsertId()
+
+	tickets, err := dao.QueryTickets("", nil)
+	if err != nil {
+		t.Fatalf("QueryTickets: %v", err)
+	}
+	if len(tickets) != 2 {
+		t.Fatalf("QueryTickets = %d tickets, want 2", len(tickets))
+	}
+	if tickets[0].Id != id || tickets[0].Tags != "" {
+		t.Errorf("QueryTickets null tags row = %+v, want empty tags", tickets[0])
+	}
+
+	got, err := dao.GetTicket(id)
+	if err != nil {
+		t.Fatalf("GetTicket: %v", err)
+	}
+	if got == nil || got.Tags != "" {
+		t.Errorf("GetTicket = %+v, want empty tags", got)
+	}
+
+	backlinks, err := dao.QueryBacklinks(target.Id)
+	if err != nil {
+		t.Fatalf("QueryBacklinks: %v", err)
+	}
+	if len(backlinks) != 1 || backlinks[0].Id != id {
+		t.Errorf("QueryBacklinks = %+v, want [%d]", backlinks, id)
+	}
+}
+
 func TestQueryTicketsByTags(t *testing.T) {
 	dao := newTestDao(t)
 
@@ -223,18 +334,23 @@ func TestQueryTicketsByRangeCond(t *testing.T) {
 
 	t1 := addTestTicket(t, dao, "期限近い", "内容1", "status:OPEN due-date@:2026-01-10")
 	t2 := addTestTicket(t, dao, "期限遠い", "内容2", "status:OPEN due-date@:2026-02-10")
-	addTestTicket(t, dao, "期限なし", "内容3", "status:OPEN")
+	t3 := addTestTicket(t, dao, "時刻付き", "内容3", "status:OPEN due-date@:2026-03-05T10:00")
+	addTestTicket(t, dao, "期限なし", "内容4", "status:OPEN")
+	tbd := addTestTicket(t, dao, "期限未定", "内容5", "status:OPEN due-date@:TBD")
 
 	tests := []struct {
 		tags []string
 		want []int64
 	}{
-		{[]string{"due-date@:>=2026-02-01"}, []int64{t2.Id}},
+		{[]string{"due-date@:>=2026-02-01"}, []int64{t3.Id, t2.Id}},
 		{[]string{"due-date@:<2026-02-01"}, []int64{t1.Id}},
 		{[]string{"due-date@:=2026-01-10"}, []int64{t1.Id}},
 		{[]string{"due-date@:<=2026-02-10"}, []int64{t2.Id, t1.Id}},
-		{[]string{"due-date@:>2026-03-01"}, []int64{}},
-		{[]string{"due-date@:>=2026-01-01", "status:OPEN"}, []int64{t2.Id, t1.Id}}, // 通常タグとの組み合わせ
+		{[]string{"due-date@:>2026-03-10"}, []int64{}},
+		{[]string{"due-date@:>=2026-01-01", "status:OPEN"}, []int64{t3.Id, t2.Id, t1.Id}}, // 通常タグとの組み合わせ。日付形式でない値（TBD）はマッチしない
+		{[]string{"due-date@:2026-01-10"}, []int64{t1.Id}},                                // 演算子なしは "=" と同じ扱い
+		{[]string{"due-date@:2026-03-05"}, []int64{t3.Id}},                                // 演算子なしでも時刻付きの値に日付精度でマッチする
+		{[]string{"due-date@:TBD"}, []int64{tbd.Id}},                                      // 日付形式でない値は通常のタグ一致
 	}
 	for _, tt := range tests {
 		if got := queryTicketIds(t, dao, "", tt.tags); !slices.Equal(got, tt.want) {
@@ -390,8 +506,20 @@ func TestTagCatalog(t *testing.T) {
 		t.Errorf("GetTag after edit = %+v", edited)
 	}
 
-	if err := dao.DeleteTag(tag.Id); err != nil {
+	ok, err := dao.DeleteTag(tag.Id)
+	if err != nil {
 		t.Fatalf("DeleteTag: %v", err)
+	}
+	if !ok {
+		t.Errorf("DeleteTag = false, want true")
+	}
+	// 存在しないIDの削除はfalseを返す
+	ok, err = dao.DeleteTag(9999)
+	if err != nil {
+		t.Fatalf("DeleteTag(missing): %v", err)
+	}
+	if ok {
+		t.Errorf("DeleteTag(missing) = true, want false")
 	}
 	deleted, err := dao.GetTag(tag.Id)
 	if err != nil {

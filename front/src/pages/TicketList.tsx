@@ -20,10 +20,19 @@ function TicketList() {
   }, []);
 
   useEffect(() => {
+    // 検索条件が変わった後に古いレスポンスで上書きされないようにする
+    let stale = false;
     api
       .listTickets(q, tags)
-      .then(setTickets)
-      .catch((e: Error) => setError(e.message));
+      .then((t) => {
+        if (!stale) setTickets(t);
+      })
+      .catch((e: Error) => {
+        if (!stale) setError(e.message);
+      });
+    return () => {
+      stale = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 

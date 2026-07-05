@@ -85,8 +85,11 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
   const selectedInGroup = (group: string) =>
     selected.find((cond) => condGroup(cond) === group) ?? '';
 
+  // チップが表示している条件（グループ内の先頭の1件）だけを差し替える
+  // 同グループの別条件（個別に追加した除外条件など）は消さない
   const replaceGroupTag = (group: string, cond: string) => {
-    const rest = selected.filter((c) => condGroup(c) !== group);
+    const current = selected.find((c) => condGroup(c) === group);
+    const rest = selected.filter((c) => c !== current);
     onChange(cond ? [...rest, cond] : rest);
   };
 
@@ -129,6 +132,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
               value={groupSelected}
               color={tagColor(catalog, groupSelected || `${group}:`)}
               onChange={(tag) => replaceGroupTag(group, tag)}
+              filter
             />
           );
         })}
@@ -142,6 +146,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
             }))}
             value=""
             onChange={addTag}
+            filter
           />
         )}
 

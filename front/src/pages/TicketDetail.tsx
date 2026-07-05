@@ -13,22 +13,63 @@ function TicketDetail() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [catalog, setCatalog] = useState<Tag[]>([]);
   const [commentText, setCommentText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [ticketError, setTicketError] = useState('');
   const [commentError, setCommentError] = useState('');
 
   useEffect(() => {
     if (!id) return;
-    api.getTicket(id).then(setTicket).catch((e: Error) => setTicketError(e.message));
-    api.listComments(id).then(setComments).catch((e: Error) => setCommentError(e.message));
+    // idが変わったら前のチケットの表示を消し、遅れて届いた古いレスポンスは捨てる
+    // 表示のリセットが目的のため、ここでのsetStateは意図したもの
+    /* eslint-disable react-hooks/set-state-in-effect */
+    let stale = false;
+    setTicket(null);
+    setComments([]);
+    setBacklinks([]);
+    setTicketError('');
+    setCommentError('');
+    /* eslint-enable react-hooks/set-state-in-effect */
+    api
+      .getTicket(id)
+      .then((t) => {
+        if (!stale) setTicket(t);
+      })
+      .catch((e: Error) => {
+        if (!stale) setTicketError(e.message);
+      });
+    api
+      .listComments(id)
+      .then((c) => {
+        if (!stale) setComments(c);
+      })
+      .catch((e: Error) => {
+        if (!stale) setCommentError(e.message);
+      });
     // バックリンクは補助情報のため、失敗しても本文表示は妨げない
-    api.listBacklinks(id).then(setBacklinks).catch(() => setBacklinks([]));
+    api
+      .listBacklinks(id)
+      .then((b) => {
+        if (!stale) setBacklinks(b);
+      })
+      .catch(() => {
+        if (!stale) setBacklinks([]);
+      });
     // カタログはタグの色付けにしか使わないため、失敗しても本文表示は妨げない
-    api.listTags().then(setCatalog).catch(() => {});
+    api
+      .listTags()
+      .then((c) => {
+        if (!stale) setCatalog(c);
+      })
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
   }, [id]);
 
   const submitComment = async (e: FormEvent) => {
     e.preventDefault();
-    if (!id || !commentText.trim()) return;
+    if (!id || !commentText.trim() || submitting) return;
+    setSubmitting(true);
     try {
       await api.addComment(id, { content: commentText, created_by: currentUser() });
       setCommentText('');
@@ -36,6 +77,8 @@ function TicketDetail() {
       setComments(await api.listComments(id));
     } catch (err) {
       setCommentError((err as Error).message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -108,7 +151,11 @@ function TicketDetail() {
           value={commentText}
           onChange={(e) => setCommentText(e.target.value)}
         />
-        <button type="submit" className="bg-blue-600 text-white rounded-sm px-4 py-1 mt-1 hover:bg-blue-700">
+        <button
+          type="submit"
+          className="bg-blue-600 text-white rounded-sm px-4 py-1 mt-1 hover:bg-blue-700 disabled:opacity-50"
+          disabled={submitting}
+        >
           コメント
         </button>
       </form>

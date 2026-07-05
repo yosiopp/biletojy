@@ -13,13 +13,16 @@ type Props = {
   value: string; // 選択中の条件（"status:OPEN"、OR: "status:OPEN|status:WIP"、NOT: "-status:CLOSE"）。未選択は ''
   color?: string | null;
   onChange: (cond: string) => void; // '' でクリア
+  // 検索条件として使うときtrue。OR（複数選択）と除外（NOT）はチケットに保存できない
+  // 検索専用の記法なので、falseのときは単一選択のみ（選択で閉じる・除外行なし）
+  filter?: boolean;
 };
 
 // タググループのチップ。チップ自体をクリックすると選択肢のプルダウンが開く
-// 選択肢は複数選択するとOR条件になり、「除外」を選ぶとNOT条件になる
+// filter時は選択肢を複数選択するとOR条件になり、「除外」を選ぶとNOT条件になる
 // 末尾@のグループは選択肢の代わりに日付ピッカーを表示する
-// キーボード: ↑↓で移動、Enter/Spaceで選択肢をトグル、Escで閉じる
-function TagGroupSelect({ group, options, value, color, onChange }: Props) {
+// キーボード: ↑↓で移動、Enter/Spaceで選択肢を選択（filter時はトグル）、Escで閉じる
+function TagGroupSelect({ group, options, value, color, onChange, filter = false }: Props) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [dateValue, setDateValue] = useState('');
@@ -31,8 +34,8 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
   // 除外条件は "-status:CLOSE" の記法に合わせて "-" をグループ名の前に表示する
   const groupLabel = (not ? '-' : '') + group.replace(/@$/, '');
 
-  // キーボード移動の対象: 0=クリア、1..n=選択肢、n+1=除外トグル
-  const lastIndex = options.length + 1;
+  // キーボード移動の対象: 0=クリア、1..n=選択肢、（filter時のみ）n+1=除外トグル
+  const lastIndex = options.length + (filter ? 1 : 0);
 
   useEffect(() => {
     if (!open) return;
@@ -56,8 +59,13 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
     setActive(-1);
   };
 
-  // 選択肢のトグル。複数選択でOR条件になる（プルダウンは開いたまま）
-  const toggleAlt = (tag: string) => {
+  // 選択肢の選択。filter時はトグルで複数選択（OR条件）になりプルダウンは開いたまま、
+  // 非filter時は単一選択して閉じる
+  const pick = (tag: string) => {
+    if (!filter) {
+      select(tag);
+      return;
+    }
     const next = alts.includes(tag) ? alts.filter((a) => a !== tag) : [...alts, tag];
     onChange(buildCond(not, next));
   };
@@ -98,10 +106,10 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
       e.preventDefault();
       if (active === 0) {
         select('');
-      } else if (active === lastIndex) {
+      } else if (filter && active === lastIndex) {
         toggleNot();
       } else if (active > 0) {
-        toggleAlt(options[active - 1].value);
+        pick(options[active - 1].value);
       }
     }
   };
@@ -160,7 +168,7 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
               </div>
             </div>
           ) : (
-            <div role="listbox" aria-label={group} aria-multiselectable="true">
+            <div role="listbox" aria-label={group} aria-multiselectable={filter}>
               <button
                 type="button"
                 role="option"
@@ -185,7 +193,7 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
                     className={`block w-full text-left px-2 py-1 text-sm ${
                       index === active ? 'bg-blue-100' : checked ? 'bg-blue-50' : ''
                     } hover:bg-neutral-100`}
-                    onClick={() => toggleAlt(option.value)}
+                    onClick={() => pick(option.value)}
                     onMouseEnter={() => setActive(index)}
                   >
                     <span className="inline-block w-4 text-blue-700">{checked ? '✓' : ''}</span>
@@ -194,17 +202,19 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
                   </button>
                 );
               })}
-              <button
-                type="button"
-                className={`block w-full text-left px-2 py-1 text-sm border-t ${
-                  active === lastIndex ? 'bg-blue-100' : ''
-                } ${alts.length === 0 ? 'text-neutral-300' : ''} hover:bg-neutral-100`}
-                onClick={toggleNot}
-                onMouseEnter={() => setActive(lastIndex)}
-              >
-                <span className="inline-block w-4 text-blue-700">{not ? '✓' : ''}</span>
-                除外（マッチしないもの）
-              </button>
+              {filter && (
+                <button
+                  type="button"
+                  className={`block w-full text-left px-2 py-1 text-sm border-t ${
+                    active === lastIndex ? 'bg-blue-100' : ''
+                  } ${alts.length === 0 ? 'text-neutral-300' : ''} hover:bg-neutral-100`}
+                  onClick={toggleNot}
+                  onMouseEnter={() => setActive(lastIndex)}
+                >
+                  <span className="inline-block w-4 text-blue-700">{not ? '✓' : ''}</span>
+                  除外（マッチしないもの）
+                </button>
+              )}
             </div>
           )}
         </div>

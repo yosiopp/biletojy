@@ -71,7 +71,7 @@ function Layout() {
 
       <button
         type="button"
-        className="fixed bottom-4 right-4 w-8 h-8 rounded-full border bg-white text-neutral-500 shadow-sm hover:bg-neutral-100"
+        className="fixed bottom-4 right-4 z-20 w-8 h-8 rounded-full border bg-white text-neutral-500 shadow-sm hover:bg-neutral-100"
         title="ショートカット一覧（?）"
         aria-label="ショートカット一覧"
         onClick={() => setShowHelp((v) => !v)}
