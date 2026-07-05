@@ -75,11 +75,11 @@ const (
 		('due-date@:', '期限', NULL, 1, 1);`
 
 	// タグカタログ
-	_SQL_QUERY_TAGS  = `SELECT id, tag, note, color, is_group, is_range FROM tag_catalog ORDER BY tag ASC`
-	_SQL_GET_TAG     = `SELECT id, tag, note, color, is_group, is_range FROM tag_catalog WHERE id = ?`
-	_SQL_ADD_TAG     = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range) VALUES (?, ?, ?, ?, ?)`
-	_SQL_EDIT_TAG    = `UPDATE tag_catalog SET tag = ?, note = ?, color = ?, is_group = ?, is_range = ? WHERE id = ?`
-	_SQL_DELETE_TAG  = `DELETE FROM tag_catalog WHERE id = ?`
+	_SQL_QUERY_TAGS = `SELECT id, tag, note, color, is_group, is_range FROM tag_catalog ORDER BY tag ASC`
+	_SQL_GET_TAG    = `SELECT id, tag, note, color, is_group, is_range FROM tag_catalog WHERE id = ?`
+	_SQL_ADD_TAG    = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range) VALUES (?, ?, ?, ?, ?)`
+	_SQL_EDIT_TAG   = `UPDATE tag_catalog SET tag = ?, note = ?, color = ?, is_group = ?, is_range = ? WHERE id = ?`
+	_SQL_DELETE_TAG = `DELETE FROM tag_catalog WHERE id = ?`
 
 	// チケット取得
 	_SQL_GET_TICKET = `SELECT id, title, content, tags, created_by, created_at, updated_at FROM tickets WHERE id = ?`
@@ -106,8 +106,8 @@ const (
 	_SQL_QUERY_TICKETS_FTS  = ` JOIN tickets_fts ON t.id = tickets_fts.ticket_id`
 
 	// FTSインデックス再構築（マイグレーション）
-	_SQL_GET_USER_VERSION        = `PRAGMA user_version`
-	_SQL_SET_USER_VERSION_1      = `PRAGMA user_version = 1`
-	_SQL_DELETE_ALL_TICKET_FTS   = `DELETE FROM tickets_fts`
-	_SQL_QUERY_TICKETS_FOR_FTS   = `SELECT id, title, content, COALESCE(tags, '') FROM tickets`
+	_SQL_GET_USER_VERSION      = `PRAGMA user_version`
+	_SQL_SET_USER_VERSION_1    = `PRAGMA user_version = 1`
+	_SQL_DELETE_ALL_TICKET_FTS = `DELETE FROM tickets_fts`
+	_SQL_QUERY_TICKETS_FOR_FTS = `SELECT id, title, content, COALESCE(tags, '') FROM tickets`
 )

@@ -14,10 +14,10 @@ func TestParseRangeCond(t *testing.T) {
 		{"due-date@:=2026-01-01", &rangeCond{"due-date@:", "=", "2026-01-01"}},
 		{"due-date@:>=2026-01-01T10:30", &rangeCond{"due-date@:", ">=", "2026-01-01T10:30"}},
 		// 範囲条件ではないもの
-		{"due-date@:2026-01-01", nil},   // 演算子なしは通常のタグ一致
-		{"status:>2026-01-01", nil},     // 日時グループ（@:）でない
-		{"due-date@:>tomorrow", nil},    // 日付形式でない
-		{"due-date@:>2026-1-1", nil},    // ゼロ埋めなしは日付形式でない
+		{"due-date@:2026-01-01", nil}, // 演算子なしは通常のタグ一致
+		{"status:>2026-01-01", nil},   // 日時グループ（@:）でない
+		{"due-date@:>tomorrow", nil},  // 日付形式でない
+		{"due-date@:>2026-1-1", nil},  // ゼロ埋めなしは日付形式でない
 		{"docs/design", nil},
 	}
 	for _, tt := range tests {
