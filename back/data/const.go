@@ -104,4 +104,10 @@ const (
 	// チケット検索
 	_SQL_QUERY_TICKETS_BASE = `SELECT t.id, t.title, t.content, t.tags, t.created_by, t.created_at, t.updated_at FROM tickets t`
 	_SQL_QUERY_TICKETS_FTS  = ` JOIN tickets_fts ON t.id = tickets_fts.ticket_id`
+
+	// FTSインデックス再構築（マイグレーション）
+	_SQL_GET_USER_VERSION        = `PRAGMA user_version`
+	_SQL_SET_USER_VERSION_1      = `PRAGMA user_version = 1`
+	_SQL_DELETE_ALL_TICKET_FTS   = `DELETE FROM tickets_fts`
+	_SQL_QUERY_TICKETS_FOR_FTS   = `SELECT id, title, content, COALESCE(tags, '') FROM tickets`
 )

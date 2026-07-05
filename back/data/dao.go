@@ -64,7 +64,60 @@ func NewDao() (*Dao, error) {
 			return nil, err
 		}
 	}
+	if err := rebuildFtsIfNeeded(db); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return &Dao{db: db}, nil
+}
+
+// bi-gram化されずに格納された旧FTSデータを再構築する（user_version=0の場合のみ一度だけ実行）
+func rebuildFtsIfNeeded(db *sql.DB) error {
+	var version int
+	if err := db.QueryRow(_SQL_GET_USER_VERSION).Scan(&version); err != nil {
+		return err
+	}
+	if version >= 1 {
+		return nil
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(_SQL_DELETE_ALL_TICKET_FTS); err != nil {
+		return err
+	}
+	rows, err := tx.Query(_SQL_QUERY_TICKETS_FOR_FTS)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	tickets := []Ticket{}
+	for rows.Next() {
+		var t Ticket
+		if err := rows.Scan(&t.Id, &t.Title, &t.Content, &t.Tags); err != nil {
+			return err
+		}
+		tickets = append(tickets, t)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	rows.Close()
+	for _, t := range tickets {
+		if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, t.Id, Bigram(t.Title), Bigram(StripMarkdown(t.Content)), t.Tags, ""); err != nil {
+			return err
+		}
+		if err := refreshCommentsFts(tx, t.Id); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(_SQL_SET_USER_VERSION_1); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (dao *Dao) Close() {
