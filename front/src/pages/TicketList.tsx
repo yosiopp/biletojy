@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, Ticket } from '../api/client';
 import TagFilter from '../components/TagFilter';
 import TicketRow from '../components/TicketRow';
 import { buildSort, parseSort, sortTickets, SortSpec } from '../lib/sort';
 import { staleGuard } from '../lib/staleGuard';
+import { groupCatalog } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
 
 function TicketList() {
@@ -19,6 +20,14 @@ function TicketList() {
   const tags = tagsParam.split(',').filter((t) => t.length > 0);
   const hasFilter = q.length > 0 || tags.length > 0;
   const sort = parseSort(searchParams.get('sort'));
+
+  // ソートキーに選べる日時・数値タググループ（例: due-date@, estimate#）。
+  // URL直指定などでカタログに無いキーが来ても選択欄の表示が崩れないように含める
+  const sortGroups = useMemo(() => {
+    const groups = [...groupCatalog(catalog).keys()].filter((g) => /[@#]$/.test(g));
+    if (/[@#]$/.test(sort.key) && !groups.includes(sort.key)) groups.push(sort.key);
+    return groups;
+  }, [catalog, sort.key]);
 
   useEffect(() => {
     // 検索条件が変わった後に古いレスポンスで上書きされないようにする
@@ -72,6 +81,11 @@ function TicketList() {
         >
           <option value="updated">updated</option>
           <option value="id">id</option>
+          {sortGroups.map((group) => (
+            <option key={group} value={group}>
+              {group.replace(/[@#]$/, '')}
+            </option>
+          ))}
         </select>
         <button
           type="button"

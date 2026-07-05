@@ -1,12 +1,13 @@
 import type { Ticket } from '../api/client';
+import { splitTags } from './tags';
 
-// チケット一覧のソート指定。keyは 'id' | 'updated'
+// チケット一覧のソート指定。keyは 'id' | 'updated' | 日時・数値タググループ名（例: 'due-date@', 'estimate#'）
 export type SortSpec = { key: string; desc: boolean };
 
 // 未指定時は従来どおり更新日時の降順
 export const DEFAULT_SORT: SortSpec = { key: 'updated', desc: true };
 
-// URLの sort パラメータ（例: "id", "-id"）を解釈する。先頭 "-" は降順
+// URLの sort パラメータ（例: "id", "-id", "due-date@"）を解釈する。先頭 "-" は降順
 export function parseSort(raw: string | null): SortSpec {
   if (!raw) return DEFAULT_SORT;
   const desc = raw.startsWith('-');
@@ -21,9 +22,27 @@ export function buildSort(spec: SortSpec): string | null {
   return (spec.desc ? '-' : '') + spec.key;
 }
 
+// タググループのソート値。数値タグは数値（"10" > "9" となるよう辞書順は使わない）、
+// 日時タグは辞書順で比較できるISO形式文字列。比較できない値（"TBD" 等）しか無ければnull
+function tagSortValue(tags: string, group: string): number | string | null {
+  const prefix = `${group}:`;
+  for (const tag of splitTags(tags)) {
+    if (!tag.startsWith(prefix)) continue;
+    const value = tag.slice(prefix.length);
+    if (group.endsWith('#')) {
+      if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
+    } else if (/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/.test(value)) {
+      return value;
+    }
+  }
+  return null;
+}
+
 // updated_atはRFC3339形式（同一サーバー生成でオフセットが揃う）のため辞書順で比較できる
-function sortValue(ticket: Ticket, key: string): number | string {
-  return key === 'id' ? ticket.id : ticket.updated_at;
+function sortValue(ticket: Ticket, key: string): number | string | null {
+  if (key === 'id') return ticket.id;
+  if (key === 'updated') return ticket.updated_at;
+  return tagSortValue(ticket.tags, key);
 }
 
 export function sortTickets(tickets: Ticket[], spec: SortSpec): Ticket[] {
@@ -31,6 +50,10 @@ export function sortTickets(tickets: Ticket[], spec: SortSpec): Ticket[] {
   return [...tickets].sort((a, b) => {
     const va = sortValue(a, spec.key);
     const vb = sortValue(b, spec.key);
+    // ソート対象のタグを持たないチケットは昇順・降順に関わらず末尾に置く
+    if (va == null || vb == null) {
+      return (va == null ? 1 : 0) - (vb == null ? 1 : 0);
+    }
     if (va < vb) return -dir;
     if (va > vb) return dir;
     return 0;
