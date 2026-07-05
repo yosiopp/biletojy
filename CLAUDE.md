@@ -19,7 +19,7 @@ cd back && go run -tags sqlite_fts5 .    # API :8040
 cd front && npm run dev                  # UI :5173（/api は :8040 へプロキシ）
 
 # テスト（バックエンドのみ。フロントにテストはない）
-cd back && go test -tags sqlite_fts5 ./...
+just test                                # または cd back && go test -tags sqlite_fts5 ./...
 cd back && go test -tags sqlite_fts5 ./data -run TestName   # 単一テスト
 
 # リント（フロント。警告0が必須）

@@ -19,3 +19,8 @@ build-back:
 [working-directory: 'back']
 start: build
     ./biletojy
+
+# バックエンドのテスト（FTS5を有効にするため -tags sqlite_fts5 が必須）
+[working-directory: 'back']
+test:
+    go test -tags sqlite_fts5 ./...

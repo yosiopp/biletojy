@@ -55,9 +55,14 @@ npm run dev
 
 ## テスト
 ```sh
+just test             # バックエンドのテスト一式
+
+# 手動で実行する場合
 cd back
 go test -tags sqlite_fts5 ./...
 ```
+* テストは一時ディレクトリにDBを作成するため、`back/biletojy.db` は汚れない
+* 対象はDAO・トークナイザ・日時タグの範囲条件（`back/data/*_test.go`）とAPIハンドラ（`back/server_test.go`）。フロントにテストはない
 
 ## 関連ドキュメント
 * [API仕様](api.md)

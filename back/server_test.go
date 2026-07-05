@@ -1,0 +1,339 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"testing"
+
+	"github.com/yosiopp/biletojy/data"
+)
+
+// 実DBを汚さないよう一時ディレクトリでDBを作成し、静的配信なしのハンドラを返す
+func newTestServer(t *testing.T) http.Handler {
+	t.Helper()
+	t.Chdir(t.TempDir())
+	dao, err := data.NewDao()
+	if err != nil {
+		t.Fatalf("NewDao: %v", err)
+	}
+	t.Cleanup(dao.Close)
+	return newServer(dao, "")
+}
+
+// bodyはstringならそのまま、それ以外はJSONにして送る
+func request(t *testing.T, handler http.Handler, method, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	var reader io.Reader
+	switch v := body.(type) {
+	case nil:
+	case string:
+		reader = strings.NewReader(v)
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			t.Fatalf("marshal request body: %v", err)
+		}
+		reader = bytes.NewReader(b)
+	}
+	req := httptest.NewRequest(method, path, reader)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	return w
+}
+
+func decodeBody[T any](t *testing.T, w *httptest.ResponseRecorder) T {
+	t.Helper()
+	var v T
+	if err := json.Unmarshal(w.Body.Bytes(), &v); err != nil {
+		t.Fatalf("decode response %q: %v", w.Body.String(), err)
+	}
+	return v
+}
+
+func assertStatus(t *testing.T, w *httptest.ResponseRecorder, want int) {
+	t.Helper()
+	if w.Code != want {
+		t.Fatalf("status = %d, want %d (body: %s)", w.Code, want, w.Body.String())
+	}
+}
+
+func assertErrorResponse(t *testing.T, w *httptest.ResponseRecorder, wantStatus int) {
+	t.Helper()
+	assertStatus(t, w, wantStatus)
+	body := decodeBody[map[string]string](t, w)
+	if body["error"] == "" {
+		t.Errorf("error response has no error message: %v", body)
+	}
+}
+
+func createTicket(t *testing.T, handler http.Handler, ticket data.Ticket) data.Ticket {
+	t.Helper()
+	w := request(t, handler, "POST", "/api/tickets", ticket)
+	assertStatus(t, w, http.StatusCreated)
+	return decodeBody[data.Ticket](t, w)
+}
+
+func TestTicketCreate(t *testing.T) {
+	handler := newTestServer(t)
+
+	created := createTicket(t, handler, data.Ticket{Title: "新規チケット", Content: "本文", Tags: "status:OPEN", CreatedBy: "alice"})
+	if created.Id <= 0 {
+		t.Errorf("id not set: %+v", created)
+	}
+	if created.CreatedBy != "alice" || created.Title != "新規チケット" {
+		t.Errorf("created = %+v", created)
+	}
+	if created.CreatedAt.IsZero() || created.UpdatedAt.IsZero() {
+		t.Errorf("timestamps not set: %+v", created)
+	}
+
+	// created_by省略時はanonymous
+	anon := createTicket(t, handler, data.Ticket{Title: "作成者なし"})
+	if anon.CreatedBy != "anonymous" {
+		t.Errorf("created_by = %q, want anonymous", anon.CreatedBy)
+	}
+
+	// バリデーション
+	assertErrorResponse(t, request(t, handler, "POST", "/api/tickets", data.Ticket{Content: "タイトルなし"}), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "POST", "/api/tickets", "{invalid json"), http.StatusBadRequest)
+}
+
+func TestTicketGet(t *testing.T) {
+	handler := newTestServer(t)
+	created := createTicket(t, handler, data.Ticket{Title: "取得テスト", Content: "本文"})
+
+	w := request(t, handler, "GET", fmt.Sprintf("/api/tickets/%d", created.Id), nil)
+	assertStatus(t, w, http.StatusOK)
+	got := decodeBody[data.Ticket](t, w)
+	if got.Id != created.Id || got.Title != "取得テスト" {
+		t.Errorf("got = %+v", got)
+	}
+
+	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/9999", nil), http.StatusNotFound)
+	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/abc", nil), http.StatusBadRequest)
+}
+
+func TestTicketUpdate(t *testing.T) {
+	handler := newTestServer(t)
+	created := createTicket(t, handler, data.Ticket{Title: "元タイトル", Content: "本文", CreatedBy: "alice"})
+
+	// created_by, created_atは編集リクエストの値を無視して元の値が維持される
+	w := request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", created.Id),
+		data.Ticket{Title: "新タイトル", Content: "新本文", Tags: "status:DONE", CreatedBy: "bob"})
+	assertStatus(t, w, http.StatusOK)
+	updated := decodeBody[data.Ticket](t, w)
+	if updated.Title != "新タイトル" || updated.Tags != "status:DONE" {
+		t.Errorf("updated = %+v", updated)
+	}
+	if updated.CreatedBy != "alice" {
+		t.Errorf("created_by = %q, want alice (must keep original)", updated.CreatedBy)
+	}
+	if !updated.CreatedAt.Equal(created.CreatedAt) {
+		t.Errorf("created_at = %v, want %v (must keep original)", updated.CreatedAt, created.CreatedAt)
+	}
+
+	// バリデーションと404
+	assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", created.Id), data.Ticket{Content: "タイトルなし"}), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "PUT", "/api/tickets/9999", data.Ticket{Title: "x"}), http.StatusNotFound)
+}
+
+func TestTicketSearch(t *testing.T) {
+	handler := newTestServer(t)
+	t1 := createTicket(t, handler, data.Ticket{Title: "ログイン画面のバグ", Content: "エラーが発生する", Tags: "status:OPEN type:BUG"})
+	t2 := createTicket(t, handler, data.Ticket{Title: "ドキュメント整備", Content: "API仕様をまとめる", Tags: "status:WIP docs/design"})
+
+	search := func(q, tags string) []data.Ticket {
+		t.Helper()
+		params := url.Values{}
+		if q != "" {
+			params.Set("q", q)
+		}
+		if tags != "" {
+			params.Set("tags", tags)
+		}
+		w := request(t, handler, "GET", "/api/tickets?"+params.Encode(), nil)
+		assertStatus(t, w, http.StatusOK)
+		return decodeBody[[]data.Ticket](t, w)
+	}
+
+	if got := search("", ""); len(got) != 2 {
+		t.Errorf("search all = %d tickets, want 2", len(got))
+	}
+	if got := search("ログイン", ""); len(got) != 1 || got[0].Id != t1.Id {
+		t.Errorf("search q=ログイン = %+v, want ticket %d", got, t1.Id)
+	}
+	if got := search("", "docs"); len(got) != 1 || got[0].Id != t2.Id {
+		t.Errorf("search tags=docs = %+v, want ticket %d", got, t2.Id)
+	}
+	if got := search("", "status:WIP,docs/design"); len(got) != 1 || got[0].Id != t2.Id {
+		t.Errorf("search tags AND = %+v, want ticket %d", got, t2.Id)
+	}
+	if got := search("ログイン", "docs"); len(got) != 0 {
+		t.Errorf("search q+tags mismatch = %+v, want empty", got)
+	}
+}
+
+func TestCommentCreateAndList(t *testing.T) {
+	handler := newTestServer(t)
+	ticket := createTicket(t, handler, data.Ticket{Title: "チケット", Content: "本文"})
+	commentsPath := fmt.Sprintf("/api/tickets/%d/comments", ticket.Id)
+
+	// コメントなしは空配列
+	w := request(t, handler, "GET", commentsPath, nil)
+	assertStatus(t, w, http.StatusOK)
+	if got := decodeBody[[]data.Comment](t, w); len(got) != 0 {
+		t.Errorf("comments on empty = %+v", got)
+	}
+
+	w = request(t, handler, "POST", commentsPath, data.Comment{Content: "最初のコメント", CreatedBy: "alice"})
+	assertStatus(t, w, http.StatusCreated)
+	c1 := decodeBody[data.Comment](t, w)
+	if c1.Id <= 0 || c1.TicketId != ticket.Id || c1.CreatedBy != "alice" {
+		t.Errorf("created comment = %+v", c1)
+	}
+
+	// created_by省略時はanonymous
+	w = request(t, handler, "POST", commentsPath, data.Comment{Content: "作成者なし"})
+	assertStatus(t, w, http.StatusCreated)
+	if c2 := decodeBody[data.Comment](t, w); c2.CreatedBy != "anonymous" {
+		t.Errorf("created_by = %q, want anonymous", c2.CreatedBy)
+	}
+
+	w = request(t, handler, "GET", commentsPath, nil)
+	assertStatus(t, w, http.StatusOK)
+	if got := decodeBody[[]data.Comment](t, w); len(got) != 2 {
+		t.Errorf("comments = %+v, want 2", got)
+	}
+
+	// バリデーションと404
+	assertErrorResponse(t, request(t, handler, "POST", commentsPath, data.Comment{}), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "POST", "/api/tickets/9999/comments", data.Comment{Content: "x"}), http.StatusNotFound)
+}
+
+func TestCommentUpdate(t *testing.T) {
+	handler := newTestServer(t)
+	ticket := createTicket(t, handler, data.Ticket{Title: "チケット", Content: "本文"})
+	w := request(t, handler, "POST", fmt.Sprintf("/api/tickets/%d/comments", ticket.Id), data.Comment{Content: "元コメント", CreatedBy: "alice"})
+	assertStatus(t, w, http.StatusCreated)
+	comment := decodeBody[data.Comment](t, w)
+
+	// contentのみ更新され、他の項目は維持される
+	w = request(t, handler, "PUT", fmt.Sprintf("/api/comments/%d", comment.Id), data.Comment{Content: "編集後コメント", CreatedBy: "bob"})
+	assertStatus(t, w, http.StatusOK)
+	updated := decodeBody[data.Comment](t, w)
+	if updated.Content != "編集後コメント" {
+		t.Errorf("content = %q", updated.Content)
+	}
+	if updated.CreatedBy != "alice" || updated.TicketId != ticket.Id {
+		t.Errorf("updated = %+v, must keep created_by/ticket_id", updated)
+	}
+
+	assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/comments/%d", comment.Id), data.Comment{}), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "PUT", "/api/comments/9999", data.Comment{Content: "x"}), http.StatusNotFound)
+}
+
+func TestTagCreateDerivesAttributes(t *testing.T) {
+	handler := newTestServer(t)
+
+	tests := []struct {
+		tag       string
+		wantGroup bool
+		wantRange bool
+	}{
+		{"priority:HIGH", true, false}, // タググループ
+		{"start-date@:", true, true},   // 日時タグ
+		{"docs/manual", false, false},  // 通常タグ
+	}
+	for _, tt := range tests {
+		// is_group/is_rangeはリクエスト値を無視してタグ名から導出される
+		w := request(t, handler, "POST", "/api/tags", data.Tag{Tag: tt.tag, IsGroup: !tt.wantGroup, IsRange: !tt.wantRange})
+		assertStatus(t, w, http.StatusCreated)
+		created := decodeBody[data.Tag](t, w)
+		if created.Id <= 0 || created.IsGroup != tt.wantGroup || created.IsRange != tt.wantRange {
+			t.Errorf("POST tag %q = %+v, want is_group=%v is_range=%v", tt.tag, created, tt.wantGroup, tt.wantRange)
+		}
+	}
+
+	assertErrorResponse(t, request(t, handler, "POST", "/api/tags", data.Tag{}), http.StatusBadRequest)
+}
+
+func TestTagListUpdateDelete(t *testing.T) {
+	handler := newTestServer(t)
+
+	// 初期データが返る
+	w := request(t, handler, "GET", "/api/tags", nil)
+	assertStatus(t, w, http.StatusOK)
+	seeded := len(decodeBody[[]data.Tag](t, w))
+	if seeded == 0 {
+		t.Fatal("GET /api/tags returned no seeded tags")
+	}
+
+	w = request(t, handler, "POST", "/api/tags", data.Tag{Tag: "priority:HIGH"})
+	assertStatus(t, w, http.StatusCreated)
+	created := decodeBody[data.Tag](t, w)
+
+	// 編集で属性が再導出される（グループ → 通常タグ）
+	w = request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d", created.Id), data.Tag{Tag: "urgent"})
+	assertStatus(t, w, http.StatusOK)
+	updated := decodeBody[data.Tag](t, w)
+	if updated.Tag != "urgent" || updated.IsGroup || updated.IsRange {
+		t.Errorf("updated = %+v", updated)
+	}
+
+	assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d", created.Id), data.Tag{}), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "PUT", "/api/tags/9999", data.Tag{Tag: "x"}), http.StatusNotFound)
+
+	w = request(t, handler, "DELETE", fmt.Sprintf("/api/tags/%d", created.Id), nil)
+	assertStatus(t, w, http.StatusNoContent)
+	w = request(t, handler, "GET", "/api/tags", nil)
+	assertStatus(t, w, http.StatusOK)
+	if got := len(decodeBody[[]data.Tag](t, w)); got != seeded {
+		t.Errorf("tags after delete = %d, want %d", got, seeded)
+	}
+}
+
+func TestNormalizeTag(t *testing.T) {
+	tests := []struct {
+		tag       string
+		wantGroup bool
+		wantRange bool
+	}{
+		{"status:OPEN", true, false},
+		{"due-date@:", true, true},
+		{"due-date@:2026-01-01", true, true},
+		{"docs/design", false, false},
+		{"plain", false, false},
+		{":value", false, false}, // グループ名が空はグループ扱いしない
+	}
+	for _, tt := range tests {
+		tag := data.Tag{Tag: tt.tag}
+		normalizeTag(&tag)
+		if tag.IsGroup != tt.wantGroup || tag.IsRange != tt.wantRange {
+			t.Errorf("normalizeTag(%q) = is_group=%v is_range=%v, want %v %v", tt.tag, tag.IsGroup, tag.IsRange, tt.wantGroup, tt.wantRange)
+		}
+	}
+}
+
+func TestCors(t *testing.T) {
+	handler := newTestServer(t)
+
+	// プリフライトは204で応答する
+	w := request(t, handler, "OPTIONS", "/api/tickets", nil)
+	assertStatus(t, w, http.StatusNoContent)
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want *", got)
+	}
+
+	// 通常リクエストにもCORSヘッダが付く
+	w = request(t, handler, "GET", "/api/tags", nil)
+	assertStatus(t, w, http.StatusOK)
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want *", got)
+	}
+}
