@@ -603,13 +603,17 @@ func TestTicketRegistersUnknownTags(t *testing.T) {
 	dao := newTestDao(t)
 
 	// 作成時: 未定義タグがカタログへ自動登録される（定義済みのstatus:OPENはそのまま）
-	ticket := addTestTicket(t, dao, "タグ自動登録", "本文", "status:OPEN feature:SEARCH docs/design due-date@:2026-07-10 point#:3")
+	ticket := addTestTicket(t, dao, "タグ自動登録", "本文", "status:OPEN status:PENDING feature:SEARCH docs/design due-date@:2026-07-10 point#:3")
 	tags, err := dao.QueryTags()
 	if err != nil {
 		t.Fatalf("QueryTags: %v", err)
 	}
 	if tag := findTag(tags, "feature:SEARCH"); tag == nil || !tag.IsGroup || tag.IsRange {
 		t.Errorf("feature:SEARCH = %+v, want group tag", tag)
+	}
+	// 既存グループへの自動登録はグループ末尾（最大sort_order + 1）に並ぶ
+	if tag := findTag(tags, "status:PENDING"); tag == nil || tag.SortOrder != 5 {
+		t.Errorf("status:PENDING = %+v, want sort_order 5", tag)
 	}
 	if tag := findTag(tags, "docs/design"); tag == nil || tag.IsGroup || tag.IsRange {
 		t.Errorf("docs/design = %+v, want plain tag", tag)
