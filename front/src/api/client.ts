@@ -58,6 +58,7 @@ export type Tag = {
   color: string | null;
   is_group: boolean;
   is_range: boolean;
+  sort_order: number;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -109,4 +110,6 @@ export const api = {
   updateTag: (id: number, data: Pick<Tag, 'tag' | 'note' | 'color'>) =>
     request<Tag>(`/api/tags/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTag: (id: number) => request<void>(`/api/tags/${id}`, { method: 'DELETE' }),
+  reorderTags: (ids: number[]) =>
+    request<void>('/api/tags/order', { method: 'PUT', body: JSON.stringify({ ids }) }),
 };

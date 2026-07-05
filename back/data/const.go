@@ -59,7 +59,8 @@ const (
 		note VARCHAR(255),
 		color VARCHAR(40),
 		is_group INTEGER NOT NULL DEFAULT 0,
-		is_range INTEGER NOT NULL DEFAULT 0
+		is_range INTEGER NOT NULL DEFAULT 0,
+		sort_order INTEGER NOT NULL DEFAULT 0
 	);
 
 	CREATE TABLE IF NOT EXISTS images (
@@ -81,24 +82,28 @@ const (
 
 	// 初期データ投入（タグカタログ）
 	_SQL_COUNT_TAG_CATALOG = `SELECT COUNT(*) FROM tag_catalog`
-	_SQL_INIT_TAG_CATALOG  = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range) VALUES
-		('status:OPEN', '未処理', '#e11d48', 1, 0),
-		('status:WIP', '処理中', '#f59e0b', 1, 0),
-		('status:DONE', '処理済', '#10b981', 1, 0),
-		('status:CLOSE', '完了', '#64748b', 1, 0),
-		('type:ISSUE', '課題', '#3b82f6', 1, 0),
-		('type:TASK', 'タスク', '#8b5cf6', 1, 0),
-		('type:BUG', 'バグ', '#ef4444', 1, 0),
-		('type:QUESTION', '質問', '#06b6d4', 1, 0),
-		('type:NOTE', 'メモ', '#a3a3a3', 1, 0),
-		('due-date@:', '期限', NULL, 1, 1);`
+	_SQL_INIT_TAG_CATALOG  = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range, sort_order) VALUES
+		('status:OPEN', '未処理', '#e11d48', 1, 0, 1),
+		('status:WIP', '処理中', '#f59e0b', 1, 0, 2),
+		('status:DONE', '処理済', '#10b981', 1, 0, 3),
+		('status:CLOSE', '完了', '#64748b', 1, 0, 4),
+		('type:ISSUE', '課題', '#3b82f6', 1, 0, 1),
+		('type:TASK', 'タスク', '#8b5cf6', 1, 0, 2),
+		('type:BUG', 'バグ', '#ef4444', 1, 0, 3),
+		('type:QUESTION', '質問', '#06b6d4', 1, 0, 4),
+		('type:NOTE', 'メモ', '#a3a3a3', 1, 0, 5),
+		('due-date@:', '期限', NULL, 1, 1, 0);`
 
-	// タグカタログ
-	_SQL_QUERY_TAGS = `SELECT id, tag, note, color, is_group, is_range FROM tag_catalog ORDER BY tag ASC`
-	_SQL_GET_TAG    = `SELECT id, tag, note, color, is_group, is_range FROM tag_catalog WHERE id = ?`
-	_SQL_ADD_TAG    = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range) VALUES (?, ?, ?, ?, ?)`
-	_SQL_EDIT_TAG   = `UPDATE tag_catalog SET tag = ?, note = ?, color = ?, is_group = ?, is_range = ? WHERE id = ?`
-	_SQL_DELETE_TAG = `DELETE FROM tag_catalog WHERE id = ?`
+	// タグカタログ。一覧はグループ（"status:" 等の接頭辞。非グループはタグ名自身）でまとめ、
+	// グループ内はsort_order順（同値はタグ名順）で返す。instrは1始まりのため、
+	// グループ判定（先頭以外の ":"）はGo側のIndex > 0に合わせて > 1 とする
+	_SQL_QUERY_TAGS = `SELECT id, tag, note, color, is_group, is_range, sort_order FROM tag_catalog
+		ORDER BY CASE WHEN instr(tag, ':') > 1 THEN substr(tag, 1, instr(tag, ':')) ELSE tag END ASC, sort_order ASC, tag ASC`
+	_SQL_GET_TAG       = `SELECT id, tag, note, color, is_group, is_range, sort_order FROM tag_catalog WHERE id = ?`
+	_SQL_ADD_TAG       = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range) VALUES (?, ?, ?, ?, ?)`
+	_SQL_EDIT_TAG      = `UPDATE tag_catalog SET tag = ?, note = ?, color = ?, is_group = ?, is_range = ? WHERE id = ?`
+	_SQL_DELETE_TAG    = `DELETE FROM tag_catalog WHERE id = ?`
+	_SQL_SET_TAG_ORDER = `UPDATE tag_catalog SET sort_order = ? WHERE id = ?`
 
 	// チケット取得
 	_SQL_GET_TICKET = `SELECT id, title, content, COALESCE(tags, ''), created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM tickets WHERE id = ?`
@@ -141,14 +146,16 @@ const (
 		WHERE t.id <> ? AND (t.content LIKE ? OR EXISTS (SELECT 1 FROM comments c WHERE c.ticket_id = t.id AND c.content LIKE ?))
 		ORDER BY t.updated_at DESC`
 
-	// マイグレーション（v2: FTSインデックス再構築、v3: subカラム追加）
-	_SCHEMA_VERSION            = 3
+	// マイグレーション（v2: FTSインデックス再構築、v3: subカラム追加、v4: sort_orderカラム追加）
+	_SCHEMA_VERSION            = 4
 	_SQL_GET_USER_VERSION      = `PRAGMA user_version`
-	_SQL_SET_USER_VERSION      = `PRAGMA user_version = 3`
+	_SQL_SET_USER_VERSION      = `PRAGMA user_version = 4`
 	_SQL_DELETE_ALL_TICKET_FTS = `DELETE FROM tickets_fts`
 	_SQL_QUERY_TICKETS_FOR_FTS = `SELECT id, title, content, COALESCE(tags, '') FROM tickets`
-	// subカラムの有無で既存DB（ALTERが必要）か新規DB（_SQL_INITで作成済み）かを判定する
-	_SQL_COUNT_SUB_COLUMN = `SELECT COUNT(*) FROM pragma_table_info('tickets') WHERE name = 'created_sub'`
+	// カラムの有無で既存DB（ALTERが必要）か新規DB（_SQL_INITで作成済み）かを判定する
+	_SQL_COUNT_SUB_COLUMN        = `SELECT COUNT(*) FROM pragma_table_info('tickets') WHERE name = 'created_sub'`
+	_SQL_COUNT_SORT_ORDER_COLUMN = `SELECT COUNT(*) FROM pragma_table_info('tag_catalog') WHERE name = 'sort_order'`
+	_SQL_ADD_SORT_ORDER_COLUMN   = `ALTER TABLE tag_catalog ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0`
 )
 
 // v3で追加されたカラムを既存DBへ足すALTER文

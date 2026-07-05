@@ -525,6 +525,45 @@ func TestTagListUpdateDelete(t *testing.T) {
 	assertErrorResponse(t, request(t, handler, "DELETE", "/api/tags/9999", nil), http.StatusNotFound)
 }
 
+func TestTagReorder(t *testing.T) {
+	handler := newTestServer(t)
+
+	// statusグループのタグ名を一覧の並び順で返す
+	statusOrder := func() (names []string, ids map[string]int64) {
+		t.Helper()
+		w := request(t, handler, "GET", "/api/tags", nil)
+		assertStatus(t, w, http.StatusOK)
+		ids = map[string]int64{}
+		for _, tag := range decodeBody[[]data.Tag](t, w) {
+			if strings.HasPrefix(tag.Tag, "status:") {
+				names = append(names, tag.Tag)
+				ids[tag.Tag] = tag.Id
+			}
+		}
+		return names, ids
+	}
+
+	// シードはsort_order付きで投入されるため、定義順（アルファベット順ではない）で返る
+	names, ids := statusOrder()
+	if got, want := strings.Join(names, ","), "status:OPEN,status:WIP,status:DONE,status:CLOSE"; got != want {
+		t.Fatalf("seeded order = %s, want %s", got, want)
+	}
+
+	// 並び替え後は指定したID順で返る
+	w := request(t, handler, "PUT", "/api/tags/order", map[string][]int64{
+		"ids": {ids["status:CLOSE"], ids["status:DONE"], ids["status:WIP"], ids["status:OPEN"]},
+	})
+	assertStatus(t, w, http.StatusNoContent)
+	names, _ = statusOrder()
+	if got, want := strings.Join(names, ","), "status:CLOSE,status:DONE,status:WIP,status:OPEN"; got != want {
+		t.Errorf("reordered = %s, want %s", got, want)
+	}
+
+	// idsが空・未指定は400
+	assertErrorResponse(t, request(t, handler, "PUT", "/api/tags/order", map[string]any{}), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "PUT", "/api/tags/order", map[string][]int64{"ids": {}}), http.StatusBadRequest)
+}
+
 func TestTagDuplicateConflict(t *testing.T) {
 	handler := newTestServer(t)
 

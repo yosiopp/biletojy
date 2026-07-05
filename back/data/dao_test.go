@@ -1,6 +1,7 @@
 package data
 
 import (
+	"database/sql"
 	"slices"
 	"strconv"
 	"testing"
@@ -461,6 +462,56 @@ func TestCommentsFullText(t *testing.T) {
 	}
 	if got := queryTicketIds(t, dao, "原因", nil); !slices.Equal(got, []int64{ticket.Id}) {
 		t.Errorf("QueryTickets(new comment text) = %v, want [%d]", got, ticket.Id)
+	}
+}
+
+// v3時点のDB（tag_catalogにsort_orderカラムがない）からの移行。
+// カラムが追加され、既存タグを保ったまま（シードを再投入せず）起動できる
+func TestMigrateAddsSortOrderColumn(t *testing.T) {
+	t.Chdir(t.TempDir())
+	db, err := sql.Open("sqlite", _DB_FILE)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	for _, q := range []string{
+		`CREATE TABLE tag_catalog (
+			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+			tag VARCHAR(255) NOT NULL UNIQUE,
+			note VARCHAR(255),
+			color VARCHAR(40),
+			is_group INTEGER NOT NULL DEFAULT 0,
+			is_range INTEGER NOT NULL DEFAULT 0
+		)`,
+		`INSERT INTO tag_catalog (tag, is_group) VALUES ('status:OPEN', 1)`,
+		`PRAGMA user_version = 3`,
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatalf("exec %q: %v", q, err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	dao, err := NewDao()
+	if err != nil {
+		t.Fatalf("NewDao: %v", err)
+	}
+	t.Cleanup(dao.Close)
+
+	tags, err := dao.QueryTags()
+	if err != nil {
+		t.Fatalf("QueryTags: %v", err)
+	}
+	if len(tags) != 1 || tags[0].Tag != "status:OPEN" || tags[0].SortOrder != 0 {
+		t.Errorf("tags after migration = %+v", tags)
+	}
+	if err := dao.ReorderTags([]int64{tags[0].Id}); err != nil {
+		t.Fatalf("ReorderTags: %v", err)
+	}
+	got, _ := dao.GetTag(tags[0].Id)
+	if got.SortOrder != 1 {
+		t.Errorf("SortOrder after reorder = %d, want 1", got.SortOrder)
 	}
 }
 

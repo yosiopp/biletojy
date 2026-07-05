@@ -289,6 +289,26 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		writeJson(w, http.StatusCreated, tag)
 	})
 
+	// グループ内の並び替え。送られたID順にsort_orderへ連番を振る
+	// （リテラルの "order" はワイルドカードの {id} より優先してマッチする）
+	mux.HandleFunc("PUT /api/tags/order", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Ids []int64 `json:"ids"`
+		}
+		if !readJson(w, r, &req) {
+			return
+		}
+		if len(req.Ids) == 0 {
+			writeErrorMessage(w, http.StatusBadRequest, "ids is required")
+			return
+		}
+		if err := dao.ReorderTags(req.Ids); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	mux.HandleFunc("PUT /api/tags/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id, ok := pathId(w, r)
 		if !ok {

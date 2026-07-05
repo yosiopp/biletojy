@@ -78,12 +78,13 @@ type Image struct {
 }
 
 type Tag struct {
-	Id      int64   `json:"id"`
-	Tag     string  `json:"tag"`
-	Note    *string `json:"note"`
-	Color   *string `json:"color"`
-	IsGroup bool    `json:"is_group"`
-	IsRange bool    `json:"is_range"`
+	Id        int64   `json:"id"`
+	Tag       string  `json:"tag"`
+	Note      *string `json:"note"`
+	Color     *string `json:"color"`
+	IsGroup   bool    `json:"is_group"`
+	IsRange   bool    `json:"is_range"`
+	SortOrder int64   `json:"sort_order"`
 }
 
 func NewDao() (*Dao, error) {
@@ -92,6 +93,11 @@ func NewDao() (*Dao, error) {
 		return nil, err
 	}
 	if _, err := db.Exec(_SQL_INIT); err != nil {
+		db.Close()
+		return nil, err
+	}
+	// シードはtag_catalogのカラム（v4のsort_order）が揃ってから投入するため、マイグレーションを先に行う
+	if err := migrate(db); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -106,16 +112,13 @@ func NewDao() (*Dao, error) {
 			return nil, err
 		}
 	}
-	if err := migrate(db); err != nil {
-		db.Close()
-		return nil, err
-	}
 	return &Dao{db: db}, nil
 }
 
 // user_versionが現行より古いDBへのスキーマ移行。
 //   - v2未満: 旧形式（bi-gram化前や旧トークナイズ）で格納されたFTSデータを再構築する
 //   - v3未満: sub関連カラムを追加する（新規DBは_SQL_INITで作成済みのため、カラムの有無で判定する）
+//   - v4未満: tag_catalogへsort_orderカラムを追加する（同上）
 func migrate(db *sql.DB) error {
 	var version int
 	if err := db.QueryRow(_SQL_GET_USER_VERSION).Scan(&version); err != nil {
@@ -138,6 +141,14 @@ func migrate(db *sql.DB) error {
 			if _, err := db.Exec(q); err != nil {
 				return err
 			}
+		}
+	}
+	if err := db.QueryRow(_SQL_COUNT_SORT_ORDER_COLUMN).Scan(&count); err != nil {
+		return err
+	}
+	if count == 0 {
+		if _, err := db.Exec(_SQL_ADD_SORT_ORDER_COLUMN); err != nil {
+			return err
 		}
 	}
 	_, err := db.Exec(_SQL_SET_USER_VERSION)
@@ -505,7 +516,7 @@ func (dao *Dao) QueryTags() ([]Tag, error) {
 	tags := []Tag{}
 	for rows.Next() {
 		var t Tag
-		if err := rows.Scan(&t.Id, &t.Tag, &t.Note, &t.Color, &t.IsGroup, &t.IsRange); err != nil {
+		if err := rows.Scan(&t.Id, &t.Tag, &t.Note, &t.Color, &t.IsGroup, &t.IsRange, &t.SortOrder); err != nil {
 			return nil, err
 		}
 		tags = append(tags, t)
@@ -515,7 +526,7 @@ func (dao *Dao) QueryTags() ([]Tag, error) {
 
 func (dao *Dao) GetTag(id int64) (*Tag, error) {
 	var t Tag
-	err := dao.db.QueryRow(_SQL_GET_TAG, id).Scan(&t.Id, &t.Tag, &t.Note, &t.Color, &t.IsGroup, &t.IsRange)
+	err := dao.db.QueryRow(_SQL_GET_TAG, id).Scan(&t.Id, &t.Tag, &t.Note, &t.Color, &t.IsGroup, &t.IsRange, &t.SortOrder)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -537,6 +548,21 @@ func (dao *Dao) AddTag(tag *Tag) error {
 func (dao *Dao) EditTag(tag *Tag) error {
 	_, err := dao.db.Exec(_SQL_EDIT_TAG, tag.Tag, tag.Note, tag.Color, tag.IsGroup, tag.IsRange, tag.Id)
 	return err
+}
+
+// 指定した並び順どおりにsort_orderへ1からの連番を振り直す（タググループ内の並び替え用）
+func (dao *Dao) ReorderTags(ids []int64) error {
+	tx, err := dao.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for i, id := range ids {
+		if _, err := tx.Exec(_SQL_SET_TAG_ORDER, i+1, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // タグを削除する。該当行がなければfalseを返す

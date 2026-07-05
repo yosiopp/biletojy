@@ -19,6 +19,8 @@ function TagList() {
   const [catalog, setCatalog] = useState<Tag[]>([]);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [confirming, setConfirming] = useState<{ tag: Tag; message: string } | null>(null);
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [dropId, setDropId] = useState<number | null>(null);
   const [error, setError] = useState('');
 
   const reload = () => api.listTags().then(setCatalog).catch((e: Error) => setError(e.message));
@@ -85,6 +87,44 @@ function TagList() {
       // 件数の取得に失敗した場合は通常の確認にフォールバック
     }
     setConfirming({ tag, message });
+  };
+
+  // グループの値タグ（"status:OPEN" など）ならグループ名、それ以外はnull（並び替え対象外）
+  const groupOf = (tag: Tag): string | null => {
+    const { group, name } = parseTag(tag.tag);
+    return group != null && name.length > 0 ? group : null;
+  };
+  const groupMembers = (group: string) => catalog.filter((t) => groupOf(t) === group);
+  const dragTag = dragId != null ? catalog.find((t) => t.id === dragId) : undefined;
+  const dragGroup = dragTag ? groupOf(dragTag) : null;
+
+  // グループ内でfromの位置のタグをtoの位置へ移動した並びを保存する
+  const moveTo = async (group: string, from: number, to: number) => {
+    const ids = groupMembers(group).map((t) => t.id);
+    if (from < 0 || to < 0 || to >= ids.length || from === to) return;
+    ids.splice(to, 0, ...ids.splice(from, 1));
+    try {
+      await api.reorderTags(ids);
+      setError('');
+      await reload();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const dropOn = (target: Tag) => {
+    const group = groupOf(target);
+    if (dragId == null || group == null || group !== dragGroup) return;
+    const ids = groupMembers(group).map((t) => t.id);
+    moveTo(group, ids.indexOf(dragId), ids.indexOf(target.id));
+  };
+
+  // キーボード（↑↓）でグループ内の並びを1つずつ移動する
+  const moveBy = (tag: Tag, delta: number) => {
+    const group = groupOf(tag);
+    if (group == null) return;
+    const from = groupMembers(group).findIndex((t) => t.id === tag.id);
+    moveTo(group, from, from + delta);
   };
 
   const remove = async () => {
@@ -212,12 +252,58 @@ function TagList() {
         <div className="flex-1 py-1">属性</div>
         <div className="flex-none w-32 py-1"></div>
       </div>
-      {catalog.map((tag) => (
+      {catalog.map((tag) => {
+        const group = groupOf(tag);
+        const sortable = group != null && groupMembers(group).length > 1;
+        return (
         <div
           key={tag.id}
-          className="block sm:flex sm:items-center border-b hover:bg-neutral-100 px-2 py-2 sm:px-0 sm:py-0"
+          className={`block sm:flex sm:items-center border-b hover:bg-neutral-100 px-2 py-2 sm:px-0 sm:py-0 ${
+            dropId === tag.id ? 'bg-blue-50' : ''
+          }`}
+          onDragOver={(e) => {
+            if (sortable && dragGroup === group && dragId !== tag.id) {
+              e.preventDefault();
+              setDropId(tag.id);
+            }
+          }}
+          onDragLeave={() => setDropId((id) => (id === tag.id ? null : id))}
+          onDrop={(e) => {
+            e.preventDefault();
+            dropOn(tag);
+            setDragId(null);
+            setDropId(null);
+          }}
         >
           <div className="sm:w-1/3 sm:py-2 sm:pl-2">
+            <span className="inline-block w-5">
+              {sortable && (
+                <button
+                  type="button"
+                  draggable
+                  className="cursor-grab text-neutral-400 hover:text-neutral-700 text-sm"
+                  title="ドラッグまたは↑↓キーでグループ内を並び替え"
+                  aria-label={`${tag.tag} を並び替え`}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', tag.tag);
+                    e.dataTransfer.effectAllowed = 'move';
+                    setDragId(tag.id);
+                  }}
+                  onDragEnd={() => {
+                    setDragId(null);
+                    setDropId(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      moveBy(tag, e.key === 'ArrowUp' ? -1 : 1);
+                    }
+                  }}
+                >
+                  ⋮⋮
+                </button>
+              )}
+            </span>
             <TagItem tag={tag.tag} color={tag.color} />
           </div>
           <div className="sm:w-1/4 sm:py-2 text-sm">{tag.note}</div>
@@ -242,7 +328,8 @@ function TagList() {
             </button>
           </div>
         </div>
-      ))}
+        );
+      })}
     </>
   );
 }
