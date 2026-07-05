@@ -23,6 +23,28 @@ export type Comment = {
   updated_at: string;
 };
 
+// チケットの版（作成・編集時点の内容）。created_by/created_subはその版を作成した人
+export type TicketHistory = {
+  id: number;
+  ticket_id: number;
+  title: string;
+  content: string;
+  tags: string;
+  created_by: string;
+  created_sub: string;
+  created_at: string;
+};
+
+// コメントの版（作成・編集時点の内容）。created_by/created_subはその版を作成した人
+export type CommentHistory = {
+  id: number;
+  comment_id: number;
+  content: string;
+  created_by: string;
+  created_sub: string;
+  created_at: string;
+};
+
 export type Image = {
   id: number;
   mime: string;
@@ -66,6 +88,8 @@ export const api = {
     request<Ticket>('/api/tickets', { method: 'POST', body: JSON.stringify(data) }),
   updateTicket: (id: number | string, data: Pick<Ticket, 'title' | 'content' | 'tags' | 'updated_by'>) =>
     request<Ticket>(`/api/tickets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  listTicketHistories: (id: number | string) => request<TicketHistory[]>(`/api/tickets/${id}/histories`),
+  listCommentHistories: (id: number) => request<CommentHistory[]>(`/api/comments/${id}/histories`),
   listBacklinks: (id: number | string) => request<Ticket[]>(`/api/tickets/${id}/backlinks`),
   listComments: (ticketId: number | string) => request<Comment[]>(`/api/tickets/${ticketId}/comments`),
   addComment: (ticketId: number | string, data: Pick<Comment, 'content' | 'created_by'>) =>

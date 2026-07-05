@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, Comment, Ticket } from '../api/client';
+import CommentHistory from '../components/CommentHistory';
 import Markdown from '../components/Markdown';
 import TagItem from '../components/TagItem';
 import { formatDateTime } from '../lib/date';
@@ -19,6 +20,8 @@ function TicketDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [ticketError, setTicketError] = useState('');
   const [commentError, setCommentError] = useState('');
+  // 履歴を開いているコメントのID
+  const [openHistories, setOpenHistories] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     if (!id) return;
@@ -30,6 +33,7 @@ function TicketDetail() {
     setBacklinks([]);
     setTicketError('');
     setCommentError('');
+    setOpenHistories({});
     /* eslint-enable react-hooks/set-state-in-effect */
     const { fresh, cancel } = staleGuard();
     api.getTicket(id).then(fresh(setTicket)).catch(fresh((e: Error) => setTicketError(e.message)));
@@ -66,6 +70,13 @@ function TicketDetail() {
           <span className="text-neutral-400 mr-2">#{ticket.id}</span>
           {ticket.title}
         </h2>
+        <Link
+          to={`/tickets/${ticket.id}/history`}
+          className="border rounded-sm px-3 py-1 text-sm hover:bg-neutral-100 mr-2"
+          title="ctrl+h"
+        >
+          履歴
+        </Link>
         <Link
           to={`/tickets/${ticket.id}/edit`}
           className="border rounded-sm px-3 py-1 text-sm hover:bg-neutral-100"
@@ -114,8 +125,28 @@ function TicketDetail() {
             <div className="text-sm text-neutral-500 mb-1">
               <span title={comment.created_sub || undefined}>{comment.created_by}</span> ・{' '}
               {formatDateTime(comment.created_at)}
+              {comment.updated_at !== comment.created_at && (
+                <>
+                  {' ・ '}
+                  <button
+                    type="button"
+                    className="text-blue-700 hover:underline"
+                    onClick={() => setOpenHistories((prev) => ({ ...prev, [comment.id]: !prev[comment.id] }))}
+                  >
+                    編集済み（履歴）
+                  </button>
+                </>
+              )}
             </div>
             <Markdown content={comment.content} />
+            {openHistories[comment.id] && (
+              <CommentHistory
+                comment={comment}
+                onRestored={(updated) =>
+                  setComments((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+                }
+              />
+            )}
           </div>
         ))}
       </div>

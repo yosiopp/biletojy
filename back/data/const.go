@@ -28,6 +28,7 @@ const (
 		created_sub VARCHAR(255) NOT NULL DEFAULT '',
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
+	CREATE INDEX IF NOT EXISTS ticket_histories_idx ON ticket_histories (ticket_id);
 
 	CREATE TABLE IF NOT EXISTS comments (
 		id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -50,6 +51,7 @@ const (
 		created_sub VARCHAR(255) NOT NULL DEFAULT '',
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
+	CREATE INDEX IF NOT EXISTS comment_histories_idx ON comment_histories (comment_id);
 
 	CREATE TABLE IF NOT EXISTS tag_catalog (
 		id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -119,6 +121,10 @@ const (
 	_SQL_ADD_COMMENT_HISTORY    = `INSERT INTO comment_histories (comment_id, content, created_by, created_sub, created_at) VALUES (?, ?, ?, ?, ?)`
 	_SQL_EDIT_COMMENT           = `UPDATE comments SET content = ?, updated_by = ?, updated_sub = ?, updated_at = ? WHERE id = ?`
 	_SQL_EDIT_COMMENT_FTS       = `UPDATE tickets_fts SET comments = ? WHERE ticket_id = ?`
+
+	// 履歴（古い版から順に返す。idは挿入順のためソートキーに使える）
+	_SQL_QUERY_TICKET_HISTORIES  = `SELECT id, ticket_id, title, content, COALESCE(tags, ''), created_by, created_sub, created_at FROM ticket_histories WHERE ticket_id = ? ORDER BY id ASC`
+	_SQL_QUERY_COMMENT_HISTORIES = `SELECT id, comment_id, content, created_by, created_sub, created_at FROM comment_histories WHERE comment_id = ? ORDER BY id ASC`
 
 	// 画像
 	_SQL_ADD_IMAGE = `INSERT INTO images (mime, data, created_at) VALUES (?, ?, ?)`

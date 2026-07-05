@@ -272,6 +272,72 @@ func TestCommentUpdate(t *testing.T) {
 	assertErrorResponse(t, request(t, handler, "PUT", "/api/comments/9999", data.Comment{Content: "x"}), http.StatusNotFound)
 }
 
+func TestTicketHistories(t *testing.T) {
+	handler := newTestServer(t)
+	created := createTicket(t, handler, data.Ticket{Title: "初版", Content: "本文1", Tags: "status:OPEN", CreatedBy: "alice"})
+
+	w := request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", created.Id),
+		data.Ticket{Title: "改版", Content: "本文2", Tags: "status:WIP", UpdatedBy: "bob"})
+	assertStatus(t, w, http.StatusOK)
+
+	// 作成時・編集時の版が古い順に返り、各版を作成した人が記録される
+	w = request(t, handler, "GET", fmt.Sprintf("/api/tickets/%d/histories", created.Id), nil)
+	assertStatus(t, w, http.StatusOK)
+	histories := decodeBody[[]data.TicketHistory](t, w)
+	if len(histories) != 2 {
+		t.Fatalf("histories = %d entries, want 2", len(histories))
+	}
+	if histories[0].TicketId != created.Id || histories[0].Title != "初版" || histories[0].Tags != "status:OPEN" || histories[0].CreatedBy != "alice" {
+		t.Errorf("histories[0] = %+v, want 初版 by alice", histories[0])
+	}
+	if histories[1].Title != "改版" || histories[1].Content != "本文2" || histories[1].CreatedBy != "bob" {
+		t.Errorf("histories[1] = %+v, want 改版 by bob", histories[1])
+	}
+
+	// 存在しないチケットは空配列
+	w = request(t, handler, "GET", "/api/tickets/9999/histories", nil)
+	assertStatus(t, w, http.StatusOK)
+	if got := decodeBody[[]data.TicketHistory](t, w); len(got) != 0 {
+		t.Errorf("histories of missing ticket = %+v, want empty", got)
+	}
+
+	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/abc/histories", nil), http.StatusBadRequest)
+}
+
+func TestCommentHistories(t *testing.T) {
+	handler := newTestServer(t)
+	ticket := createTicket(t, handler, data.Ticket{Title: "チケット", Content: "本文"})
+	w := request(t, handler, "POST", fmt.Sprintf("/api/tickets/%d/comments", ticket.Id), data.Comment{Content: "初版コメント", CreatedBy: "alice"})
+	assertStatus(t, w, http.StatusCreated)
+	comment := decodeBody[data.Comment](t, w)
+
+	w = request(t, handler, "PUT", fmt.Sprintf("/api/comments/%d", comment.Id), data.Comment{Content: "改版コメント", UpdatedBy: "bob"})
+	assertStatus(t, w, http.StatusOK)
+
+	// 作成時・編集時の版が古い順に返り、各版を作成した人が記録される
+	w = request(t, handler, "GET", fmt.Sprintf("/api/comments/%d/histories", comment.Id), nil)
+	assertStatus(t, w, http.StatusOK)
+	histories := decodeBody[[]data.CommentHistory](t, w)
+	if len(histories) != 2 {
+		t.Fatalf("histories = %d entries, want 2", len(histories))
+	}
+	if histories[0].CommentId != comment.Id || histories[0].Content != "初版コメント" || histories[0].CreatedBy != "alice" {
+		t.Errorf("histories[0] = %+v, want 初版コメント by alice", histories[0])
+	}
+	if histories[1].Content != "改版コメント" || histories[1].CreatedBy != "bob" {
+		t.Errorf("histories[1] = %+v, want 改版コメント by bob", histories[1])
+	}
+
+	// 存在しないコメントは空配列
+	w = request(t, handler, "GET", "/api/comments/9999/histories", nil)
+	assertStatus(t, w, http.StatusOK)
+	if got := decodeBody[[]data.CommentHistory](t, w); len(got) != 0 {
+		t.Errorf("histories of missing comment = %+v, want empty", got)
+	}
+
+	assertErrorResponse(t, request(t, handler, "GET", "/api/comments/abc/histories", nil), http.StatusBadRequest)
+}
+
 func TestUserSubRecording(t *testing.T) {
 	handler := newTestServerWithUserHeader(t, "X-Test-User")
 

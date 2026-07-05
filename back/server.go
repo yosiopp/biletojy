@@ -125,6 +125,32 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		writeJson(w, http.StatusOK, comments)
 	})
 
+	mux.HandleFunc("GET /api/tickets/{id}/histories", func(w http.ResponseWriter, r *http.Request) {
+		id, ok := pathId(w, r)
+		if !ok {
+			return
+		}
+		histories, err := dao.QueryTicketHistories(id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJson(w, http.StatusOK, histories)
+	})
+
+	mux.HandleFunc("GET /api/comments/{id}/histories", func(w http.ResponseWriter, r *http.Request) {
+		id, ok := pathId(w, r)
+		if !ok {
+			return
+		}
+		histories, err := dao.QueryCommentHistories(id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJson(w, http.StatusOK, histories)
+	})
+
 	mux.HandleFunc("GET /api/tickets/{id}/backlinks", func(w http.ResponseWriter, r *http.Request) {
 		id, ok := pathId(w, r)
 		if !ok {

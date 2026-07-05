@@ -47,6 +47,28 @@ type Comment struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
+// チケットの版（作成・編集時点の内容）。created_by/created_subはその版を作成した人
+type TicketHistory struct {
+	Id         int64     `json:"id"`
+	TicketId   int64     `json:"ticket_id"`
+	Title      string    `json:"title"`
+	Content    string    `json:"content"`
+	Tags       string    `json:"tags"`
+	CreatedBy  string    `json:"created_by"`
+	CreatedSub string    `json:"created_sub"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// コメントの版（作成・編集時点の内容）。created_by/created_subはその版を作成した人
+type CommentHistory struct {
+	Id         int64     `json:"id"`
+	CommentId  int64     `json:"comment_id"`
+	Content    string    `json:"content"`
+	CreatedBy  string    `json:"created_by"`
+	CreatedSub string    `json:"created_sub"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
 // 貼り付け添付された画像。バイナリ本体はJSONに含めず配信APIで返す
 type Image struct {
 	Id        int64     `json:"id"`
@@ -316,6 +338,42 @@ func (dao *Dao) EditTicket(ticket *Ticket) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+// チケットの履歴を古い版から順に返す
+func (dao *Dao) QueryTicketHistories(ticketId int64) ([]TicketHistory, error) {
+	rows, err := dao.db.Query(_SQL_QUERY_TICKET_HISTORIES, ticketId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	histories := []TicketHistory{}
+	for rows.Next() {
+		var h TicketHistory
+		if err := rows.Scan(&h.Id, &h.TicketId, &h.Title, &h.Content, &h.Tags, &h.CreatedBy, &h.CreatedSub, &h.CreatedAt); err != nil {
+			return nil, err
+		}
+		histories = append(histories, h)
+	}
+	return histories, rows.Err()
+}
+
+// コメントの履歴を古い版から順に返す
+func (dao *Dao) QueryCommentHistories(commentId int64) ([]CommentHistory, error) {
+	rows, err := dao.db.Query(_SQL_QUERY_COMMENT_HISTORIES, commentId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	histories := []CommentHistory{}
+	for rows.Next() {
+		var h CommentHistory
+		if err := rows.Scan(&h.Id, &h.CommentId, &h.Content, &h.CreatedBy, &h.CreatedSub, &h.CreatedAt); err != nil {
+			return nil, err
+		}
+		histories = append(histories, h)
+	}
+	return histories, rows.Err()
 }
 
 func (dao *Dao) QueryComments(ticketId int64) ([]Comment, error) {
