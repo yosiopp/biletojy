@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api, Tag } from '../api/client';
 import Dialog from '../components/Dialog';
 import TagItem from '../components/TagItem';
-import { parseTag, splitTags } from '../lib/tags';
+import { currentUser, parseTag, splitTags } from '../lib/tags';
 
 type Editing = {
   id: number | null; // nullは新規作成
@@ -19,6 +19,7 @@ function TagList() {
   const [catalog, setCatalog] = useState<Tag[]>([]);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [confirming, setConfirming] = useState<{ tag: Tag; message: string } | null>(null);
+  const [renaming, setRenaming] = useState<{ oldTag: string; message: string } | null>(null);
   const [dragId, setDragId] = useState<number | null>(null);
   const [dropId, setDropId] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -39,11 +40,46 @@ function TagList() {
     }
   }, [searchParams, setSearchParams]);
 
+  // タグを使用しているチケット数を数える（削除・タグ名変更の確認ダイアログ用）。
+  // 検索APIは前方一致や日時の範囲解釈をするため、件数は取得結果から文字列一致で数える。
+  // グループエントリ（"status:" 等）はそのグループの値を持つチケットを数える。
+  // 単純なタグならタグ検索は完全一致の上位集合を返すため、事前絞り込みで取得量を減らせる
+  // （過去に作られたタグは , | 空白 などの検索メタ文字を含み得るため、その場合は全件取得する）
+  const countUsage = async (tagName: string): Promise<number> => {
+    const canPrefilter =
+      !tagName.endsWith(':') && !tagName.startsWith('-') && !/[,|\s]/.test(tagName);
+    const all = await api.listTickets('', canPrefilter ? [tagName] : []);
+    return all.filter((ticket) => {
+      const tags = splitTags(ticket.tags);
+      if (tagName.endsWith(':')) return tags.some((t) => t.startsWith(tagName));
+      return tags.includes(tagName);
+    }).length;
+  };
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!editing || !editing.tag.trim()) return;
+    // タグ名の変更は使用中チケットの一括書き換えを伴うため、使用状況を調べて警告ダイアログを挟む
+    const original = editing.id != null ? catalog.find((t) => t.id === editing.id) : undefined;
+    const name = editing.tag.trim();
+    if (original && original.tag !== name) {
+      let count = 0;
+      try {
+        count = await countUsage(original.tag);
+      } catch {
+        // 件数の取得に失敗した場合は件数なしの確認にフォールバック
+      }
+      const message =
+        `タグ名を「${original.tag}」から「${name}」へ変更します。\n` +
+        (count > 0
+          ? `このタグを使用している ${count} 件のチケットのタグも一括で変更されます。\n`
+          : '') +
+        '変更しますか？';
+      setRenaming({ oldTag: original.tag, message });
+      return;
+    }
     const data = {
-      tag: editing.tag.trim(),
+      tag: name,
       note: editing.note || null,
       color: editing.color || null,
     };
@@ -61,25 +97,33 @@ function TagList() {
     }
   };
 
+  // タグ名変更の確認後、カタログと使用中チケットのタグを一括で変更する
+  const rename = async () => {
+    if (!renaming || !editing || editing.id == null) return;
+    setRenaming(null);
+    try {
+      await api.renameTag(editing.id, {
+        tag: editing.tag.trim(),
+        note: editing.note || null,
+        color: editing.color || null,
+        updated_by: currentUser(),
+      });
+      setEditing(null);
+      setError('');
+      await reload();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
   // 削除前に使用状況を調べて確認ダイアログを開く
   const confirmRemove = async (tag: Tag) => {
     let message = `タグ「${tag.tag}」を削除しますか？`;
     try {
-      // 検索APIは前方一致や日時の範囲解釈をするため、件数は取得結果から文字列一致で数える
-      // グループエントリ（"status:" 等）はそのグループの値を持つチケットを数える
-      // 単純なタグならタグ検索は完全一致の上位集合を返すため、事前絞り込みで取得量を減らせる
-      // （過去に作られたタグは , | 空白 などの検索メタ文字を含み得るため、その場合は全件取得する）
-      const canPrefilter =
-        !tag.tag.endsWith(':') && !tag.tag.startsWith('-') && !/[,|\s]/.test(tag.tag);
-      const all = await api.listTickets('', canPrefilter ? [tag.tag] : []);
-      const used = all.filter((ticket) => {
-        const tags = splitTags(ticket.tags);
-        if (tag.tag.endsWith(':')) return tags.some((t) => t.startsWith(tag.tag));
-        return tags.includes(tag.tag);
-      });
-      if (used.length > 0) {
+      const used = await countUsage(tag.tag);
+      if (used > 0) {
         message =
-          `タグ「${tag.tag}」は ${used.length} 件のチケットで使用されています。\n` +
+          `タグ「${tag.tag}」は ${used} 件のチケットで使用されています。\n` +
           '削除してもチケット側のタグ表記は残りますが、色やグループなどの機能は失われます。\n' +
           '削除しますか？';
       }
@@ -202,6 +246,33 @@ function TagList() {
     </Dialog>
   );
 
+  // タグ名変更の警告。編集ダイアログの上に重ねて表示する
+  const renameDialog = renaming && (
+    <Dialog label="タグ名の変更" onClose={() => setRenaming(null)}>
+      <div className="w-96 max-w-full">
+        <h2 className="text-lg mb-2">タグ名の変更</h2>
+        <p className="text-sm whitespace-pre-line mb-3">{renaming.message}</p>
+        <div className="text-right">
+          <button
+            type="button"
+            className="border rounded-sm px-4 py-1 hover:bg-neutral-100"
+            onClick={() => setRenaming(null)}
+            autoFocus
+          >
+            キャンセル
+          </button>
+          <button
+            type="button"
+            className="bg-blue-600 text-white rounded-sm px-4 py-1 ml-2 hover:bg-blue-700"
+            onClick={rename}
+          >
+            変更する
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  );
+
   const confirmDialog = confirming && (
     <Dialog label="タグの削除" onClose={() => setConfirming(null)}>
       <div className="w-96 max-w-full">
@@ -246,6 +317,7 @@ function TagList() {
       </div>
       {error && !editing && <p className="text-red-600 mb-2">{error}</p>}
       {editDialog}
+      {renameDialog}
       {confirmDialog}
 
       <div className="hidden sm:flex text-neutral-500 border-b">

@@ -109,6 +109,9 @@ export const api = {
     request<Tag>('/api/tags', { method: 'POST', body: JSON.stringify(data) }),
   updateTag: (id: number, data: Pick<Tag, 'tag' | 'note' | 'color'>) =>
     request<Tag>(`/api/tags/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  // タグ名の変更。使用している全チケットのタグも一括で書き換わる（updated_byはチケットの更新者として記録される）
+  renameTag: (id: number, data: Pick<Tag, 'tag' | 'note' | 'color'> & { updated_by: string }) =>
+    request<Tag>(`/api/tags/${id}/rename`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTag: (id: number) => request<void>(`/api/tags/${id}`, { method: 'DELETE' }),
   reorderTags: (ids: number[]) =>
     request<void>('/api/tags/order', { method: 'PUT', body: JSON.stringify({ ids }) }),

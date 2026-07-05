@@ -590,6 +590,141 @@ func TestTagCatalog(t *testing.T) {
 	}
 }
 
+func TestRenameTag(t *testing.T) {
+	dao := newTestDao(t)
+
+	t1 := addTestTicket(t, dao, "対象1", "本文", "feature:SEARCH status:OPEN")
+	t2 := addTestTicket(t, dao, "対象2", "本文", "feature:SEARCH docs/design")
+	t3 := addTestTicket(t, dao, "対象外", "本文", "status:OPEN")
+
+	tags, err := dao.QueryTags()
+	if err != nil {
+		t.Fatalf("QueryTags: %v", err)
+	}
+	tag := findTag(tags, "feature:SEARCH")
+	if tag == nil {
+		t.Fatal("feature:SEARCH not registered")
+	}
+	tag.Tag = "feature:FTS"
+	updated, err := dao.RenameTag(tag, "alice", "sub-1")
+	if err != nil {
+		t.Fatalf("RenameTag: %v", err)
+	}
+	if updated != 2 {
+		t.Errorf("RenameTag updated = %d, want 2", updated)
+	}
+
+	// カタログのタグ名が変更される
+	got, err := dao.GetTag(tag.Id)
+	if err != nil {
+		t.Fatalf("GetTag: %v", err)
+	}
+	if got.Tag != "feature:FTS" {
+		t.Errorf("GetTag after rename = %+v", got)
+	}
+
+	// 使用中チケットのタグが書き換わり、通常の編集と同じく更新者・履歴が記録される
+	got1, _ := dao.GetTicket(t1.Id)
+	if got1.Tags != "feature:FTS status:OPEN" {
+		t.Errorf("ticket1 tags = %q, want %q", got1.Tags, "feature:FTS status:OPEN")
+	}
+	if got1.UpdatedBy != "alice" || got1.UpdatedSub != "sub-1" {
+		t.Errorf("ticket1 updated_by = %q, updated_sub = %q, want alice/sub-1", got1.UpdatedBy, got1.UpdatedSub)
+	}
+	if !got1.UpdatedAt.After(t1.UpdatedAt) {
+		t.Errorf("ticket1 updated_at = %v, want after %v", got1.UpdatedAt, t1.UpdatedAt)
+	}
+	if n := countRows(t, dao, `SELECT COUNT(*) FROM ticket_histories WHERE ticket_id = ?`, t1.Id); n != 2 {
+		t.Errorf("ticket1 histories = %d, want 2", n)
+	}
+	got2, _ := dao.GetTicket(t2.Id)
+	if got2.Tags != "feature:FTS docs/design" {
+		t.Errorf("ticket2 tags = %q", got2.Tags)
+	}
+
+	// 使用していないチケットは変更されない
+	got3, _ := dao.GetTicket(t3.Id)
+	if got3.Tags != "status:OPEN" || !got3.UpdatedAt.Equal(t3.UpdatedAt) {
+		t.Errorf("ticket3 should be untouched: %+v", got3)
+	}
+	if n := countRows(t, dao, `SELECT COUNT(*) FROM ticket_histories WHERE ticket_id = ?`, t3.Id); n != 1 {
+		t.Errorf("ticket3 histories = %d, want 1", n)
+	}
+
+	// FTSも更新され、新しいタグ名で全文検索できる（旧タグ名ではヒットしない）
+	ids := queryTicketIds(t, dao, "feature:FTS", nil)
+	if !slices.Contains(ids, t1.Id) || !slices.Contains(ids, t2.Id) {
+		t.Errorf("fulltext search by new name = %v, want [%d %d]", ids, t1.Id, t2.Id)
+	}
+	if ids := queryTicketIds(t, dao, "SEARCH", nil); len(ids) != 0 {
+		t.Errorf("fulltext search by old name = %v, want empty", ids)
+	}
+
+	// 同名への変更はチケットを書き換えない
+	updated, err = dao.RenameTag(tag, "bob", "")
+	if err != nil {
+		t.Fatalf("RenameTag(same name): %v", err)
+	}
+	if updated != 0 {
+		t.Errorf("RenameTag(same name) updated = %d, want 0", updated)
+	}
+}
+
+func TestRenameTagGroupEntry(t *testing.T) {
+	dao := newTestDao(t)
+
+	ticket := addTestTicket(t, dao, "期限つき", "本文", "due-date@:2026-07-10 status:OPEN")
+
+	tags, _ := dao.QueryTags()
+	tag := findTag(tags, "due-date@:")
+	if tag == nil {
+		t.Fatal("due-date@: not found in seeded catalog")
+	}
+	tag.Tag = "deadline@:"
+	updated, err := dao.RenameTag(tag, "alice", "")
+	if err != nil {
+		t.Fatalf("RenameTag: %v", err)
+	}
+	if updated != 1 {
+		t.Errorf("RenameTag updated = %d, want 1", updated)
+	}
+
+	// 値なしのグループエントリは前方一致で値つきのタグごと書き換わる
+	got, _ := dao.GetTicket(ticket.Id)
+	if got.Tags != "deadline@:2026-07-10 status:OPEN" {
+		t.Errorf("ticket tags = %q", got.Tags)
+	}
+	// 新しいグループ名で範囲検索できる
+	if ids := queryTicketIds(t, dao, "", []string{"deadline@:>=2026-07-01"}); !slices.Contains(ids, ticket.Id) {
+		t.Errorf("range search by new group = %v, want contains %d", ids, ticket.Id)
+	}
+}
+
+func TestReplaceTagTokens(t *testing.T) {
+	tests := []struct {
+		tags, oldName, newName string
+		want                   string
+		changed                bool
+	}{
+		{"foo bar", "foo", "baz", "baz bar", true},
+		{"status:OPEN foo", "status:OPEN", "status:NEW", "status:NEW foo", true},
+		// 階層タグの子孫は別タグのため置き換えない
+		{"docs/design docs", "docs", "documents", "docs/design documents", true},
+		// 値なしのグループエントリは前方一致で置き換える
+		{"due-date@:2026-01-01 foo", "due-date@:", "deadline@:", "deadline@:2026-01-01 foo", true},
+		// 置き換えの結果重複したタグはひとつにまとめる
+		{"foo bar", "foo", "bar", "bar", true},
+		{"foo bar", "qux", "quux", "foo bar", false},
+	}
+	for _, tt := range tests {
+		got, changed := replaceTagTokens(tt.tags, tt.oldName, tt.newName)
+		if got != tt.want || changed != tt.changed {
+			t.Errorf("replaceTagTokens(%q, %q, %q) = %q, %v, want %q, %v",
+				tt.tags, tt.oldName, tt.newName, got, changed, tt.want, tt.changed)
+		}
+	}
+}
+
 func findTag(tags []Tag, name string) *Tag {
 	for i := range tags {
 		if tags[i].Tag == name {

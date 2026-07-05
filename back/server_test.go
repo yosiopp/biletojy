@@ -564,6 +564,52 @@ func TestTagReorder(t *testing.T) {
 	assertErrorResponse(t, request(t, handler, "PUT", "/api/tags/order", map[string][]int64{"ids": {}}), http.StatusBadRequest)
 }
 
+func TestTagRename(t *testing.T) {
+	handler := newTestServer(t)
+
+	target := createTicket(t, handler, data.Ticket{Title: "対象", Content: "本文", Tags: "feature:SEARCH status:OPEN", CreatedBy: "alice"})
+	other := createTicket(t, handler, data.Ticket{Title: "対象外", Content: "本文", Tags: "status:OPEN", CreatedBy: "alice"})
+
+	// チケット作成時に自動登録されたタグのIDを取得する
+	tags := decodeBody[[]data.Tag](t, request(t, handler, "GET", "/api/tags", nil))
+	var tagId int64
+	for _, tag := range tags {
+		if tag.Tag == "feature:SEARCH" {
+			tagId = tag.Id
+		}
+	}
+	if tagId == 0 {
+		t.Fatal("feature:SEARCH not registered")
+	}
+
+	w := request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d/rename", tagId),
+		map[string]any{"tag": "feature:FTS", "note": "検索機能", "updated_by": "bob"})
+	assertStatus(t, w, http.StatusOK)
+	renamed := decodeBody[data.Tag](t, w)
+	if renamed.Tag != "feature:FTS" || !renamed.IsGroup {
+		t.Errorf("renamed = %+v", renamed)
+	}
+
+	// 使用中チケットのタグが書き換わり、更新者が記録される
+	got := decodeBody[data.Ticket](t, request(t, handler, "GET", fmt.Sprintf("/api/tickets/%d", target.Id), nil))
+	if got.Tags != "feature:FTS status:OPEN" {
+		t.Errorf("ticket tags = %q, want %q", got.Tags, "feature:FTS status:OPEN")
+	}
+	if got.UpdatedBy != "bob" {
+		t.Errorf("updated_by = %q, want bob", got.UpdatedBy)
+	}
+	// 使用していないチケットは変更されない
+	untouched := decodeBody[data.Ticket](t, request(t, handler, "GET", fmt.Sprintf("/api/tickets/%d", other.Id), nil))
+	if untouched.Tags != "status:OPEN" || !untouched.UpdatedAt.Equal(other.UpdatedAt) {
+		t.Errorf("other ticket should be untouched: %+v", untouched)
+	}
+
+	// バリデーション・404・重複は既存のタグ編集と同じ
+	assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d/rename", tagId), map[string]any{"tag": "a b"}), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "PUT", "/api/tags/9999/rename", map[string]any{"tag": "x"}), http.StatusNotFound)
+	assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d/rename", tagId), map[string]any{"tag": "status:OPEN"}), http.StatusConflict)
+}
+
 func TestTagDuplicateConflict(t *testing.T) {
 	handler := newTestServer(t)
 

@@ -103,10 +103,14 @@ const (
 			CASE WHEN instr(tag, ':') > 1 AND instr(tag, ':') < length(tag) THEN substr(tag, 1, instr(tag, ':')) ELSE '' END ASC,
 			sort_order ASC, tag ASC`
 	_SQL_GET_TAG       = `SELECT id, tag, note, color, is_group, is_range, sort_order FROM tag_catalog WHERE id = ?`
+	_SQL_GET_TAG_NAME  = `SELECT tag FROM tag_catalog WHERE id = ?`
 	_SQL_ADD_TAG       = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range) VALUES (?, ?, ?, ?, ?)`
 	_SQL_EDIT_TAG      = `UPDATE tag_catalog SET tag = ?, note = ?, color = ?, is_group = ?, is_range = ? WHERE id = ?`
 	_SQL_DELETE_TAG    = `DELETE FROM tag_catalog WHERE id = ?`
 	_SQL_SET_TAG_ORDER = `UPDATE tag_catalog SET sort_order = ? WHERE id = ?`
+	// タグ名変更時の書き換え候補の絞り込み（LIKEは % _ を含むタグ名でも上位集合を返すため、
+	// 実際の書き換え対象はGo側でトークン単位に判定する）
+	_SQL_QUERY_TICKETS_BY_TAG = `SELECT id, title, content, COALESCE(tags, ''), created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM tickets WHERE tags LIKE ?`
 	// チケット保存時のカタログ未定義タグの自動登録（定義済みなら何もしない）。
 	// 一覧でセクション末尾に並ぶよう、同一セクション（_SQL_QUERY_TAGSの区分と同じ。グループ接頭辞、
 	// 値なしのグループエントリは ':'、グループでないタグは ''）の最大sort_order + 1を設定する
@@ -125,8 +129,9 @@ const (
 	_SQL_ADD_TICKET_FTS     = `INSERT INTO tickets_fts (ticket_id, title, content, tags, comments) VALUES (?, ?, ?, ?, ?)`
 
 	// チケット編集
-	_SQL_EDIT_TICKET     = `UPDATE tickets SET title = ?, content = ?, tags = ?, updated_by = ?, updated_sub = ?, updated_at = ? WHERE id = ?`
-	_SQL_EDIT_TICKET_FTS = `UPDATE tickets_fts SET title = ?, content = ?, tags = ? WHERE ticket_id = ?`
+	_SQL_EDIT_TICKET          = `UPDATE tickets SET title = ?, content = ?, tags = ?, updated_by = ?, updated_sub = ?, updated_at = ? WHERE id = ?`
+	_SQL_EDIT_TICKET_FTS      = `UPDATE tickets_fts SET title = ?, content = ?, tags = ? WHERE ticket_id = ?`
+	_SQL_EDIT_TICKET_FTS_TAGS = `UPDATE tickets_fts SET tags = ? WHERE ticket_id = ?`
 
 	// コメント
 	_SQL_GET_COMMENT    = `SELECT id, ticket_id, content, created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM comments WHERE id = ?`

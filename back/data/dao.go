@@ -581,6 +581,95 @@ func (dao *Dao) EditTag(tag *Tag) error {
 	return err
 }
 
+// タグ名を変更し、そのタグを使用している全チケットのタグ表記も一括で書き換える。
+// 書き換えたチケットは通常の編集と同じく更新者・更新日時を設定し、履歴とFTSも更新する。
+// 書き換えたチケット数を返す
+func (dao *Dao) RenameTag(tag *Tag, updatedBy, updatedSub string) (int, error) {
+	tx, err := dao.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	var oldName string
+	if err := tx.QueryRow(_SQL_GET_TAG_NAME, tag.Id).Scan(&oldName); err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(_SQL_EDIT_TAG, tag.Tag, tag.Note, tag.Color, tag.IsGroup, tag.IsRange, tag.Id); err != nil {
+		return 0, err
+	}
+	if oldName == tag.Tag {
+		return 0, tx.Commit()
+	}
+
+	rows, err := tx.Query(_SQL_QUERY_TICKETS_BY_TAG, "%"+oldName+"%")
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	tickets := []Ticket{}
+	for rows.Next() {
+		t, err := scanTicket(rows)
+		if err != nil {
+			return 0, err
+		}
+		tickets = append(tickets, t)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	rows.Close()
+
+	now := time.Now()
+	updated := 0
+	for _, t := range tickets {
+		tags, changed := replaceTagTokens(t.Tags, oldName, tag.Tag)
+		if !changed {
+			continue
+		}
+		if _, err := tx.Exec(_SQL_EDIT_TICKET, t.Title, t.Content, tags, updatedBy, updatedSub, now, t.Id); err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(_SQL_ADD_TICKET_HISTORY, t.Id, t.Title, t.Content, tags, updatedBy, updatedSub, now); err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(_SQL_EDIT_TICKET_FTS_TAGS, Bigram(tags), t.Id); err != nil {
+			return 0, err
+		}
+		updated++
+	}
+	return updated, tx.Commit()
+}
+
+// タグ文字列中のoldNameをnewNameへ置き換えたタグ文字列と、置き換えの有無を返す。
+// 値なしのグループエントリ（"due-date@:" など末尾 ":"）は前方一致でグループ名部分を置き換える。
+// 階層タグの子孫（"docs" に対する "docs/design" など）は別タグのため置き換えない。
+// 置き換えの結果、既存のタグと重複した場合はひとつにまとめる
+func replaceTagTokens(tags, oldName, newName string) (string, bool) {
+	changed := false
+	seen := map[string]bool{}
+	result := []string{}
+	for _, token := range strings.Fields(tags) {
+		switch {
+		case token == oldName:
+			token = newName
+			changed = true
+		case strings.HasSuffix(oldName, ":") && strings.HasPrefix(token, oldName):
+			token = newName + token[len(oldName):]
+			changed = true
+		}
+		if seen[token] {
+			continue
+		}
+		seen[token] = true
+		result = append(result, token)
+	}
+	if !changed {
+		return tags, false
+	}
+	return strings.Join(result, " "), true
+}
+
 // 指定した並び順どおりにsort_orderへ1からの連番を振り直す（タググループ内の並び替え用）
 func (dao *Dao) ReorderTags(ids []int64) error {
 	tx, err := dao.db.Begin()

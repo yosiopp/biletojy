@@ -327,6 +327,43 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		writeJson(w, http.StatusOK, tag)
 	})
 
+	// タグ名の変更。カタログの更新に加え、そのタグを使用している全チケットのタグ表記も一括で書き換える
+	mux.HandleFunc("PUT /api/tags/{id}/rename", func(w http.ResponseWriter, r *http.Request) {
+		id, ok := pathId(w, r)
+		if !ok {
+			return
+		}
+		if _, ok := fetchOr404(w, dao.GetTag, id, "tag"); !ok {
+			return
+		}
+		var req struct {
+			data.Tag
+			UpdatedBy string `json:"updated_by"`
+		}
+		if !readJson(w, r, &req) {
+			return
+		}
+		if msg := validateTag(req.Tag.Tag); msg != "" {
+			writeErrorMessage(w, http.StatusBadRequest, msg)
+			return
+		}
+		normalizeTag(&req.Tag)
+		req.Tag.Id = id
+		// 書き換えたチケットの更新者はチケット編集と同じくクライアント申告値＋ヘッダ由来のsub
+		if req.UpdatedBy == "" {
+			req.UpdatedBy = "anonymous"
+		}
+		if _, err := dao.RenameTag(&req.Tag, req.UpdatedBy, requestSub(r)); err != nil {
+			if data.IsUniqueConstraintErr(err) {
+				writeErrorMessage(w, http.StatusConflict, "tag already exists")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJson(w, http.StatusOK, req.Tag)
+	})
+
 	mux.HandleFunc("DELETE /api/tags/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id, ok := pathId(w, r)
 		if !ok {
