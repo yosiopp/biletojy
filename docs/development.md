@@ -34,9 +34,12 @@ cd front
 npm install
 npm run build
 
-# バックエンドをビルドして起動（FTS5を有効にするため -tags sqlite_fts5 が必須）
+# バックエンドをビルド（FTS5を有効にするため -tags sqlite_fts5 が必須）
 cd ../back
-go build -tags sqlite_fts5 -o biletojy .
+go build -tags sqlite_fts5 -o ../dist/biletojy .
+
+# dist/ から起動（DBはカレントディレクトリに作られる）
+cd ../dist
 ./biletojy            # http://localhost:8040
 ```
 * `-addr` で待ち受けアドレス、`-static` でフロント配信ディレクトリを変更できる

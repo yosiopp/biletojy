@@ -10,13 +10,13 @@ build-front:
     npm install
     npm run build
 
-# バックエンドをビルド（FTS5を有効にするため -tags sqlite_fts5 が必須）
+# バックエンドをビルド（FTS5を有効にするため -tags sqlite_fts5 が必須。成果物は dist/）
 [working-directory: 'back']
 build-back:
-    go build -tags sqlite_fts5 -o biletojy .
+    go build -tags sqlite_fts5 -o ../dist/biletojy .
 
 # ビルドして本番構成で起動（http://localhost:8040）
-[working-directory: 'back']
+[working-directory: 'dist']
 start: build
     ./biletojy
 
