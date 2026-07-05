@@ -1,16 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Tag } from '../api/client';
 import {
+  completeOnTab,
+  completionCandidates,
   groupCatalog,
   groupOptions,
-  hierarchyOptions,
   normalizeTag,
   parseTag,
+  pendingRangeGroup,
   splitTags,
   tagColor,
 } from '../lib/tags';
 import TagGroupSelect from './TagGroupSelect';
 import TagItem from './TagItem';
+import TagRangeInput from './TagRangeInput';
 
 type Props = {
   value: string[];
@@ -31,12 +34,10 @@ function withGroupReplaced(list: string[], group: string, tag: string): string[]
 function TagInput({ value, onChange, catalog }: Props) {
   const [text, setText] = useState('');
   const [rangeValue, setRangeValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const groups = useMemo(() => groupCatalog(catalog), [catalog]);
 
-  const rangeGroup = useMemo(() => {
-    const match = text.match(/^(.+[@#]):$/);
-    return match ? match[1] : null;
-  }, [text]);
+  const rangeGroup = useMemo(() => pendingRangeGroup(text), [text]);
 
   const selectedInGroup = (group: string) =>
     value.find((tag) => parseTag(tag).group === group) ?? '';
@@ -69,14 +70,18 @@ function TagInput({ value, onChange, catalog }: Props) {
     return group == null || !groups.has(group);
   });
 
-  const suggestions = useMemo(() => {
-    const options = new Set<string>(hierarchyOptions(catalog));
-    for (const tag of catalog) {
-      const { isDate, isNumber } = parseTag(tag.tag);
-      if (!isDate && !isNumber) options.add(tag.tag);
-    }
-    return [...options].sort();
-  }, [catalog]);
+  const completions = useMemo(() => completionCandidates(catalog), [catalog]);
+
+  // datalistにはTab補完候補のうち `group:` の途中形を除いたタグ全体を出す
+  const suggestions = useMemo(() => completions.filter((c) => !c.endsWith(':')).sort(), [completions]);
+
+  // 値待ち状態のグループタグ（rangeGroup）をピッカーの値で確定する。値が未入力なら何もしない
+  const submitRange = () => {
+    if (!rangeValue) return;
+    addTag(`${rangeGroup}:${rangeValue}`);
+    setText('');
+    setRangeValue('');
+  };
 
   return (
     <div className="flex flex-wrap items-center">
@@ -103,50 +108,53 @@ function TagInput({ value, onChange, catalog }: Props) {
         />
       ))}
 
-      <input
-        type="text"
-        className="border rounded-sm px-2 py-1 mb-1 flex-1 min-w-40"
-        placeholder="タグを追加（Enterで確定）"
-        list="tag-input-suggestions"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !rangeGroup) {
-            e.preventDefault();
-            addTag(text.trim());
-            setText('');
-          }
-        }}
-      />
-      <datalist id="tag-input-suggestions">
-        {suggestions.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
+      <span className="relative mb-1 flex-1 min-w-40">
+        <input
+          ref={inputRef}
+          type="text"
+          className="border rounded-sm px-2 py-1 w-full"
+          placeholder="タグを追加（Enterで確定）"
+          list="tag-input-suggestions"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              // 値待ち状態ならピッカーの値で確定する
+              if (rangeGroup) {
+                submitRange();
+              } else {
+                addTag(text.trim());
+                setText('');
+              }
+            }
+            // Tabで前方一致するタグ候補の確定部分まで補完する（一意ならタグ全体まで）
+            const completed = completeOnTab(e, text, completions);
+            if (completed != null) setText(completed);
+          }}
+        />
+        <datalist id="tag-input-suggestions">
+          {suggestions.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
 
-      {rangeGroup && (
-        <span className="flex items-center gap-1 ml-1 mb-1">
-          <input
-            type={rangeGroup.endsWith('#') ? 'number' : 'date'}
-            step={rangeGroup.endsWith('#') ? 'any' : undefined}
-            className="border rounded-sm px-1 py-0.5"
+        {rangeGroup && (
+          <TagRangeInput
+            key={rangeGroup}
+            group={rangeGroup}
+            text={text}
+            anchorRef={inputRef}
             value={rangeValue}
-            onChange={(e) => setRangeValue(e.target.value)}
-          />
-          <button
-            type="button"
-            className="border rounded-sm px-2 py-0.5 text-sm hover:bg-neutral-100"
-            onClick={() => {
-              if (!rangeValue) return;
-              addTag(`${rangeGroup}:${rangeValue}`);
-              setText('');
-              setRangeValue('');
+            onValueChange={setRangeValue}
+            onTextChange={setText}
+            onSubmit={() => {
+              submitRange();
+              inputRef.current?.focus();
             }}
-          >
-            追加
-          </button>
-        </span>
-      )}
+          />
+        )}
+      </span>
     </div>
   );
 }

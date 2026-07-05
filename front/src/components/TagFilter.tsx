@@ -1,7 +1,9 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import type { Tag } from '../api/client';
 import {
   buildCond,
+  completeOnTab,
+  completionCandidates,
   condGroup,
   groupCatalog,
   groupOptions,
@@ -9,11 +11,15 @@ import {
   normalizeTag,
   parseCond,
   parseTag,
+  pendingRangeGroup,
+  rangePickerValue,
+  splitRangeValue,
   splitTags,
   tagColor,
 } from '../lib/tags';
 import TagGroupSelect from './TagGroupSelect';
 import TagItem from './TagItem';
+import TagRangeInput from './TagRangeInput';
 
 type Props = {
   selected: string[];
@@ -27,16 +33,26 @@ type Props = {
 function ConditionChip({
   label,
   onRemove,
+  onClick,
   children,
 }: {
   label?: string;
   onRemove: () => void;
+  // 指定すると内容部分がクリック（キーボードフォーカス）できるボタンになる
+  onClick?: () => void;
   children: ReactNode;
 }) {
+  const content = onClick ? (
+    <button type="button" className="hover:underline" onClick={onClick}>
+      {children}
+    </button>
+  ) : (
+    children
+  );
   return (
     <span className="inline-flex items-center rounded-lg border border-neutral-300 bg-white py-0.5 px-2 mr-1 mb-1 whitespace-nowrap">
       {label && <span className="border-r border-neutral-300 pr-1 text-sm text-neutral-500">{label}</span>}
-      <span className={label ? 'pl-2' : ''}>{children}</span>
+      <span className={label ? 'pl-2' : ''}>{content}</span>
       <button type="button" className="ml-1 text-neutral-400 hover:text-neutral-700" onClick={onRemove}>
         ×
       </button>
@@ -51,8 +67,18 @@ function ConditionChip({
 //   タグ絞り込みは先頭 - で除外（NOT）、| 区切りでOR条件を指定できる
 function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props) {
   const [text, setText] = useState('');
+  const [rangeValue, setRangeValue] = useState('');
+  // クリックで値を編集中の日時・数値タグ条件（selected内のraw）とピッカーの値
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
   const groups = useMemo(() => groupCatalog(catalog), [catalog]);
   const hierarchies = useMemo(() => hierarchyOptions(catalog), [catalog]);
+
+  // 日時・数値タグの値待ち状態（例: "due-date@:" "-estimate#:>="）なら日付ピッカー・数値入力を出す
+  const rangeGroup = useMemo(() => pendingRangeGroup(text, true), [text]);
+
+  const completions = useMemo(() => completionCandidates(catalog), [catalog]);
 
   // 絞り込みチップにするグループ（日時・数値グループと選択肢なしグループは除く）
   const filterGroups = useMemo(
@@ -104,6 +130,14 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
     setText('');
   };
 
+  // 値待ち状態のテキストをピッカーの値と結合して確定する
+  const submitRange = () => {
+    submit(text + rangeValue);
+    setRangeValue('');
+  };
+
+  const closeEdit = useCallback(() => setEditing(null), []);
+
   // グループのチップが担当する条件（すべての択がそのグループの値のもの）
   const selectedInGroup = (group: string) =>
     selected.find((cond) => condGroup(cond) === group) ?? '';
@@ -122,25 +156,54 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
 
   return (
     <div className="border rounded-sm p-2 mb-2">
-      <input
-        type="search"
-        className="border rounded-sm px-2 py-1 w-full"
-        placeholder="タグまたは全文検索（タイトル・本文・コメント / -タグで除外、タグ|タグでOR / Enterで確定）"
-        list="tag-filter-suggestions"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            submit(text);
-          }
-        }}
-      />
-      <datalist id="tag-filter-suggestions">
-        {catalog.map((tag) => (
-          <option key={tag.id} value={tag.tag} />
-        ))}
-      </datalist>
+      <span className="relative block">
+        <input
+          ref={searchRef}
+          type="search"
+          className="border rounded-sm px-2 py-1 w-full"
+          placeholder="タグまたは全文検索（タイトル・本文・コメント / -タグで除外、タグ|タグでOR / Enterで確定）"
+          list="tag-filter-suggestions"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              // 値待ち状態でピッカーに値が入っていれば結合して確定する
+              if (rangeGroup && rangeValue) {
+                submitRange();
+              } else {
+                submit(text);
+              }
+            }
+            // Tabで前方一致するタグ候補の確定部分まで補完する（一意ならタグ全体まで）
+            const completed = completeOnTab(e, text, completions);
+            if (completed != null) setText(completed);
+          }}
+        />
+        <datalist id="tag-filter-suggestions">
+          {catalog.map((tag) => (
+            <option key={tag.id} value={tag.tag} />
+          ))}
+        </datalist>
+
+        {rangeGroup && (
+          <TagRangeInput
+            key={rangeGroup}
+            group={rangeGroup}
+            text={text}
+            anchorRef={searchRef}
+            value={rangeValue}
+            onValueChange={setRangeValue}
+            onTextChange={setText}
+            operators
+            onSubmit={() => {
+              submitRange();
+              searchRef.current?.focus();
+            }}
+            autoFocus={false}
+          />
+        )}
+      </span>
 
       <div className="flex flex-wrap items-center mt-2">
         <span className="text-sm text-neutral-500 mr-1 mb-1">絞り込み:</span>
@@ -176,14 +239,44 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
         {restTags.map((cond) => {
           const { not, alts } = parseCond(cond);
           const remove = () => onChange(selected.filter((t) => t !== cond));
+          // 単一条件の日時・数値タグは値部分のクリックでピッカーを開いて編集できる
+          const single = alts.length === 1 ? parseTag(alts[0]) : null;
+          const range = single != null && (single.isDate || single.isNumber) ? single : null;
+          const startEdit = range
+            ? () => {
+                setEditValue(rangePickerValue(range.group ?? '', range.name));
+                setEditing(cond);
+              }
+            : undefined;
           // 単純な条件は通常のタグチップで表示（色・期限表示を活かす）。NOT/OR条件は専用チップにする
-          if (!not && alts.length === 1) {
-            return <TagItem key={cond} tag={alts[0]} color={tagColor(catalog, alts[0])} onRemove={remove} />;
-          }
+          const chip =
+            !not && alts.length === 1 ? (
+              <TagItem tag={alts[0]} color={tagColor(catalog, alts[0])} onRemove={remove} onClick={startEdit} />
+            ) : (
+              <ConditionChip label={not ? '除外' : undefined} onRemove={remove} onClick={startEdit}>
+                {alts.join(' | ')}
+              </ConditionChip>
+            );
           return (
-            <ConditionChip key={cond} label={not ? '除外' : undefined} onRemove={remove}>
-              {alts.join(' | ')}
-            </ConditionChip>
+            <span key={cond} className="relative inline-block">
+              {chip}
+              {editing === cond && range && (
+                <TagRangeInput
+                  group={range.group ?? ''}
+                  value={editValue}
+                  onValueChange={setEditValue}
+                  submitLabel="設定"
+                  onSubmit={() => {
+                    // 比較演算子は変えずに値だけ差し替える。同一条件が既にあれば重複させない
+                    const [op] = splitRangeValue(range.name);
+                    const next = buildCond(not, [`${range.group}:${op}${editValue}`]);
+                    onChange([...new Set(selected.map((c) => (c === cond ? next : c)))]);
+                    setEditing(null);
+                  }}
+                  onClose={closeEdit}
+                />
+              )}
+            </span>
           );
         })}
         {queryWords.map((word) => (

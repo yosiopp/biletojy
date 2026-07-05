@@ -4,10 +4,19 @@ type Props = {
   tag: string;
   color?: string | null;
   onRemove?: () => void;
+  // 指定するとタグ名部分がクリック（キーボードフォーカス）できるボタンになる
+  onClick?: () => void;
 };
 
-function TagItem({ tag, color, onRemove }: Props) {
+function TagItem({ tag, color, onRemove, onClick }: Props) {
   const { group, name, isDate } = parseTag(tag);
+  const nameEl = onClick ? (
+    <button type="button" className="hover:underline" onClick={onClick}>
+      {name}
+    </button>
+  ) : (
+    name
+  );
   const due = isDate ? dueState(name) : null;
   const dueClass =
     due === 'overdue'
@@ -26,10 +35,10 @@ function TagItem({ tag, color, onRemove }: Props) {
       {group != null ? (
         <>
           <span className="border-r border-neutral-300 pr-1 text-sm opacity-70">{group.replace(/[@#]$/, '')}</span>
-          <span className="pl-2">{name}</span>
+          <span className="pl-2">{nameEl}</span>
         </>
       ) : (
-        <span>{name}</span>
+        <span>{nameEl}</span>
       )}
       {onRemove && (
         <button

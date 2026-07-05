@@ -1,5 +1,6 @@
-import { KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react';
-import { buildCond, parseCond, parseTag } from '../lib/tags';
+import { KeyboardEvent as ReactKeyboardEvent, useRef, useState } from 'react';
+import { buildCond, parseCond, parseTag, rangePickerValue } from '../lib/tags';
+import { useOutsideClick } from '../lib/useOutsideClick';
 
 export type TagGroupOption = {
   value: string; // 選択時に onChange へ渡す値（"status:OPEN" 形式）
@@ -38,20 +39,13 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
   // キーボード移動の対象: 0=クリア、1..n=選択肢、（filter時のみ）n+1=除外トグル
   const lastIndex = options.length + (filter ? 1 : 0);
 
-  useEffect(() => {
-    if (!open) return;
-    const onOutside = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onOutside);
-    return () => document.removeEventListener('mousedown', onOutside);
-  }, [open]);
+  useOutsideClick(rootRef, open ? () => setOpen(false) : undefined);
 
   const toggle = () => {
     // 日時タグは既存タグに時刻付きの値（例: 2026-07-04T10:00）が残っていても日付部分だけをピッカーに渡す
     if (isRange) {
       const name = alts.length > 0 ? parseTag(alts[0]).name : '';
-      setRangeValue(isDate ? name.slice(0, 10) : name);
+      setRangeValue(rangePickerValue(group, name));
     }
     setActive(open ? -1 : Math.max(options.findIndex((o) => alts.includes(o.value)) + 1, 0));
     setOpen(!open);

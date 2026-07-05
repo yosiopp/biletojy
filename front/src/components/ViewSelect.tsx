@@ -1,5 +1,6 @@
-import { KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react';
+import { KeyboardEvent as ReactKeyboardEvent, useRef, useState } from 'react';
 import { splitTags } from '../lib/tags';
+import { useOutsideClick } from '../lib/useOutsideClick';
 import { deleteView, loadViews, matchesView, SavedView, saveView } from '../lib/views';
 
 type Props = {
@@ -22,14 +23,7 @@ function ViewSelect({ q, tags, onApply }: Props) {
   const hasFilter = q.length > 0 || tags.length > 0;
   const current = views.find((v) => matchesView(v, q, tags));
 
-  useEffect(() => {
-    if (!open) return;
-    const onOutside = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onOutside);
-    return () => document.removeEventListener('mousedown', onOutside);
-  }, [open]);
+  useOutsideClick(rootRef, open ? () => setOpen(false) : undefined);
 
   const toggle = () => {
     if (open) {
