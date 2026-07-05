@@ -89,18 +89,21 @@ function TagList() {
     setConfirming({ tag, message });
   };
 
-  // グループの値タグ（"status:OPEN" など）ならグループ名、それ以外はnull（並び替え対象外）
-  const groupOf = (tag: Tag): string | null => {
+  // 並び替え単位のキー。グループの値タグ（"status:OPEN" など）はグループ名、
+  // グループでないタグはまとめてひとつの並び（''）として扱う。
+  // 値なしのグループエントリ（"due-date@:" など）は並び替え対象外でnull
+  const sortKeyOf = (tag: Tag): string | null => {
     const { group, name } = parseTag(tag.tag);
-    return group != null && name.length > 0 ? group : null;
+    if (group == null) return '';
+    return name.length > 0 ? group : null;
   };
-  const groupMembers = (group: string) => catalog.filter((t) => groupOf(t) === group);
+  const sortMembers = (key: string) => catalog.filter((t) => sortKeyOf(t) === key);
   const dragTag = dragId != null ? catalog.find((t) => t.id === dragId) : undefined;
-  const dragGroup = dragTag ? groupOf(dragTag) : null;
+  const dragKey = dragTag ? sortKeyOf(dragTag) : null;
 
-  // グループ内でfromの位置のタグをtoの位置へ移動した並びを保存する
-  const moveTo = async (group: string, from: number, to: number) => {
-    const ids = groupMembers(group).map((t) => t.id);
+  // 同じ並び替え単位内でfromの位置のタグをtoの位置へ移動した並びを保存する
+  const moveTo = async (key: string, from: number, to: number) => {
+    const ids = sortMembers(key).map((t) => t.id);
     if (from < 0 || to < 0 || to >= ids.length || from === to) return;
     ids.splice(to, 0, ...ids.splice(from, 1));
     try {
@@ -113,18 +116,18 @@ function TagList() {
   };
 
   const dropOn = (target: Tag) => {
-    const group = groupOf(target);
-    if (dragId == null || group == null || group !== dragGroup) return;
-    const ids = groupMembers(group).map((t) => t.id);
-    moveTo(group, ids.indexOf(dragId), ids.indexOf(target.id));
+    const key = sortKeyOf(target);
+    if (dragId == null || key == null || key !== dragKey) return;
+    const ids = sortMembers(key).map((t) => t.id);
+    moveTo(key, ids.indexOf(dragId), ids.indexOf(target.id));
   };
 
-  // キーボード（↑↓）でグループ内の並びを1つずつ移動する
+  // キーボード（↑↓）で並びを1つずつ移動する
   const moveBy = (tag: Tag, delta: number) => {
-    const group = groupOf(tag);
-    if (group == null) return;
-    const from = groupMembers(group).findIndex((t) => t.id === tag.id);
-    moveTo(group, from, from + delta);
+    const key = sortKeyOf(tag);
+    if (key == null) return;
+    const from = sortMembers(key).findIndex((t) => t.id === tag.id);
+    moveTo(key, from, from + delta);
   };
 
   const remove = async () => {
@@ -253,8 +256,8 @@ function TagList() {
         <div className="flex-none w-32 py-1"></div>
       </div>
       {catalog.map((tag) => {
-        const group = groupOf(tag);
-        const sortable = group != null && groupMembers(group).length > 1;
+        const key = sortKeyOf(tag);
+        const sortable = key != null && sortMembers(key).length > 1;
         return (
         <div
           key={tag.id}
@@ -262,7 +265,7 @@ function TagList() {
             dropId === tag.id ? 'bg-blue-50' : ''
           }`}
           onDragOver={(e) => {
-            if (sortable && dragGroup === group && dragId !== tag.id) {
+            if (sortable && dragKey === key && dragId !== tag.id) {
               e.preventDefault();
               setDropId(tag.id);
             }
@@ -282,7 +285,7 @@ function TagList() {
                   type="button"
                   draggable
                   className="cursor-grab text-neutral-400 hover:text-neutral-700 text-sm"
-                  title="ドラッグまたは↑↓キーでグループ内を並び替え"
+                  title="ドラッグまたは↑↓キーで並び替え"
                   aria-label={`${tag.tag} を並び替え`}
                   onDragStart={(e) => {
                     e.dataTransfer.setData('text/plain', tag.tag);
