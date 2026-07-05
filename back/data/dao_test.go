@@ -645,8 +645,12 @@ func TestTicketRegistersUnknownTags(t *testing.T) {
 	if findTag(tags, "priority:HIGH") == nil {
 		t.Errorf("priority:HIGH not registered on edit: %+v", tags)
 	}
-	// グループでないタグは全グループの後に登録順（タグ名順ではなく）で並ぶ
-	if n := len(tags); tags[n-2].Tag != "docs/design" || tags[n-1].Tag != "another-tag" {
+	// 値なしのグループエントリ同士はグループの後にまとまり、その後にグループでないタグが登録順（タグ名順ではなく）で並ぶ
+	n := len(tags)
+	if tags[n-4].Tag != "due-date@:" || tags[n-3].Tag != "point#:" {
+		t.Errorf("value-less group entries should be listed after groups in registration order: %+v", tags)
+	}
+	if tags[n-2].Tag != "docs/design" || tags[n-1].Tag != "another-tag" {
 		t.Errorf("plain tags should be listed last in registration order: %+v", tags)
 	}
 }

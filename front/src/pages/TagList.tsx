@@ -89,20 +89,17 @@ function TagList() {
     setConfirming({ tag, message });
   };
 
-  // 並び替え単位のキー。グループの値タグ（"status:OPEN" など）はグループ名、
-  // グループでないタグはまとめてひとつの並び（''）として扱う。
-  // 値なしのグループエントリ（"due-date@:" など）は並び替え対象外でnull
-  const sortKeyOf = (tag: Tag): string | null => {
+  // 並び替え単位（＝表示セクション）のキー。グループの値タグ（"status:OPEN" など）はグループ名、
+  // 値なしのグループエントリ（"due-date@:" など）同士とグループでないタグ同士は、
+  // それぞれまとめてひとつの並びとして扱う（一覧の並び順と同じ区分）
+  const sectionOf = (tag: Tag): string => {
     const { group, name } = parseTag(tag.tag);
     if (group == null) return '';
-    return name.length > 0 ? group : null;
+    return name.length > 0 ? group : ':';
   };
-  const sortMembers = (key: string) => catalog.filter((t) => sortKeyOf(t) === key);
-  // 表示上のセクション。並び替えできる範囲がわかるよう境界の罫線を強調する。
-  // タググループは接頭辞、グループでないタグはまとめてひとつ（一覧の並び順と同じ区分）
-  const sectionOf = (tag: Tag): string => parseTag(tag.tag).group ?? '';
+  const sortMembers = (key: string) => catalog.filter((t) => sectionOf(t) === key);
   const dragTag = dragId != null ? catalog.find((t) => t.id === dragId) : undefined;
-  const dragKey = dragTag ? sortKeyOf(dragTag) : null;
+  const dragKey = dragTag ? sectionOf(dragTag) : null;
 
   // 同じ並び替え単位内でfromの位置のタグをtoの位置へ移動した並びを保存する
   const moveTo = async (key: string, from: number, to: number) => {
@@ -119,16 +116,15 @@ function TagList() {
   };
 
   const dropOn = (target: Tag) => {
-    const key = sortKeyOf(target);
-    if (dragId == null || key == null || key !== dragKey) return;
+    const key = sectionOf(target);
+    if (dragId == null || key !== dragKey) return;
     const ids = sortMembers(key).map((t) => t.id);
     moveTo(key, ids.indexOf(dragId), ids.indexOf(target.id));
   };
 
   // キーボード（↑↓）で並びを1つずつ移動する
   const moveBy = (tag: Tag, delta: number) => {
-    const key = sortKeyOf(tag);
-    if (key == null) return;
+    const key = sectionOf(tag);
     const from = sortMembers(key).findIndex((t) => t.id === tag.id);
     moveTo(key, from, from + delta);
   };
@@ -259,8 +255,8 @@ function TagList() {
         <div className="flex-none w-32 py-1"></div>
       </div>
       {catalog.map((tag, i) => {
-        const key = sortKeyOf(tag);
-        const sortable = key != null && sortMembers(key).length > 1;
+        const key = sectionOf(tag);
+        const sortable = sortMembers(key).length > 1;
         const next = catalog[i + 1];
         const sectionEnd = next == null || sectionOf(next) !== sectionOf(tag);
         return (

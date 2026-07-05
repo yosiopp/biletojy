@@ -94,12 +94,13 @@ const (
 		('type:NOTE', 'メモ', '#a3a3a3', 1, 0, 5),
 		('due-date@:', '期限', NULL, 1, 1, 0);`
 
-	// タグカタログ。一覧はタググループ（"status:" 等の接頭辞）を接頭辞順でまとめ、
-	// グループでないタグは全グループの後にまとめる。それぞれの中はsort_order順（同値はタグ名順）で返す。
+	// タグカタログ。一覧は「値を持つタググループ（接頭辞順）→ 値なしのグループエントリ → グループでないタグ」の
+	// 順にまとめ、それぞれの中はsort_order順（同値はタグ名順）で返す。値なしのグループエントリ（"due-date@:" 等）同士と
+	// グループでないタグ同士は、それぞれまとめてひとつの並びとして扱う。
 	// instrは1始まりのため、グループ判定（先頭以外の ":"）はGo側のIndex > 0に合わせて > 1 とする
 	_SQL_QUERY_TAGS = `SELECT id, tag, note, color, is_group, is_range, sort_order FROM tag_catalog
-		ORDER BY is_group DESC,
-			CASE WHEN instr(tag, ':') > 1 THEN substr(tag, 1, instr(tag, ':')) ELSE '' END ASC,
+		ORDER BY CASE WHEN instr(tag, ':') <= 1 THEN 2 WHEN instr(tag, ':') = length(tag) THEN 1 ELSE 0 END ASC,
+			CASE WHEN instr(tag, ':') > 1 AND instr(tag, ':') < length(tag) THEN substr(tag, 1, instr(tag, ':')) ELSE '' END ASC,
 			sort_order ASC, tag ASC`
 	_SQL_GET_TAG       = `SELECT id, tag, note, color, is_group, is_range, sort_order FROM tag_catalog WHERE id = ?`
 	_SQL_ADD_TAG       = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range) VALUES (?, ?, ?, ?, ?)`
@@ -107,12 +108,12 @@ const (
 	_SQL_DELETE_TAG    = `DELETE FROM tag_catalog WHERE id = ?`
 	_SQL_SET_TAG_ORDER = `UPDATE tag_catalog SET sort_order = ? WHERE id = ?`
 	// チケット保存時のカタログ未定義タグの自動登録（定義済みなら何もしない）。
-	// 一覧で末尾に並ぶよう、同一グループ（_SQL_QUERY_TAGSのグループ判定と同じ。
-	// グループでないタグ同士はまとめてひとつの並びとして扱う）の最大sort_order + 1を設定する
+	// 一覧でセクション末尾に並ぶよう、同一セクション（_SQL_QUERY_TAGSの区分と同じ。グループ接頭辞、
+	// 値なしのグループエントリは ':'、グループでないタグは ''）の最大sort_order + 1を設定する
 	_SQL_ADD_UNKNOWN_TAG = `INSERT INTO tag_catalog (tag, is_group, is_range, sort_order)
 		SELECT ?1, ?2, ?3, COALESCE(MAX(sort_order), 0) + 1 FROM tag_catalog
-		WHERE CASE WHEN instr(tag, ':') > 1 THEN substr(tag, 1, instr(tag, ':')) ELSE '' END
-			= CASE WHEN instr(?1, ':') > 1 THEN substr(?1, 1, instr(?1, ':')) ELSE '' END
+		WHERE CASE WHEN instr(tag, ':') <= 1 THEN '' WHEN instr(tag, ':') = length(tag) THEN ':' ELSE substr(tag, 1, instr(tag, ':')) END
+			= CASE WHEN instr(?1, ':') <= 1 THEN '' WHEN instr(?1, ':') = length(?1) THEN ':' ELSE substr(?1, 1, instr(?1, ':')) END
 		ON CONFLICT (tag) DO NOTHING`
 
 	// チケット取得
