@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, Tag } from '../api/client';
+import Dialog from '../components/Dialog';
 import TagItem from '../components/TagItem';
 import { parseTag, splitTags } from '../lib/tags';
 
@@ -17,8 +18,8 @@ function TagList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [catalog, setCatalog] = useState<Tag[]>([]);
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [confirming, setConfirming] = useState<{ tag: Tag; message: string } | null>(null);
   const [error, setError] = useState('');
-  const tagInputRef = useRef<HTMLInputElement>(null);
 
   const reload = () => api.listTags().then(setCatalog).catch((e: Error) => setError(e.message));
 
@@ -26,14 +27,13 @@ function TagList() {
     reload();
   }, []);
 
-  // ctrl+shift+n（/tags?new=1）でタグ作成フォームを開く
+  // ctrl+shift+n（/tags?new=1）でタグ作成ダイアログを開く
   useEffect(() => {
     if (searchParams.get('new') === '1') {
-      // URLパラメータ起点でフォームを開くため、ここでのsetStateは意図したもの
+      // URLパラメータ起点でダイアログを開くため、ここでのsetStateは意図したもの
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setEditing(EMPTY);
       setSearchParams({}, { replace: true });
-      setTimeout(() => tagInputRef.current?.focus(), 0);
     }
   }, [searchParams, setSearchParams]);
 
@@ -59,7 +59,8 @@ function TagList() {
     }
   };
 
-  const remove = async (tag: Tag) => {
+  // 削除前に使用状況を調べて確認ダイアログを開く
+  const confirmRemove = async (tag: Tag) => {
     let message = `タグ「${tag.tag}」を削除しますか？`;
     try {
       // 検索APIは前方一致や日時の範囲解釈をするため、件数は取得結果から文字列一致で数える
@@ -83,69 +84,106 @@ function TagList() {
     } catch {
       // 件数の取得に失敗した場合は通常の確認にフォールバック
     }
-    if (!confirm(message)) return;
+    setConfirming({ tag, message });
+  };
+
+  const remove = async () => {
+    if (!confirming) return;
+    setConfirming(null);
     try {
-      await api.deleteTag(tag.id);
+      await api.deleteTag(confirming.tag.id);
+      setError('');
       await reload();
     } catch (err) {
       setError((err as Error).message);
     }
   };
 
-  const form = editing && (
-    <form onSubmit={submit} className="border rounded-sm p-3 mb-4 bg-neutral-50 flex flex-wrap gap-2 items-end">
-      <label className="text-sm text-neutral-600">
-        タグ
-        <input
-          ref={tagInputRef}
-          type="text"
-          className="border rounded-sm px-2 py-1 block w-64"
-          placeholder="status:OPEN / docs/design / due-date@: / estimate#:"
-          value={editing.tag}
-          onChange={(e) => setEditing({ ...editing, tag: e.target.value })}
-          autoFocus
-        />
-      </label>
-      <label className="text-sm text-neutral-600">
-        説明
-        <input
-          type="text"
-          className="border rounded-sm px-2 py-1 block w-48"
-          value={editing.note}
-          onChange={(e) => setEditing({ ...editing, note: e.target.value })}
-        />
-      </label>
-      <label className="text-sm text-neutral-600">
-        色
-        <span className="flex items-center gap-1">
+  const editDialog = editing && (
+    <Dialog label={editing.id == null ? '新規タグ' : 'タグの編集'} onClose={() => setEditing(null)}>
+      <form onSubmit={submit} className="w-80 max-w-full">
+        <h2 className="text-lg mb-2">{editing.id == null ? '新規タグ' : 'タグの編集'}</h2>
+        {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
+        <label className="block text-sm text-neutral-600 mb-2">
+          タグ
           <input
-            type="color"
-            className="border rounded-sm h-8 w-10"
-            value={editing.color || '#a3a3a3'}
-            onChange={(e) => setEditing({ ...editing, color: e.target.value })}
+            type="text"
+            className="border rounded-sm px-2 py-1 block w-full"
+            placeholder="status:OPEN / docs/design / due-date@: / estimate#:"
+            value={editing.tag}
+            onChange={(e) => setEditing({ ...editing, tag: e.target.value })}
+            autoFocus
           />
-          {editing.color && (
-            <button
-              type="button"
-              className="text-xs text-neutral-500 underline"
-              onClick={() => setEditing({ ...editing, color: '' })}
-            >
-              色なし
-            </button>
-          )}
-        </span>
-      </label>
-      <button type="submit" className="bg-blue-600 text-white rounded-sm px-4 py-1 hover:bg-blue-700">
-        {editing.id == null ? '作成' : '更新'}
-      </button>
-      <button
-        type="button"
-        className="border rounded-sm px-4 py-1 hover:bg-neutral-100"
-        onClick={() => setEditing(null)}
-      >
-        キャンセル
-      </button>
-    </form>
+        </label>
+        <label className="block text-sm text-neutral-600 mb-2">
+          説明
+          <input
+            type="text"
+            className="border rounded-sm px-2 py-1 block w-full"
+            value={editing.note}
+            onChange={(e) => setEditing({ ...editing, note: e.target.value })}
+          />
+        </label>
+        <label className="block text-sm text-neutral-600 mb-3">
+          色
+          <span className="flex items-center gap-1">
+            <input
+              type="color"
+              className="border rounded-sm h-8 w-10"
+              value={editing.color || '#a3a3a3'}
+              onChange={(e) => setEditing({ ...editing, color: e.target.value })}
+            />
+            {editing.color && (
+              <button
+                type="button"
+                className="text-xs text-neutral-500 underline"
+                onClick={() => setEditing({ ...editing, color: '' })}
+              >
+                色なし
+              </button>
+            )}
+          </span>
+        </label>
+        <div className="text-right">
+          <button
+            type="button"
+            className="border rounded-sm px-4 py-1 hover:bg-neutral-100"
+            onClick={() => setEditing(null)}
+          >
+            キャンセル
+          </button>
+          <button type="submit" className="bg-blue-600 text-white rounded-sm px-4 py-1 ml-2 hover:bg-blue-700">
+            {editing.id == null ? '作成' : '更新'}
+          </button>
+        </div>
+      </form>
+    </Dialog>
+  );
+
+  const confirmDialog = confirming && (
+    <Dialog label="タグの削除" onClose={() => setConfirming(null)}>
+      <div className="w-96 max-w-full">
+        <h2 className="text-lg mb-2">タグの削除</h2>
+        <p className="text-sm whitespace-pre-line mb-3">{confirming.message}</p>
+        <div className="text-right">
+          <button
+            type="button"
+            className="border rounded-sm px-4 py-1 hover:bg-neutral-100"
+            onClick={() => setConfirming(null)}
+            autoFocus
+          >
+            キャンセル
+          </button>
+          <button
+            type="button"
+            className="bg-red-600 text-white rounded-sm px-4 py-1 ml-2 hover:bg-red-700"
+            onClick={remove}
+          >
+            削除する
+          </button>
+        </div>
+      </div>
+    </Dialog>
   );
 
   return (
@@ -156,13 +194,17 @@ function TagList() {
           type="button"
           className="bg-blue-600 text-white rounded-sm px-3 py-1 text-sm hover:bg-blue-700"
           title="ctrl+shift+n"
-          onClick={() => setEditing(EMPTY)}
+          onClick={() => {
+            setError('');
+            setEditing(EMPTY);
+          }}
         >
           + 新規タグ
         </button>
       </div>
-      {error && <p className="text-red-600 mb-2">{error}</p>}
-      {form}
+      {error && !editing && <p className="text-red-600 mb-2">{error}</p>}
+      {editDialog}
+      {confirmDialog}
 
       <div className="hidden sm:flex text-neutral-500 border-b">
         <div className="w-1/3 py-1 pl-2">tag</div>
@@ -184,17 +226,18 @@ function TagList() {
             {tag.is_range && <span className="mr-2">{parseTag(tag.tag).isNumber ? '数値' : '日時'}</span>}
             {tag.tag.includes('/') && <span className="mr-2">階層</span>}
           </div>
-          <div className="sm:flex-none sm:w-32 sm:py-2 mt-1 sm:mt-0 text-sm">
+          <div className="sm:flex-none sm:w-32 sm:py-2 sm:pr-2 sm:text-right mt-1 sm:mt-0 text-sm">
             <button
               type="button"
               className="text-blue-700 hover:underline mr-3"
-              onClick={() =>
-                setEditing({ id: tag.id, tag: tag.tag, note: tag.note ?? '', color: tag.color ?? '' })
-              }
+              onClick={() => {
+                setError('');
+                setEditing({ id: tag.id, tag: tag.tag, note: tag.note ?? '', color: tag.color ?? '' });
+              }}
             >
               編集
             </button>
-            <button type="button" className="text-red-600 hover:underline" onClick={() => remove(tag)}>
+            <button type="button" className="text-red-600 hover:underline" onClick={() => confirmRemove(tag)}>
               削除
             </button>
           </div>
