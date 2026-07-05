@@ -1,7 +1,7 @@
 # 開発ガイド
 
 ## 前提
-* Go 1.26以上（cgo有効。go-sqlite3のビルドに必要）
+* Go 1.26以上（SQLiteドライバはpure Goの `modernc.org/sqlite` のためcgo不要）
 * Node.js 24以上（LTS）
 
 ## ディレクトリ構成
@@ -35,13 +35,13 @@ cd front
 npm install
 npm run build
 
-# フロントのビルド成果物を埋め込み用にコピーし、バックエンドをビルド（FTS5を有効にするため -tags sqlite_fts5 が必須）
+# フロントのビルド成果物を埋め込み用にコピーし、バックエンドをビルド
 cd ../back
 rm -rf webui/dist
 mkdir -p webui/dist
 cp -R ../front/dist/. webui/dist/
 touch webui/dist/.gitkeep
-go build -tags sqlite_fts5 -o ../dist/biletojy .
+go build -o ../dist/biletojy .
 
 # dist/ から起動（DBはカレントディレクトリに作られる）
 cd ../dist
@@ -70,7 +70,7 @@ cd ../dist
 ```sh
 # ターミナル1: バックエンド（:8040）
 cd back
-go run -tags sqlite_fts5 .
+go run .
 
 # ターミナル2: フロント（:5173、/api は :8040 へプロキシ）
 cd front
@@ -83,7 +83,7 @@ just test             # バックエンドのテスト一式
 
 # 手動で実行する場合
 cd back
-go test -tags sqlite_fts5 ./...
+go test ./...
 ```
 * テストは一時ディレクトリにDBを作成するため、`back/biletojy.db` は汚れない
 * 対象はDAO・トークナイザ・日時/数値タグの範囲条件（`back/data/*_test.go`）とAPIハンドラ（`back/server_test.go`）。フロントにテストはない

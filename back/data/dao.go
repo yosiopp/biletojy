@@ -8,11 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mattn/go-sqlite3"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
+// _time_format=sqlite はmattn/go-sqlite3と互換のタイムスタンプ書式（既存DBを引き続き読み書きできる）。
+// busy_timeoutはmattn/go-sqlite3のデフォルトに合わせて5秒
 const (
-	_DB_FILE = "./biletojy.db"
+	_DB_FILE = "./biletojy.db?_time_format=sqlite&_pragma=busy_timeout(5000)"
 )
 
 type Dao struct {
@@ -62,7 +65,7 @@ type Tag struct {
 }
 
 func NewDao() (*Dao, error) {
-	db, err := sql.Open("sqlite3", _DB_FILE)
+	db, err := sql.Open("sqlite", _DB_FILE)
 	if err != nil {
 		return nil, err
 	}
@@ -165,8 +168,8 @@ func (dao *Dao) Close() {
 
 // SQLiteのUNIQUE制約違反エラーかどうか
 func IsUniqueConstraintErr(err error) bool {
-	var se sqlite3.Error
-	return errors.As(err, &se) && se.ExtendedCode == sqlite3.ErrConstraintUnique
+	var se *sqlite.Error
+	return errors.As(err, &se) && se.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE
 }
 
 // チケットの10カラム（id〜updated_at）をスキャンする。extraで追加カラムの格納先を渡せる
