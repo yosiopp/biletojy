@@ -4,6 +4,9 @@ export type Ticket = {
   content: string;
   tags: string;
   created_by: string;
+  created_sub: string;
+  updated_by: string;
+  updated_sub: string;
   created_at: string;
   updated_at: string;
 };
@@ -13,6 +16,9 @@ export type Comment = {
   ticket_id: number;
   content: string;
   created_by: string;
+  created_sub: string;
+  updated_by: string;
+  updated_sub: string;
   created_at: string;
   updated_at: string;
 };
@@ -58,13 +64,13 @@ export const api = {
   getTicket: (id: number | string) => request<Ticket>(`/api/tickets/${id}`),
   createTicket: (data: Pick<Ticket, 'title' | 'content' | 'tags' | 'created_by'>) =>
     request<Ticket>('/api/tickets', { method: 'POST', body: JSON.stringify(data) }),
-  updateTicket: (id: number | string, data: Pick<Ticket, 'title' | 'content' | 'tags'>) =>
+  updateTicket: (id: number | string, data: Pick<Ticket, 'title' | 'content' | 'tags' | 'updated_by'>) =>
     request<Ticket>(`/api/tickets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   listBacklinks: (id: number | string) => request<Ticket[]>(`/api/tickets/${id}/backlinks`),
   listComments: (ticketId: number | string) => request<Comment[]>(`/api/tickets/${ticketId}/comments`),
   addComment: (ticketId: number | string, data: Pick<Comment, 'content' | 'created_by'>) =>
     request<Comment>(`/api/tickets/${ticketId}/comments`, { method: 'POST', body: JSON.stringify(data) }),
-  updateComment: (id: number, data: Pick<Comment, 'content'>) =>
+  updateComment: (id: number, data: Pick<Comment, 'content' | 'updated_by'>) =>
     request<Comment>(`/api/comments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   uploadImage: (file: File) =>
     request<Image>('/api/images', {

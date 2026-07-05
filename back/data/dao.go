@@ -20,22 +20,28 @@ type Dao struct {
 }
 
 type Ticket struct {
-	Id        int64     `json:"id"`
-	Title     string    `json:"title"`
-	Content   string    `json:"content"`
-	Tags      string    `json:"tags"`
-	CreatedBy string    `json:"created_by"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Id         int64     `json:"id"`
+	Title      string    `json:"title"`
+	Content    string    `json:"content"`
+	Tags       string    `json:"tags"`
+	CreatedBy  string    `json:"created_by"`
+	CreatedSub string    `json:"created_sub"`
+	UpdatedBy  string    `json:"updated_by"`
+	UpdatedSub string    `json:"updated_sub"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type Comment struct {
-	Id        int64     `json:"id"`
-	TicketId  int64     `json:"ticket_id"`
-	Content   string    `json:"content"`
-	CreatedBy string    `json:"created_by"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Id         int64     `json:"id"`
+	TicketId   int64     `json:"ticket_id"`
+	Content    string    `json:"content"`
+	CreatedBy  string    `json:"created_by"`
+	CreatedSub string    `json:"created_sub"`
+	UpdatedBy  string    `json:"updated_by"`
+	UpdatedSub string    `json:"updated_sub"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // 貼り付け添付された画像。バイナリ本体はJSONに含めず配信APIで返す
@@ -75,23 +81,46 @@ func NewDao() (*Dao, error) {
 			return nil, err
 		}
 	}
-	if err := rebuildFtsIfNeeded(db); err != nil {
+	if err := migrate(db); err != nil {
 		db.Close()
 		return nil, err
 	}
 	return &Dao{db: db}, nil
 }
 
-// 旧形式（bi-gram化前や旧トークナイズ）で格納されたFTSデータを再構築する
-// （user_versionが現行より古い場合のみ一度だけ実行）
-func rebuildFtsIfNeeded(db *sql.DB) error {
+// user_versionが現行より古いDBへのスキーマ移行。
+//   - v2未満: 旧形式（bi-gram化前や旧トークナイズ）で格納されたFTSデータを再構築する
+//   - v3未満: sub関連カラムを追加する（新規DBは_SQL_INITで作成済みのため、カラムの有無で判定する）
+func migrate(db *sql.DB) error {
 	var version int
 	if err := db.QueryRow(_SQL_GET_USER_VERSION).Scan(&version); err != nil {
 		return err
 	}
-	if version >= 2 {
+	if version >= _SCHEMA_VERSION {
 		return nil
 	}
+	if version < 2 {
+		if err := rebuildFts(db); err != nil {
+			return err
+		}
+	}
+	var count int
+	if err := db.QueryRow(_SQL_COUNT_SUB_COLUMN).Scan(&count); err != nil {
+		return err
+	}
+	if count == 0 {
+		for _, q := range _SQL_ADD_SUB_COLUMNS {
+			if _, err := db.Exec(q); err != nil {
+				return err
+			}
+		}
+	}
+	_, err := db.Exec(_SQL_SET_USER_VERSION)
+	return err
+}
+
+// FTSテーブルを全チケットから再構築する
+func rebuildFts(db *sql.DB) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -127,9 +156,6 @@ func rebuildFtsIfNeeded(db *sql.DB) error {
 			return err
 		}
 	}
-	if _, err := tx.Exec(_SQL_SET_USER_VERSION); err != nil {
-		return err
-	}
 	return tx.Commit()
 }
 
@@ -143,10 +169,10 @@ func IsUniqueConstraintErr(err error) bool {
 	return errors.As(err, &se) && se.ExtendedCode == sqlite3.ErrConstraintUnique
 }
 
-// チケットの7カラム（id〜updated_at）をスキャンする。extraで追加カラムの格納先を渡せる
+// チケットの10カラム（id〜updated_at）をスキャンする。extraで追加カラムの格納先を渡せる
 func scanTicket(row interface{ Scan(...any) error }, extra ...any) (Ticket, error) {
 	var t Ticket
-	dest := append([]any{&t.Id, &t.Title, &t.Content, &t.Tags, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt}, extra...)
+	dest := append([]any{&t.Id, &t.Title, &t.Content, &t.Tags, &t.CreatedBy, &t.CreatedSub, &t.UpdatedBy, &t.UpdatedSub, &t.CreatedAt, &t.UpdatedAt}, extra...)
 	return t, row.Scan(dest...)
 }
 
@@ -251,12 +277,12 @@ func (dao *Dao) AddTicket(ticket *Ticket) error {
 	now := time.Now()
 	ticket.CreatedAt = now
 	ticket.UpdatedAt = now
-	res, err := tx.Exec(_SQL_ADD_TICKET, ticket.Title, ticket.Content, ticket.Tags, ticket.CreatedBy, ticket.CreatedAt, ticket.UpdatedAt)
+	res, err := tx.Exec(_SQL_ADD_TICKET, ticket.Title, ticket.Content, ticket.Tags, ticket.CreatedBy, ticket.CreatedSub, ticket.UpdatedBy, ticket.UpdatedSub, ticket.CreatedAt, ticket.UpdatedAt)
 	if err != nil {
 		return err
 	}
 	ticket.Id, _ = res.LastInsertId()
-	if _, err := tx.Exec(_SQL_ADD_TICKET_HISTORY, ticket.Id, ticket.Title, ticket.Content, ticket.Tags, ticket.CreatedBy, now); err != nil {
+	if _, err := tx.Exec(_SQL_ADD_TICKET_HISTORY, ticket.Id, ticket.Title, ticket.Content, ticket.Tags, ticket.CreatedBy, ticket.CreatedSub, now); err != nil {
 		return err
 	}
 	title, content, tags := ftsValues(ticket)
@@ -275,10 +301,11 @@ func (dao *Dao) EditTicket(ticket *Ticket) error {
 
 	now := time.Now()
 	ticket.UpdatedAt = now
-	if _, err := tx.Exec(_SQL_EDIT_TICKET, ticket.Title, ticket.Content, ticket.Tags, ticket.UpdatedAt, ticket.Id); err != nil {
+	if _, err := tx.Exec(_SQL_EDIT_TICKET, ticket.Title, ticket.Content, ticket.Tags, ticket.UpdatedBy, ticket.UpdatedSub, ticket.UpdatedAt, ticket.Id); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(_SQL_ADD_TICKET_HISTORY, ticket.Id, ticket.Title, ticket.Content, ticket.Tags, ticket.CreatedBy, now); err != nil {
+	// 履歴のcreated_by/created_subは「その版を作成した人」＝編集者を記録する
+	if _, err := tx.Exec(_SQL_ADD_TICKET_HISTORY, ticket.Id, ticket.Title, ticket.Content, ticket.Tags, ticket.UpdatedBy, ticket.UpdatedSub, now); err != nil {
 		return err
 	}
 	title, content, tags := ftsValues(ticket)
@@ -297,7 +324,7 @@ func (dao *Dao) QueryComments(ticketId int64) ([]Comment, error) {
 	comments := []Comment{}
 	for rows.Next() {
 		var c Comment
-		if err := rows.Scan(&c.Id, &c.TicketId, &c.Content, &c.CreatedBy, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.Id, &c.TicketId, &c.Content, &c.CreatedBy, &c.CreatedSub, &c.UpdatedBy, &c.UpdatedSub, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, err
 		}
 		comments = append(comments, c)
@@ -307,7 +334,7 @@ func (dao *Dao) QueryComments(ticketId int64) ([]Comment, error) {
 
 func (dao *Dao) GetComment(id int64) (*Comment, error) {
 	var c Comment
-	err := dao.db.QueryRow(_SQL_GET_COMMENT, id).Scan(&c.Id, &c.TicketId, &c.Content, &c.CreatedBy, &c.CreatedAt, &c.UpdatedAt)
+	err := dao.db.QueryRow(_SQL_GET_COMMENT, id).Scan(&c.Id, &c.TicketId, &c.Content, &c.CreatedBy, &c.CreatedSub, &c.UpdatedBy, &c.UpdatedSub, &c.CreatedAt, &c.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -327,12 +354,12 @@ func (dao *Dao) AddComment(comment *Comment) error {
 	now := time.Now()
 	comment.CreatedAt = now
 	comment.UpdatedAt = now
-	res, err := tx.Exec(_SQL_ADD_COMMENT, comment.TicketId, comment.Content, comment.CreatedBy, comment.CreatedAt, comment.UpdatedAt)
+	res, err := tx.Exec(_SQL_ADD_COMMENT, comment.TicketId, comment.Content, comment.CreatedBy, comment.CreatedSub, comment.UpdatedBy, comment.UpdatedSub, comment.CreatedAt, comment.UpdatedAt)
 	if err != nil {
 		return err
 	}
 	comment.Id, _ = res.LastInsertId()
-	if _, err := tx.Exec(_SQL_ADD_COMMENT_HISTORY, comment.Id, comment.Content, now); err != nil {
+	if _, err := tx.Exec(_SQL_ADD_COMMENT_HISTORY, comment.Id, comment.Content, comment.CreatedBy, comment.CreatedSub, now); err != nil {
 		return err
 	}
 	if err := refreshCommentsFts(tx, comment.TicketId); err != nil {
@@ -350,10 +377,11 @@ func (dao *Dao) EditComment(comment *Comment) error {
 
 	now := time.Now()
 	comment.UpdatedAt = now
-	if _, err := tx.Exec(_SQL_EDIT_COMMENT, comment.Content, comment.UpdatedAt, comment.Id); err != nil {
+	if _, err := tx.Exec(_SQL_EDIT_COMMENT, comment.Content, comment.UpdatedBy, comment.UpdatedSub, comment.UpdatedAt, comment.Id); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(_SQL_ADD_COMMENT_HISTORY, comment.Id, comment.Content, now); err != nil {
+	// 履歴のcreated_by/created_subは「その版を作成した人」＝編集者を記録する
+	if _, err := tx.Exec(_SQL_ADD_COMMENT_HISTORY, comment.Id, comment.Content, comment.UpdatedBy, comment.UpdatedSub, now); err != nil {
 		return err
 	}
 	if err := refreshCommentsFts(tx, comment.TicketId); err != nil {

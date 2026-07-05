@@ -8,6 +8,9 @@ const (
 		content TEXT NOT NULL,
 		tags TEXT,
 		created_by VARCHAR(255) NOT NULL,
+		created_sub VARCHAR(255) NOT NULL DEFAULT '',
+		updated_by VARCHAR(255) NOT NULL DEFAULT '',
+		updated_sub VARCHAR(255) NOT NULL DEFAULT '',
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP NOT NULL
 	);
@@ -22,6 +25,7 @@ const (
 		content TEXT NOT NULL,
 		tags TEXT,
 		created_by VARCHAR(255) NOT NULL,
+		created_sub VARCHAR(255) NOT NULL DEFAULT '',
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
 
@@ -30,6 +34,9 @@ const (
 		ticket_id INTEGER NOT NULL,
 		content TEXT NOT NULL,
 		created_by VARCHAR(255) NOT NULL,
+		created_sub VARCHAR(255) NOT NULL DEFAULT '',
+		updated_by VARCHAR(255) NOT NULL DEFAULT '',
+		updated_sub VARCHAR(255) NOT NULL DEFAULT '',
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP NOT NULL
 	);
@@ -39,6 +46,8 @@ const (
 		id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 		comment_id INTEGER NOT NULL,
 		content TEXT NOT NULL,
+		created_by VARCHAR(255) NOT NULL DEFAULT '',
+		created_sub VARCHAR(255) NOT NULL DEFAULT '',
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
 
@@ -90,45 +99,61 @@ const (
 	_SQL_DELETE_TAG = `DELETE FROM tag_catalog WHERE id = ?`
 
 	// チケット取得
-	_SQL_GET_TICKET = `SELECT id, title, content, COALESCE(tags, ''), created_by, created_at, updated_at FROM tickets WHERE id = ?`
+	_SQL_GET_TICKET = `SELECT id, title, content, COALESCE(tags, ''), created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM tickets WHERE id = ?`
 
 	// チケット追加
-	_SQL_ADD_TICKET         = `INSERT INTO tickets (title, content, tags, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
-	_SQL_ADD_TICKET_HISTORY = `INSERT INTO ticket_histories (ticket_id, title, content, tags, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)`
+	_SQL_ADD_TICKET         = `INSERT INTO tickets (title, content, tags, created_by, created_sub, updated_by, updated_sub, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_SQL_ADD_TICKET_HISTORY = `INSERT INTO ticket_histories (ticket_id, title, content, tags, created_by, created_sub, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
 	_SQL_ADD_TICKET_FTS     = `INSERT INTO tickets_fts (ticket_id, title, content, tags, comments) VALUES (?, ?, ?, ?, ?)`
 
 	// チケット編集
-	_SQL_EDIT_TICKET     = `UPDATE tickets SET title = ?, content = ?, tags = ?, updated_at = ? WHERE id = ?`
+	_SQL_EDIT_TICKET     = `UPDATE tickets SET title = ?, content = ?, tags = ?, updated_by = ?, updated_sub = ?, updated_at = ? WHERE id = ?`
 	_SQL_EDIT_TICKET_FTS = `UPDATE tickets_fts SET title = ?, content = ?, tags = ? WHERE ticket_id = ?`
 
 	// コメント
-	_SQL_GET_COMMENT         = `SELECT id, ticket_id, content, created_by, created_at, updated_at FROM comments WHERE id = ?`
-	_SQL_QUERY_COMMENTS      = `SELECT id, ticket_id, content, created_by, created_at, updated_at FROM comments WHERE ticket_id = ? ORDER BY created_at ASC`
+	_SQL_GET_COMMENT    = `SELECT id, ticket_id, content, created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM comments WHERE id = ?`
+	_SQL_QUERY_COMMENTS = `SELECT id, ticket_id, content, created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM comments WHERE ticket_id = ? ORDER BY created_at ASC`
 	// FTS再構築用（コメント本文のみ。並び順は_SQL_QUERY_COMMENTSと揃える）
 	_SQL_QUERY_COMMENT_CONTENTS = `SELECT content FROM comments WHERE ticket_id = ? ORDER BY created_at ASC`
-	_SQL_ADD_COMMENT         = `INSERT INTO comments (ticket_id, content, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`
-	_SQL_ADD_COMMENT_HISTORY = `INSERT INTO comment_histories (comment_id, content, created_at) VALUES (?, ?, ?)`
-	_SQL_EDIT_COMMENT        = `UPDATE comments SET content = ?, updated_at = ? WHERE id = ?`
-	_SQL_EDIT_COMMENT_FTS    = `UPDATE tickets_fts SET comments = ? WHERE ticket_id = ?`
+	_SQL_ADD_COMMENT            = `INSERT INTO comments (ticket_id, content, created_by, created_sub, updated_by, updated_sub, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	_SQL_ADD_COMMENT_HISTORY    = `INSERT INTO comment_histories (comment_id, content, created_by, created_sub, created_at) VALUES (?, ?, ?, ?, ?)`
+	_SQL_EDIT_COMMENT           = `UPDATE comments SET content = ?, updated_by = ?, updated_sub = ?, updated_at = ? WHERE id = ?`
+	_SQL_EDIT_COMMENT_FTS       = `UPDATE tickets_fts SET comments = ? WHERE ticket_id = ?`
 
 	// 画像
 	_SQL_ADD_IMAGE = `INSERT INTO images (mime, data, created_at) VALUES (?, ?, ?)`
 	_SQL_GET_IMAGE = `SELECT id, mime, data, created_at FROM images WHERE id = ?`
 
 	// チケット検索
-	_SQL_QUERY_TICKETS_BASE = `SELECT t.id, t.title, t.content, COALESCE(t.tags, ''), t.created_by, t.created_at, t.updated_at FROM tickets t`
+	_SQL_QUERY_TICKETS_BASE = `SELECT t.id, t.title, t.content, COALESCE(t.tags, ''), t.created_by, t.created_sub, t.updated_by, t.updated_sub, t.created_at, t.updated_at FROM tickets t`
 	_SQL_QUERY_TICKETS_FTS  = ` JOIN tickets_fts ON t.id = tickets_fts.ticket_id`
 
 	// バックリンク検索。LIKEで候補を絞り、桁違いのIDへの誤マッチ除外はGo側で行う
-	_SQL_QUERY_BACKLINKS = `SELECT t.id, t.title, t.content, COALESCE(t.tags, ''), t.created_by, t.created_at, t.updated_at,
+	_SQL_QUERY_BACKLINKS = `SELECT t.id, t.title, t.content, COALESCE(t.tags, ''), t.created_by, t.created_sub, t.updated_by, t.updated_sub, t.created_at, t.updated_at,
 		COALESCE((SELECT GROUP_CONCAT(c.content, ' ') FROM comments c WHERE c.ticket_id = t.id), '')
 		FROM tickets t
 		WHERE t.id <> ? AND (t.content LIKE ? OR EXISTS (SELECT 1 FROM comments c WHERE c.ticket_id = t.id AND c.content LIKE ?))
 		ORDER BY t.updated_at DESC`
 
-	// FTSインデックス再構築（マイグレーション）
+	// マイグレーション（v2: FTSインデックス再構築、v3: subカラム追加）
+	_SCHEMA_VERSION            = 3
 	_SQL_GET_USER_VERSION      = `PRAGMA user_version`
-	_SQL_SET_USER_VERSION      = `PRAGMA user_version = 2`
+	_SQL_SET_USER_VERSION      = `PRAGMA user_version = 3`
 	_SQL_DELETE_ALL_TICKET_FTS = `DELETE FROM tickets_fts`
 	_SQL_QUERY_TICKETS_FOR_FTS = `SELECT id, title, content, COALESCE(tags, '') FROM tickets`
+	// subカラムの有無で既存DB（ALTERが必要）か新規DB（_SQL_INITで作成済み）かを判定する
+	_SQL_COUNT_SUB_COLUMN = `SELECT COUNT(*) FROM pragma_table_info('tickets') WHERE name = 'created_sub'`
 )
+
+// v3で追加されたカラムを既存DBへ足すALTER文
+var _SQL_ADD_SUB_COLUMNS = []string{
+	`ALTER TABLE tickets ADD COLUMN created_sub VARCHAR(255) NOT NULL DEFAULT ''`,
+	`ALTER TABLE tickets ADD COLUMN updated_by VARCHAR(255) NOT NULL DEFAULT ''`,
+	`ALTER TABLE tickets ADD COLUMN updated_sub VARCHAR(255) NOT NULL DEFAULT ''`,
+	`ALTER TABLE ticket_histories ADD COLUMN created_sub VARCHAR(255) NOT NULL DEFAULT ''`,
+	`ALTER TABLE comments ADD COLUMN created_sub VARCHAR(255) NOT NULL DEFAULT ''`,
+	`ALTER TABLE comments ADD COLUMN updated_by VARCHAR(255) NOT NULL DEFAULT ''`,
+	`ALTER TABLE comments ADD COLUMN updated_sub VARCHAR(255) NOT NULL DEFAULT ''`,
+	`ALTER TABLE comment_histories ADD COLUMN created_by VARCHAR(255) NOT NULL DEFAULT ''`,
+	`ALTER TABLE comment_histories ADD COLUMN created_sub VARCHAR(255) NOT NULL DEFAULT ''`,
+}

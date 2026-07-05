@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -25,7 +26,7 @@ var allowedImageMimes = map[string]bool{
 	"image/webp": true,
 }
 
-func newServer(dao *data.Dao, staticDir string) http.Handler {
+func newServer(dao *data.Dao, staticDir, userHeader string) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/tickets", func(w http.ResponseWriter, r *http.Request) {
@@ -54,6 +55,11 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		if ticket.CreatedBy == "" {
 			ticket.CreatedBy = "anonymous"
 		}
+		// subはヘッダ由来の値のみを記録する（ボディでの指定は無視）。作成時は更新者=作成者
+		sub := requestSub(r)
+		ticket.CreatedSub = sub
+		ticket.UpdatedBy = ticket.CreatedBy
+		ticket.UpdatedSub = sub
 		if err := dao.AddTicket(&ticket); err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -92,7 +98,13 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		}
 		ticket.Id = id
 		ticket.CreatedBy = current.CreatedBy
+		ticket.CreatedSub = current.CreatedSub
 		ticket.CreatedAt = current.CreatedAt
+		// updated_byはボディのクライアント申告値、updated_subはヘッダ由来の値を採用する
+		if ticket.UpdatedBy == "" {
+			ticket.UpdatedBy = "anonymous"
+		}
+		ticket.UpdatedSub = requestSub(r)
 		if err := dao.EditTicket(&ticket); err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -146,6 +158,11 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		if comment.CreatedBy == "" {
 			comment.CreatedBy = "anonymous"
 		}
+		// subはヘッダ由来の値のみを記録する（ボディでの指定は無視）。作成時は更新者=作成者
+		sub := requestSub(r)
+		comment.CreatedSub = sub
+		comment.UpdatedBy = comment.CreatedBy
+		comment.UpdatedSub = sub
 		if err := dao.AddComment(&comment); err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -171,6 +188,12 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 			return
 		}
 		current.Content = comment.Content
+		// updated_byはボディのクライアント申告値、updated_subはヘッダ由来の値を採用する
+		current.UpdatedBy = comment.UpdatedBy
+		if current.UpdatedBy == "" {
+			current.UpdatedBy = "anonymous"
+		}
+		current.UpdatedSub = requestSub(r)
 		if err := dao.EditComment(current); err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -297,7 +320,32 @@ func newServer(dao *data.Dao, staticDir string) http.Handler {
 		})
 	}
 
-	return mux
+	return withUserSub(mux, userHeader)
+}
+
+// contextへ保持した認証済みユーザ識別子(sub)のキー
+type subKey struct{}
+
+// -user-headerで指定されたリクエストヘッダから認証済みユーザの識別子(sub)を取り出しcontextへ保持する。
+// Cloud IAPの "accounts.google.com:xxx" のようなプレフィックスは ":" 以降を採用する。
+// ヘッダは信頼できる前提のため、IAPを迂回した直接アクセスはネットワーク層で遮断すること（docs/development.md参照）
+func withUserSub(next http.Handler, header string) http.Handler {
+	if header == "" {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sub := r.Header.Get(header)
+		if _, after, found := strings.Cut(sub, ":"); found {
+			sub = after
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), subKey{}, sub)))
+	})
+}
+
+// contextからsubを返す（-user-header未指定時は空文字）
+func requestSub(r *http.Request) string {
+	sub, _ := r.Context().Value(subKey{}).(string)
+	return sub
 }
 
 // タググループ(:を含む)、日時・数値タグ(グループ名末尾@/#)の属性をタグ名から導出する

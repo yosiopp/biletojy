@@ -1,8 +1,12 @@
 # API仕様
 
 ベースパスは `/api`。リクエスト/レスポンスともJSON。エラー時は `{"error": "メッセージ"}` を返す。
-認証/認可は持たない。`created_by` が空の場合は `anonymous` が設定される。
+認証/認可は持たない。`created_by` / `updated_by` はクライアント申告値で、空の場合は `anonymous` が設定される。
 リクエストボディは1MiBまで（画像アップロードは10MiBまで）で、超えた場合は `413 Request Entity Too Large` を返す。
+
+起動フラグ `-user-header` で認証プロキシ（IAP）由来のヘッダを指定すると、認証済みユーザの識別子（sub）を
+チケット・コメントの `created_sub` / `updated_sub` へ補足情報として記録する（[開発ガイド](development.md)参照）。
+subはサーバー側でヘッダ値から設定され、リクエストボディでの指定は無視される。未指定時は空文字が記録される。
 
 ## エンドポイント一覧
 | メソッド/パス | 内容 |
@@ -55,14 +59,18 @@ Ticket {
   title: string        // 必須
   content: string      // markdown, mermaid記法。#123 形式で他チケットを参照できる
   tags: string         // スペース区切り
-  created_by: string
+  created_by: string   // 作成者（クライアント申告値）
+  created_sub: string  // 作成者のsub（-user-header指定時にサーバー側で設定。ボディ指定は無視）
+  updated_by: string   // 最終更新者（クライアント申告値。編集時にボディで受け取る）
+  updated_sub: string  // 最終更新者のsub（同上）
   created_at: string
   updated_at: string
 }
 ```
 * 作成は `201 Created`、編集は `200 OK` を返す
-* 編集時に `created_by`, `created_at` はサーバー側で元の値が維持される
-* 編集のたびに履歴テーブル（`ticket_histories`）へ保存される
+* 作成時は `updated_by` / `updated_sub` に作成者の値が設定される
+* 編集時に `created_by`, `created_sub`, `created_at` はサーバー側で元の値が維持される
+* 編集のたびに履歴テーブル（`ticket_histories`）へ保存される。履歴の `created_by` / `created_sub` にはその版を作成した人（編集者）が記録される
 
 ## コメント
 ```
@@ -70,12 +78,17 @@ Comment {
   id: number
   ticket_id: number
   content: string      // 必須。markdown, mermaid記法
-  created_by: string
+  created_by: string   // 投稿者（クライアント申告値）
+  created_sub: string  // 投稿者のsub（-user-header指定時にサーバー側で設定。ボディ指定は無視）
+  updated_by: string   // 最終更新者（クライアント申告値。編集時にボディで受け取る）
+  updated_sub: string  // 最終更新者のsub（同上）
   created_at: string
   updated_at: string
 }
 ```
-* 編集のたびに履歴テーブル（`comment_histories`）へ保存される
+* 作成時は `updated_by` / `updated_sub` に投稿者の値が設定される
+* 編集時に `created_by`, `created_sub`, `created_at` はサーバー側で元の値が維持される
+* 編集のたびに履歴テーブル（`comment_histories`）へ保存される。履歴の `created_by` / `created_sub` にはその版を作成した人（編集者）が記録される
 
 ## 画像
 チケット・コメントの編集エリアへの貼り付け添付用。本文には `![image](/api/images/{id})` 形式のmarkdown画像リンクとして挿入する。

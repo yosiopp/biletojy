@@ -7,7 +7,7 @@
 ## ディレクトリ構成
 ```
 back/            バックエンド（Go / net/http）
-  main.go        エントリポイント（-addr, -static フラグ）
+  main.go        エントリポイント（-addr, -static, -user-header フラグ）
   server.go      APIルーティング・ハンドラ
   data/          DAO・SQL定義・FTSトークナイズ・日時/数値タグの範囲条件
 front/           フロントエンド（React + TypeScript + Vite + Tailwind CSS）
@@ -41,6 +41,21 @@ go build -tags sqlite_fts5 -o biletojy .
 ```
 * `-addr` で待ち受けアドレス、`-static` でフロント配信ディレクトリを変更できる
 * データベース `biletojy.db` はカレントディレクトリに自動作成され、初回にプリセットのタググループが投入される（[テーブル定義書](database.md)参照）
+
+## IAP連携（-user-header）
+前段にGoogle Cloud IAPなどの認証プロキシを配置している場合、`-user-header` で認証済みユーザの識別子（sub）が入るリクエストヘッダを指定できる。
+
+```sh
+./biletojy -user-header X-Goog-Authenticated-User-Id
+```
+
+* 指定したヘッダの値を、チケット・コメントの作成/編集時に `created_sub` / `updated_sub` として補足情報を記録する。
+  Cloud IAP の `accounts.google.com:{sub}` のようなプレフィックスは `:` 以降を採用する
+* `created_by` / `updated_by` は従来どおりクライアント申告値（localStorage）のままで、subはあくまで補足情報
+* 未指定時は現行動作のまま（subは空文字で記録される）
+* **前提条件: 指定したヘッダは信頼できる値として扱うため、IAPを迂回したバックエンドへの直接アクセスは
+  ネットワーク層（ファイアウォール・VPCの内部ロードバランサ等）で必ず遮断すること。**
+  遮断しない場合、クライアントが任意のヘッダを送って他人のsubを詐称できる
 
 ## 開発時
 ```sh

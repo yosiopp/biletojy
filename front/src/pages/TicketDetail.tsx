@@ -75,7 +75,8 @@ function TicketDetail() {
         </Link>
       </div>
       <div className="text-sm text-neutral-500 mb-2">
-        {ticket.created_by} が作成 ・ 更新 {formatDateTime(ticket.updated_at)}
+        <span title={ticket.created_sub || undefined}>{ticket.created_by}</span> が作成 ・ 更新{' '}
+        {formatDateTime(ticket.updated_at)}
       </div>
       <div className="mb-4">
         {splitTags(ticket.tags).map((tag) => (
@@ -111,7 +112,8 @@ function TicketDetail() {
         {comments.map((comment) => (
           <div key={comment.id} className="py-3">
             <div className="text-sm text-neutral-500 mb-1">
-              {comment.created_by} ・ {formatDateTime(comment.created_at)}
+              <span title={comment.created_sub || undefined}>{comment.created_by}</span> ・{' '}
+              {formatDateTime(comment.created_at)}
             </div>
             <Markdown content={comment.content} />
           </div>

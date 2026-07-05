@@ -83,7 +83,7 @@ function TicketForm() {
     try {
       const data = { title, content, tags: joinTags(tags) };
       const ticket = isEdit
-        ? await api.updateTicket(id, data)
+        ? await api.updateTicket(id, { ...data, updated_by: user })
         : await api.createTicket({ ...data, created_by: user });
       submittedRef.current = true;
       navigate(`/tickets/${ticket.id}`);

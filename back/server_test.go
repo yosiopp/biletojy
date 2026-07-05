@@ -18,6 +18,11 @@ import (
 
 // 実DBを汚さないよう一時ディレクトリでDBを作成し、静的配信なしのハンドラを返す
 func newTestServer(t *testing.T) http.Handler {
+	return newTestServerWithUserHeader(t, "")
+}
+
+// -user-header指定相当のハンドラを返す
+func newTestServerWithUserHeader(t *testing.T, userHeader string) http.Handler {
 	t.Helper()
 	t.Chdir(t.TempDir())
 	dao, err := data.NewDao()
@@ -25,11 +30,17 @@ func newTestServer(t *testing.T) http.Handler {
 		t.Fatalf("NewDao: %v", err)
 	}
 	t.Cleanup(dao.Close)
-	return newServer(dao, "")
+	return newServer(dao, "", userHeader)
 }
 
 // bodyはstringならそのまま、それ以外はJSONにして送る
 func request(t *testing.T, handler http.Handler, method, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	return requestWithHeader(t, handler, method, path, body, "", "")
+}
+
+// requestと同様だが、任意のリクエストヘッダを1つ付けて送る
+func requestWithHeader(t *testing.T, handler http.Handler, method, path string, body any, header, value string) *httptest.ResponseRecorder {
 	t.Helper()
 	var reader io.Reader
 	switch v := body.(type) {
@@ -44,6 +55,9 @@ func request(t *testing.T, handler http.Handler, method, path string, body any) 
 		reader = bytes.NewReader(b)
 	}
 	req := httptest.NewRequest(method, path, reader)
+	if header != "" {
+		req.Header.Set(header, value)
+	}
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	return w
@@ -256,6 +270,90 @@ func TestCommentUpdate(t *testing.T) {
 
 	assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/comments/%d", comment.Id), data.Comment{}), http.StatusBadRequest)
 	assertErrorResponse(t, request(t, handler, "PUT", "/api/comments/9999", data.Comment{Content: "x"}), http.StatusNotFound)
+}
+
+func TestUserSubRecording(t *testing.T) {
+	handler := newTestServerWithUserHeader(t, "X-Test-User")
+
+	// 作成時: created_sub/updated_subはヘッダ値から設定され、ボディでのsub指定は無視される。
+	// Cloud IAP形式の "accounts.google.com:" プレフィックスは ":" 以降が採用される
+	w := requestWithHeader(t, handler, "POST", "/api/tickets",
+		data.Ticket{Title: "sub記録", Content: "本文", CreatedBy: "alice", CreatedSub: "spoofed", UpdatedBy: "spoofed", UpdatedSub: "spoofed"},
+		"X-Test-User", "accounts.google.com:sub-alice")
+	assertStatus(t, w, http.StatusCreated)
+	created := decodeBody[data.Ticket](t, w)
+	if created.CreatedSub != "sub-alice" || created.UpdatedSub != "sub-alice" {
+		t.Errorf("created subs = %q/%q, want sub-alice (from header)", created.CreatedSub, created.UpdatedSub)
+	}
+	if created.UpdatedBy != "alice" {
+		t.Errorf("updated_by = %q, want alice (creator)", created.UpdatedBy)
+	}
+
+	// 編集時: ボディのupdated_byとヘッダ由来のupdated_subが保存され、created_by/created_subは維持される
+	w = requestWithHeader(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", created.Id),
+		data.Ticket{Title: "編集後", Content: "本文", UpdatedBy: "bob", CreatedSub: "spoofed", UpdatedSub: "spoofed"},
+		"X-Test-User", "accounts.google.com:sub-bob")
+	assertStatus(t, w, http.StatusOK)
+	updated := decodeBody[data.Ticket](t, w)
+	if updated.CreatedBy != "alice" || updated.CreatedSub != "sub-alice" {
+		t.Errorf("created = %q/%q, want alice/sub-alice (must keep original)", updated.CreatedBy, updated.CreatedSub)
+	}
+	if updated.UpdatedBy != "bob" || updated.UpdatedSub != "sub-bob" {
+		t.Errorf("updated = %q/%q, want bob/sub-bob", updated.UpdatedBy, updated.UpdatedSub)
+	}
+
+	// GETのレスポンスにもsubが含まれる
+	w = request(t, handler, "GET", fmt.Sprintf("/api/tickets/%d", created.Id), nil)
+	assertStatus(t, w, http.StatusOK)
+	got := decodeBody[data.Ticket](t, w)
+	if got.CreatedSub != "sub-alice" || got.UpdatedSub != "sub-bob" {
+		t.Errorf("got subs = %q/%q, want sub-alice/sub-bob", got.CreatedSub, got.UpdatedSub)
+	}
+
+	// コメント作成: プレフィックスなしのヘッダ値はそのまま採用される
+	w = requestWithHeader(t, handler, "POST", fmt.Sprintf("/api/tickets/%d/comments", created.Id),
+		data.Comment{Content: "コメント", CreatedBy: "carol", CreatedSub: "spoofed"},
+		"X-Test-User", "sub-carol")
+	assertStatus(t, w, http.StatusCreated)
+	comment := decodeBody[data.Comment](t, w)
+	if comment.CreatedSub != "sub-carol" || comment.UpdatedSub != "sub-carol" {
+		t.Errorf("comment subs = %q/%q, want sub-carol", comment.CreatedSub, comment.UpdatedSub)
+	}
+
+	// コメント編集: ボディのupdated_byとヘッダ由来のupdated_subが保存される
+	w = requestWithHeader(t, handler, "PUT", fmt.Sprintf("/api/comments/%d", comment.Id),
+		data.Comment{Content: "編集後コメント", UpdatedBy: "dave", UpdatedSub: "spoofed"},
+		"X-Test-User", "accounts.google.com:sub-dave")
+	assertStatus(t, w, http.StatusOK)
+	edited := decodeBody[data.Comment](t, w)
+	if edited.CreatedBy != "carol" || edited.CreatedSub != "sub-carol" {
+		t.Errorf("comment created = %q/%q, must keep original", edited.CreatedBy, edited.CreatedSub)
+	}
+	if edited.UpdatedBy != "dave" || edited.UpdatedSub != "sub-dave" {
+		t.Errorf("comment updated = %q/%q, want dave/sub-dave", edited.UpdatedBy, edited.UpdatedSub)
+	}
+}
+
+func TestUserSubDisabled(t *testing.T) {
+	handler := newTestServer(t)
+
+	// -user-header未指定時はヘッダを送ってもsubは空文字で記録される（現行動作）
+	w := requestWithHeader(t, handler, "POST", "/api/tickets",
+		data.Ticket{Title: "フラグなし", Content: "本文", CreatedBy: "alice"},
+		"X-Goog-Authenticated-User-Id", "accounts.google.com:sub-alice")
+	assertStatus(t, w, http.StatusCreated)
+	created := decodeBody[data.Ticket](t, w)
+	if created.CreatedSub != "" || created.UpdatedSub != "" {
+		t.Errorf("subs = %q/%q, want empty (header disabled)", created.CreatedSub, created.UpdatedSub)
+	}
+
+	w = requestWithHeader(t, handler, "POST", fmt.Sprintf("/api/tickets/%d/comments", created.Id),
+		data.Comment{Content: "コメント", CreatedBy: "bob"},
+		"X-Goog-Authenticated-User-Id", "accounts.google.com:sub-bob")
+	assertStatus(t, w, http.StatusCreated)
+	if comment := decodeBody[data.Comment](t, w); comment.CreatedSub != "" || comment.UpdatedSub != "" {
+		t.Errorf("comment subs = %q/%q, want empty (header disabled)", comment.CreatedSub, comment.UpdatedSub)
+	}
 }
 
 func TestTicketBacklinks(t *testing.T) {
@@ -502,7 +600,7 @@ func TestStaticSpaFallback(t *testing.T) {
 		t.Fatalf("NewDao: %v", err)
 	}
 	t.Cleanup(dao.Close)
-	handler := newServer(dao, staticDir)
+	handler := newServer(dao, staticDir, "")
 
 	// 未定義の/apiパスはSPAへフォールバックせずJSONの404を返す
 	w := request(t, handler, "GET", "/api/unknown", nil)
