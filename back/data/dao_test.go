@@ -510,12 +510,12 @@ func TestMigrateAddsSortOrderColumn(t *testing.T) {
 	for _, tag := range tags {
 		names = append(names, tag.Tag)
 	}
-	// statusはシード順、独自タグはsort_order 0のまま残る
-	want := []string{"mytag", "status:OPEN", "status:WIP", "status:DONE", "status:CLOSE"}
+	// statusはシード順、独自タグ（グループでないタグ）はsort_order 0のままグループの後に並ぶ
+	want := []string{"status:OPEN", "status:WIP", "status:DONE", "status:CLOSE", "mytag"}
 	if !slices.Equal(names, want) {
 		t.Errorf("tags after migration = %v, want %v", names, want)
 	}
-	if tags[0].SortOrder != 0 || tags[1].SortOrder != 1 {
+	if tags[0].SortOrder != 1 || tags[4].SortOrder != 0 {
 		t.Errorf("sort_order after migration = %+v", tags)
 	}
 }
@@ -637,12 +637,16 @@ func TestTicketRegistersUnknownTags(t *testing.T) {
 	}
 
 	// 編集時も同様に自動登録される
-	ticket.Tags = "status:WIP priority:HIGH"
+	ticket.Tags = "status:WIP priority:HIGH another-tag"
 	if err := dao.EditTicket(ticket); err != nil {
 		t.Fatalf("EditTicket: %v", err)
 	}
 	tags, _ = dao.QueryTags()
 	if findTag(tags, "priority:HIGH") == nil {
 		t.Errorf("priority:HIGH not registered on edit: %+v", tags)
+	}
+	// グループでないタグは全グループの後に登録順（タグ名順ではなく）で並ぶ
+	if n := len(tags); tags[n-2].Tag != "docs/design" || tags[n-1].Tag != "another-tag" {
+		t.Errorf("plain tags should be listed last in registration order: %+v", tags)
 	}
 }

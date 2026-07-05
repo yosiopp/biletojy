@@ -94,22 +94,25 @@ const (
 		('type:NOTE', 'メモ', '#a3a3a3', 1, 0, 5),
 		('due-date@:', '期限', NULL, 1, 1, 0);`
 
-	// タグカタログ。一覧はグループ（"status:" 等の接頭辞。非グループはタグ名自身）でまとめ、
-	// グループ内はsort_order順（同値はタグ名順）で返す。instrは1始まりのため、
-	// グループ判定（先頭以外の ":"）はGo側のIndex > 0に合わせて > 1 とする
+	// タグカタログ。一覧はタググループ（"status:" 等の接頭辞）を接頭辞順でまとめ、
+	// グループでないタグは全グループの後にまとめる。それぞれの中はsort_order順（同値はタグ名順）で返す。
+	// instrは1始まりのため、グループ判定（先頭以外の ":"）はGo側のIndex > 0に合わせて > 1 とする
 	_SQL_QUERY_TAGS = `SELECT id, tag, note, color, is_group, is_range, sort_order FROM tag_catalog
-		ORDER BY CASE WHEN instr(tag, ':') > 1 THEN substr(tag, 1, instr(tag, ':')) ELSE tag END ASC, sort_order ASC, tag ASC`
+		ORDER BY is_group DESC,
+			CASE WHEN instr(tag, ':') > 1 THEN substr(tag, 1, instr(tag, ':')) ELSE '' END ASC,
+			sort_order ASC, tag ASC`
 	_SQL_GET_TAG       = `SELECT id, tag, note, color, is_group, is_range, sort_order FROM tag_catalog WHERE id = ?`
 	_SQL_ADD_TAG       = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range) VALUES (?, ?, ?, ?, ?)`
 	_SQL_EDIT_TAG      = `UPDATE tag_catalog SET tag = ?, note = ?, color = ?, is_group = ?, is_range = ? WHERE id = ?`
 	_SQL_DELETE_TAG    = `DELETE FROM tag_catalog WHERE id = ?`
 	_SQL_SET_TAG_ORDER = `UPDATE tag_catalog SET sort_order = ? WHERE id = ?`
 	// チケット保存時のカタログ未定義タグの自動登録（定義済みなら何もしない）。
-	// グループ内の末尾に並ぶよう、同一グループ（_SQL_QUERY_TAGSのグループ判定と同じ）の最大sort_order + 1を設定する
+	// 一覧で末尾に並ぶよう、同一グループ（_SQL_QUERY_TAGSのグループ判定と同じ。
+	// グループでないタグ同士はまとめてひとつの並びとして扱う）の最大sort_order + 1を設定する
 	_SQL_ADD_UNKNOWN_TAG = `INSERT INTO tag_catalog (tag, is_group, is_range, sort_order)
 		SELECT ?1, ?2, ?3, COALESCE(MAX(sort_order), 0) + 1 FROM tag_catalog
-		WHERE CASE WHEN instr(tag, ':') > 1 THEN substr(tag, 1, instr(tag, ':')) ELSE tag END
-			= CASE WHEN instr(?1, ':') > 1 THEN substr(?1, 1, instr(?1, ':')) ELSE ?1 END
+		WHERE CASE WHEN instr(tag, ':') > 1 THEN substr(tag, 1, instr(tag, ':')) ELSE '' END
+			= CASE WHEN instr(?1, ':') > 1 THEN substr(?1, 1, instr(?1, ':')) ELSE '' END
 		ON CONFLICT (tag) DO NOTHING`
 
 	// チケット取得
