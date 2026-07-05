@@ -17,7 +17,7 @@ function Header({ onUserClick }: { onUserClick: () => void }) {
 
   return (
     <header>
-      <div className="flex items-center pb-1 border-b px-2">
+      <div className="flex items-center py-1 border-b px-2">
         <h1 className="text-2xl inline mr-4">
           <Link to="/tickets">biletojy</Link>
         </h1>
