@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api, Ticket } from '../api/client';
 import TagFilter from '../components/TagFilter';
 import TicketRow from '../components/TicketRow';
+import ViewSelect from '../components/ViewSelect';
 import { buildSort, parseSort, sortTickets, SortSpec } from '../lib/sort';
 import { staleGuard } from '../lib/staleGuard';
 import { groupCatalog } from '../lib/tags';
@@ -69,31 +70,34 @@ function TicketList() {
 
       {error && <p className="text-red-600 mb-2">{error}</p>}
 
-      <div className="flex items-center justify-end gap-1 mb-2 text-sm">
-        <label htmlFor="ticket-sort" className="text-neutral-500">
-          並び替え:
-        </label>
-        <select
-          id="ticket-sort"
-          className="border rounded-sm px-1 py-0.5"
-          value={sort.key}
-          onChange={(e) => updateSort({ ...sort, key: e.target.value })}
-        >
-          <option value="updated">updated</option>
-          <option value="id">id</option>
-          {sortGroups.map((group) => (
-            <option key={group} value={group}>
-              {group.replace(/[@#]$/, '')}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className="border rounded-sm px-2 py-0.5 hover:bg-neutral-100"
-          onClick={() => updateSort({ ...sort, desc: !sort.desc })}
-        >
-          {sort.desc ? '↓ 降順' : '↑ 昇順'}
-        </button>
+      <div className="flex flex-wrap items-start justify-between mb-2">
+        <ViewSelect q={q} tags={tags} onApply={updateParams} />
+        <div className="flex items-center gap-1 text-sm">
+          <label htmlFor="ticket-sort" className="text-neutral-500">
+            並び替え:
+          </label>
+          <select
+            id="ticket-sort"
+            className="border rounded-sm px-1 py-0.5"
+            value={sort.key}
+            onChange={(e) => updateSort({ ...sort, key: e.target.value })}
+          >
+            <option value="updated">updated</option>
+            <option value="id">id</option>
+            {sortGroups.map((group) => (
+              <option key={group} value={group}>
+                {group.replace(/[@#]$/, '')}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="border rounded-sm px-2 py-0.5 hover:bg-neutral-100"
+            onClick={() => updateSort({ ...sort, desc: !sort.desc })}
+          >
+            {sort.desc ? '↓ 降順' : '↑ 昇順'}
+          </button>
+        </div>
       </div>
 
       <div className="hidden sm:flex text-neutral-500 border-b">
