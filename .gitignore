@@ -1,2 +1,7 @@
 dist/
 biletojy.db
+
+# go:embed用のコピー先はプレースホルダのみ登録する
+!back/webui/dist/
+back/webui/dist/*
+!back/webui/dist/.gitkeep

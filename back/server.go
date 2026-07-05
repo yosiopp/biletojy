@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
+	"path"
 	"strconv"
 	"strings"
 	"unicode"
@@ -26,7 +26,7 @@ var allowedImageMimes = map[string]bool{
 	"image/webp": true,
 }
 
-func newServer(dao *data.Dao, staticDir, userHeader string) http.Handler {
+func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/tickets", func(w http.ResponseWriter, r *http.Request) {
@@ -305,18 +305,19 @@ func newServer(dao *data.Dao, staticDir, userHeader string) http.Handler {
 	mux.HandleFunc("/api/", apiNotFound)
 	mux.HandleFunc("/api", apiNotFound)
 
-	// フロントのビルド成果物を配信（SPAのためパスが無ければindex.htmlへフォールバック）
-	if staticDir != "" {
-		fs := http.FileServer(http.Dir(staticDir))
+	// フロントのビルド成果物（埋め込みまたは-static指定ディレクトリ）を配信
+	// （SPAのためパスが無ければindex.htmlへフォールバック）
+	if static != nil {
+		fileServer := http.FileServerFS(static)
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			path := filepath.Join(staticDir, filepath.Clean(r.URL.Path))
-			if info, err := os.Stat(path); err != nil || info.IsDir() {
+			name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
+			if info, err := fs.Stat(static, name); err != nil || info.IsDir() {
 				if r.URL.Path != "/" {
-					http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
+					http.ServeFileFS(w, r, static, "index.html")
 					return
 				}
 			}
-			fs.ServeHTTP(w, r)
+			fileServer.ServeHTTP(w, r)
 		})
 	}
 

@@ -42,7 +42,8 @@ cd front && npm run build                # tsc -b && vite build
 * `name#:` — グループ名末尾 `#` は数値タグ。日時タグと同様に比較演算子で範囲指定できる（値は数値として比較）
 
 ### バックエンド（back/）
-* `main.go` — エントリポイント。`-addr` / `-static` フラグのみ
+* `main.go` — エントリポイント（`-addr` / `-static` / `-user-header` フラグ）
+* `webui/` — `go:embed` でフロントのビルド成果物をバイナリへ埋め込む（`dist/` はビルド時に `front/dist` からコピー。`-static` は開発用オーバーライド）
 * `server.go` — 全APIルーティング・ハンドラ（Go 1.22のメソッド付きパターンで `http.ServeMux` に直接登録）。SPAフォールバック配信もここ
 * `data/` — DAO層。`dao.go` に全SQL操作、`const.go` にDDL（`_SQL_INIT`）とシードデータ、`tokenize.go` に日本語全文検索用のbi-gramトークナイザ
 

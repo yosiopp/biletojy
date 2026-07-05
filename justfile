@@ -11,8 +11,13 @@ build-front:
     npm run build
 
 # バックエンドをビルド（FTS5を有効にするため -tags sqlite_fts5 が必須。成果物は dist/）
+# front/dist を back/webui/dist へコピーしてバイナリに埋め込む
 [working-directory: 'back']
 build-back:
+    rm -rf webui/dist
+    mkdir -p webui/dist
+    cp -R ../front/dist/. webui/dist/
+    touch webui/dist/.gitkeep
     go build -tags sqlite_fts5 -o ../dist/biletojy .
 
 # ビルドして本番構成で起動（http://localhost:8040）

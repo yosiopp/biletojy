@@ -10,6 +10,7 @@ back/            バックエンド（Go / net/http）
   main.go        エントリポイント（-addr, -static, -user-header フラグ）
   server.go      APIルーティング・ハンドラ
   data/          DAO・SQL定義・FTSトークナイズ・日時/数値タグの範囲条件
+  webui/         フロントのビルド成果物の埋め込み（go:embed。dist/はビルド時にコピー）
 front/           フロントエンド（React + TypeScript + Vite + Tailwind CSS）
   src/pages/     画面（チケット一覧/詳細/作成編集、タグ一覧）
   src/components/ 共通コンポーネント
@@ -34,15 +35,20 @@ cd front
 npm install
 npm run build
 
-# バックエンドをビルド（FTS5を有効にするため -tags sqlite_fts5 が必須）
+# フロントのビルド成果物を埋め込み用にコピーし、バックエンドをビルド（FTS5を有効にするため -tags sqlite_fts5 が必須）
 cd ../back
+rm -rf webui/dist
+mkdir -p webui/dist
+cp -R ../front/dist/. webui/dist/
+touch webui/dist/.gitkeep
 go build -tags sqlite_fts5 -o ../dist/biletojy .
 
 # dist/ から起動（DBはカレントディレクトリに作られる）
 cd ../dist
 ./biletojy            # http://localhost:8040
 ```
-* `-addr` で待ち受けアドレス、`-static` でフロント配信ディレクトリを変更できる
+* フロントは `go:embed`（`back/webui/`）でバイナリに埋め込まれるため、バイナリ単体で配置できる
+* `-addr` で待ち受けアドレスを変更できる。`-static` を指定すると埋め込みの代わりに指定ディレクトリを配信する（開発用オーバーライド）
 * データベース `biletojy.db` はカレントディレクトリに自動作成され、初回にプリセットのタググループが投入される（[テーブル定義書](database.md)参照）
 
 ## IAP連携（-user-header）

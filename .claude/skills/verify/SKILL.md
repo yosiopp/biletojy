@@ -10,7 +10,7 @@ just build   # front/dist を生成し dist/biletojy をビルド（-tags sqlite
 # ユーザーのDB(dist/biletojy.db)を汚さないよう、別ディレクトリ・別ポートで起動する
 # DBはカレントディレクトリの ./biletojy.db に作られ、初回起動でstatus/type/due-date@タグがシードされる
 mkdir -p <scratchpad>/verify-run && cd <scratchpad>/verify-run
-<repo>/dist/biletojy -addr :18040 -static <repo>/front/dist   # バックグラウンド起動
+<repo>/dist/biletojy -addr :18040   # バックグラウンド起動（フロントは埋め込み済み。-static <dir> で差し替え可）
 ```
 
 ## データ投入

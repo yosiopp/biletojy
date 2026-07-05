@@ -30,7 +30,7 @@ func newTestServerWithUserHeader(t *testing.T, userHeader string) http.Handler {
 		t.Fatalf("NewDao: %v", err)
 	}
 	t.Cleanup(dao.Close)
-	return newServer(dao, "", userHeader)
+	return newServer(dao, nil, userHeader)
 }
 
 // bodyはstringならそのまま、それ以外はJSONにして送る
@@ -600,7 +600,7 @@ func TestStaticSpaFallback(t *testing.T) {
 		t.Fatalf("NewDao: %v", err)
 	}
 	t.Cleanup(dao.Close)
-	handler := newServer(dao, staticDir, "")
+	handler := newServer(dao, os.DirFS(staticDir), "")
 
 	// 未定義の/apiパスはSPAへフォールバックせずJSONの404を返す
 	w := request(t, handler, "GET", "/api/unknown", nil)
