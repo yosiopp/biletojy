@@ -78,6 +78,12 @@ type File struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// エクスポート/インポートで受け渡すチケット（コメント込み）
+type TicketExport struct {
+	Ticket
+	Comments []Comment `json:"comments"`
+}
+
 // チケット作成時に適用するタイトル・本文・タグの雛形
 type Template struct {
 	Id        int64     `json:"id"`
@@ -363,22 +369,28 @@ func (dao *Dao) AddTicket(ticket *Ticket) error {
 	now := time.Now()
 	ticket.CreatedAt = now
 	ticket.UpdatedAt = now
+	if err := insertTicket(tx, ticket); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// チケットの登録本体（タイムスタンプは設定済みであること）。
+// 履歴の追加・FTSへの登録・カタログ未定義タグの自動登録もここで行う（インポートと共用）
+func insertTicket(tx *sql.Tx, ticket *Ticket) error {
 	res, err := tx.Exec(_SQL_ADD_TICKET, ticket.Title, ticket.Content, ticket.Tags, ticket.CreatedBy, ticket.CreatedSub, ticket.UpdatedBy, ticket.UpdatedSub, ticket.CreatedAt, ticket.UpdatedAt)
 	if err != nil {
 		return err
 	}
 	ticket.Id, _ = res.LastInsertId()
-	if _, err := tx.Exec(_SQL_ADD_TICKET_HISTORY, ticket.Id, ticket.Title, ticket.Content, ticket.Tags, ticket.CreatedBy, ticket.CreatedSub, now); err != nil {
+	if _, err := tx.Exec(_SQL_ADD_TICKET_HISTORY, ticket.Id, ticket.Title, ticket.Content, ticket.Tags, ticket.CreatedBy, ticket.CreatedSub, ticket.CreatedAt); err != nil {
 		return err
 	}
 	title, content, tags := ftsValues(ticket)
 	if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, ticket.Id, title, content, tags, ""); err != nil {
 		return err
 	}
-	if err := registerUnknownTags(tx, ticket.Tags); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return registerUnknownTags(tx, ticket.Tags)
 }
 
 func (dao *Dao) EditTicket(ticket *Ticket) error {
@@ -482,18 +494,25 @@ func (dao *Dao) AddComment(comment *Comment) error {
 	now := time.Now()
 	comment.CreatedAt = now
 	comment.UpdatedAt = now
-	res, err := tx.Exec(_SQL_ADD_COMMENT, comment.TicketId, comment.Content, comment.CreatedBy, comment.CreatedSub, comment.UpdatedBy, comment.UpdatedSub, comment.CreatedAt, comment.UpdatedAt)
-	if err != nil {
-		return err
-	}
-	comment.Id, _ = res.LastInsertId()
-	if _, err := tx.Exec(_SQL_ADD_COMMENT_HISTORY, comment.Id, comment.Content, comment.CreatedBy, comment.CreatedSub, now); err != nil {
+	if err := insertComment(tx, comment); err != nil {
 		return err
 	}
 	if err := refreshCommentsFts(tx, comment.TicketId); err != nil {
 		return err
 	}
 	return tx.Commit()
+}
+
+// コメントの登録本体（タイムスタンプは設定済みであること）。履歴の追加もここで行う（インポートと共用）。
+// FTSのcommentsカラムは呼び出し側でrefreshCommentsFtsを実行して再構築する
+func insertComment(tx *sql.Tx, comment *Comment) error {
+	res, err := tx.Exec(_SQL_ADD_COMMENT, comment.TicketId, comment.Content, comment.CreatedBy, comment.CreatedSub, comment.UpdatedBy, comment.UpdatedSub, comment.CreatedAt, comment.UpdatedAt)
+	if err != nil {
+		return err
+	}
+	comment.Id, _ = res.LastInsertId()
+	_, err = tx.Exec(_SQL_ADD_COMMENT_HISTORY, comment.Id, comment.Content, comment.CreatedBy, comment.CreatedSub, comment.CreatedAt)
+	return err
 }
 
 func (dao *Dao) EditComment(comment *Comment) error {
@@ -539,6 +558,70 @@ func refreshCommentsFts(tx *sql.Tx, ticketId int64) error {
 	joined := Bigram(StripMarkdown(strings.Join(contents, " ")))
 	_, err = tx.Exec(_SQL_EDIT_COMMENT_FTS, joined, ticketId)
 	return err
+}
+
+// エクスポート用に検索条件（QueryTicketsと同じq, tags）に一致するチケットをコメント込みで返す
+func (dao *Dao) ExportTickets(q string, tags []string) ([]TicketExport, error) {
+	tickets, err := dao.QueryTickets(q, tags)
+	if err != nil {
+		return nil, err
+	}
+	exports := []TicketExport{}
+	for _, t := range tickets {
+		comments, err := dao.QueryComments(t.Id)
+		if err != nil {
+			return nil, err
+		}
+		exports = append(exports, TicketExport{Ticket: t, Comments: comments})
+	}
+	return exports, nil
+}
+
+// エクスポートデータのチケット（コメント込み）をひとつのトランザクションで登録する。
+// IDは元の値によらず新規に採番し、通常の作成と同じ経路で履歴の追加・FTSへの登録・
+// カタログ未定義タグの自動登録も行う。作成者・更新者とタイムスタンプはエクスポート時の値を
+// 引き継ぐ（タイムスタンプ未設定時はインポート時刻）。履歴はインポート後の内容の1版のみ記録される
+func (dao *Dao) ImportTickets(tickets []TicketExport) error {
+	tx, err := dao.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	now := time.Now()
+	for i := range tickets {
+		t := &tickets[i]
+		t.Id = 0
+		if t.CreatedAt.IsZero() {
+			t.CreatedAt = now
+		}
+		if t.UpdatedAt.IsZero() {
+			t.UpdatedAt = t.CreatedAt
+		}
+		if err := insertTicket(tx, &t.Ticket); err != nil {
+			return err
+		}
+		for j := range t.Comments {
+			c := &t.Comments[j]
+			c.Id = 0
+			c.TicketId = t.Id
+			if c.CreatedAt.IsZero() {
+				c.CreatedAt = now
+			}
+			if c.UpdatedAt.IsZero() {
+				c.UpdatedAt = c.CreatedAt
+			}
+			if err := insertComment(tx, c); err != nil {
+				return err
+			}
+		}
+		if len(t.Comments) > 0 {
+			if err := refreshCommentsFts(tx, t.Id); err != nil {
+				return err
+			}
+		}
+	}
+	return tx.Commit()
 }
 
 func (dao *Dao) AddFile(file *File) error {

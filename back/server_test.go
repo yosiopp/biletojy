@@ -734,6 +734,82 @@ func TestNormalizeTag(t *testing.T) {
 }
 
 // アップロード用のリクエストを送る（bodyはバイナリそのまま。contentTypeが空の場合はヘッダを付けない）
+func TestExportAndImport(t *testing.T) {
+	handler := newTestServer(t)
+
+	created := createTicket(t, handler, data.Ticket{Title: "エクスポート対象", Content: "本文", Tags: "status:OPEN", CreatedBy: "alice"})
+	assertStatus(t, request(t, handler, "POST", fmt.Sprintf("/api/tickets/%d/comments", created.Id), data.Comment{Content: "調査した", CreatedBy: "bob"}), http.StatusCreated)
+	createTicket(t, handler, data.Ticket{Title: "対象外", Content: "別の本文", Tags: "status:CLOSE"})
+
+	// JSONエクスポート（formatデフォルト）。検索条件（tags）で絞り込める
+	w := request(t, handler, "GET", "/api/export?tags=status:OPEN", nil)
+	assertStatus(t, w, http.StatusOK)
+	if cd := w.Header().Get("Content-Disposition"); !strings.Contains(cd, "biletojy-export.json") {
+		t.Errorf("Content-Disposition = %q", cd)
+	}
+	exported := decodeBody[struct {
+		Tickets []data.TicketExport `json:"tickets"`
+	}](t, w)
+	if len(exported.Tickets) != 1 || exported.Tickets[0].Title != "エクスポート対象" {
+		t.Fatalf("exported = %+v", exported.Tickets)
+	}
+	if len(exported.Tickets[0].Comments) != 1 || exported.Tickets[0].Comments[0].Content != "調査した" {
+		t.Errorf("exported comments = %+v", exported.Tickets[0].Comments)
+	}
+
+	// markdownエクスポートは人間可読のテキストを返す
+	w = request(t, handler, "GET", "/api/export?format=markdown", nil)
+	assertStatus(t, w, http.StatusOK)
+	if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "text/markdown") {
+		t.Errorf("Content-Type = %q", ct)
+	}
+	body := w.Body.String()
+	for _, want := range []string{fmt.Sprintf("# #%d エクスポート対象", created.Id), "- tags: status:OPEN", "## コメント", "### bob", "調査した", "# #"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("markdown does not contain %q:\n%s", want, body)
+		}
+	}
+
+	// 不明なformatは400
+	assertErrorResponse(t, request(t, handler, "GET", "/api/export?format=xml", nil), http.StatusBadRequest)
+
+	// インポート。新規IDで登録され、コメントも取り込まれる
+	w = request(t, handler, "POST", "/api/import", map[string]any{"tickets": exported.Tickets})
+	assertStatus(t, w, http.StatusCreated)
+	if res := decodeBody[map[string]int](t, w); res["imported"] != 1 {
+		t.Errorf("imported = %v, want 1", res)
+	}
+	w = request(t, handler, "GET", "/api/tickets?tags=status:OPEN", nil)
+	assertStatus(t, w, http.StatusOK)
+	list := decodeBody[[]data.Ticket](t, w)
+	if len(list) != 2 {
+		t.Fatalf("tickets after import = %+v, want 2", list)
+	}
+	imported := list[0]
+	if imported.Id == created.Id {
+		imported = list[1]
+	}
+	if imported.Id == created.Id {
+		t.Fatalf("imported ticket did not get a new id: %+v", list)
+	}
+	if imported.Title != "エクスポート対象" || imported.CreatedBy != "alice" || !imported.CreatedAt.Equal(created.CreatedAt) {
+		t.Errorf("imported ticket = %+v, want copy of %+v", imported, created)
+	}
+	w = request(t, handler, "GET", fmt.Sprintf("/api/tickets/%d/comments", imported.Id), nil)
+	assertStatus(t, w, http.StatusOK)
+	comments := decodeBody[[]data.Comment](t, w)
+	if len(comments) != 1 || comments[0].Content != "調査した" || comments[0].CreatedBy != "bob" {
+		t.Errorf("imported comments = %+v", comments)
+	}
+
+	// バリデーション: 空のtickets、タイトルなし、コメント本文なし
+	assertErrorResponse(t, request(t, handler, "POST", "/api/import", map[string]any{"tickets": []any{}}), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "POST", "/api/import",
+		map[string]any{"tickets": []map[string]any{{"content": "タイトルなし"}}}), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "POST", "/api/import",
+		map[string]any{"tickets": []map[string]any{{"title": "t", "comments": []map[string]any{{"content": ""}}}}}), http.StatusBadRequest)
+}
+
 func uploadFile(t *testing.T, handler http.Handler, path, contentType string, body []byte) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest("POST", path, bytes.NewReader(body))

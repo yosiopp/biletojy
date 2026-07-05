@@ -2,6 +2,7 @@ package data
 
 import (
 	"database/sql"
+	"encoding/json"
 	"slices"
 	"strconv"
 	"testing"
@@ -880,6 +881,130 @@ func TestTicketRegistersUnknownTags(t *testing.T) {
 	}
 	if tags[n-2].Tag != "docs/design" || tags[n-1].Tag != "another-tag" {
 		t.Errorf("plain tags should be listed last in registration order: %+v", tags)
+	}
+}
+
+// エクスポート→インポートのラウンドトリップ。JSONを介して別DBへ取り込んでも
+// チケット・コメント・タグ・タイムスタンプが維持され、履歴・FTS・タグカタログも整合する
+func TestExportImportRoundTrip(t *testing.T) {
+	src := newTestDao(t)
+
+	t1 := addTestTicket(t, src, "移行元チケット", "本文でラウンドトリップを確認する", "status:OPEN feature:EXPORT")
+	c1 := &Comment{TicketId: t1.Id, Content: "最初のコメント", CreatedBy: "alice", UpdatedBy: "alice"}
+	if err := src.AddComment(c1); err != nil {
+		t.Fatalf("AddComment: %v", err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	c2 := &Comment{TicketId: t1.Id, Content: "次のコメント", CreatedBy: "bob", UpdatedBy: "bob"}
+	if err := src.AddComment(c2); err != nil {
+		t.Fatalf("AddComment: %v", err)
+	}
+	t2 := addTestTicket(t, src, "コメントなし", "本文2", "")
+
+	// 全件エクスポート（updated_at降順、コメントは作成順）
+	exported, err := src.ExportTickets("", nil)
+	if err != nil {
+		t.Fatalf("ExportTickets: %v", err)
+	}
+	if len(exported) != 2 || exported[0].Id != t2.Id || exported[1].Id != t1.Id {
+		t.Fatalf("ExportTickets = %+v, want [%d %d]", exported, t2.Id, t1.Id)
+	}
+	if len(exported[1].Comments) != 2 || exported[1].Comments[0].Content != "最初のコメント" || exported[1].Comments[1].Content != "次のコメント" {
+		t.Errorf("exported comments = %+v", exported[1].Comments)
+	}
+	if len(exported[0].Comments) != 0 {
+		t.Errorf("exported[0].Comments = %+v, want empty", exported[0].Comments)
+	}
+
+	// 検索条件（QueryTicketsと同じ）で絞り込める
+	filtered, err := src.ExportTickets("", []string{"status:OPEN"})
+	if err != nil {
+		t.Fatalf("ExportTickets(tags): %v", err)
+	}
+	if len(filtered) != 1 || filtered[0].Id != t1.Id {
+		t.Errorf("ExportTickets(tags) = %+v, want [%d]", filtered, t1.Id)
+	}
+
+	// API転送を模してJSONを経由させる
+	b, err := json.Marshal(exported)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	decoded := []TicketExport{}
+	if err := json.Unmarshal(b, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	dst := newTestDao(t)
+	if err := dst.ImportTickets(decoded); err != nil {
+		t.Fatalf("ImportTickets: %v", err)
+	}
+
+	// 内容・作成者・タイムスタンプが引き継がれる（updated_at降順の並びも変わらない）
+	tickets, err := dst.QueryTickets("", nil)
+	if err != nil {
+		t.Fatalf("QueryTickets: %v", err)
+	}
+	if len(tickets) != 2 || tickets[0].Title != "コメントなし" || tickets[1].Title != "移行元チケット" {
+		t.Fatalf("imported tickets = %+v", tickets)
+	}
+	got := tickets[1]
+	want, _ := src.GetTicket(t1.Id)
+	if got.Content != want.Content || got.Tags != want.Tags || got.CreatedBy != want.CreatedBy || got.UpdatedBy != want.UpdatedBy {
+		t.Errorf("imported ticket = %+v, want %+v", got, want)
+	}
+	if !got.CreatedAt.Equal(want.CreatedAt) || !got.UpdatedAt.Equal(want.UpdatedAt) {
+		t.Errorf("imported timestamps = %v/%v, want %v/%v", got.CreatedAt, got.UpdatedAt, want.CreatedAt, want.UpdatedAt)
+	}
+
+	// コメントも新しいチケットIDに付け替えて取り込まれる
+	comments, err := dst.QueryComments(got.Id)
+	if err != nil {
+		t.Fatalf("QueryComments: %v", err)
+	}
+	if len(comments) != 2 || comments[0].Content != "最初のコメント" || comments[0].CreatedBy != "alice" || comments[1].Content != "次のコメント" {
+		t.Errorf("imported comments = %+v", comments)
+	}
+	if !comments[0].CreatedAt.Equal(c1.CreatedAt) {
+		t.Errorf("imported comment created_at = %v, want %v", comments[0].CreatedAt, c1.CreatedAt)
+	}
+
+	// 通常の作成経路と同じく履歴が1版記録され、FTS・タグカタログにも登録される
+	if n := countRows(t, dst, `SELECT COUNT(*) FROM ticket_histories WHERE ticket_id = ?`, got.Id); n != 1 {
+		t.Errorf("imported ticket histories = %d, want 1", n)
+	}
+	if n := countRows(t, dst, `SELECT COUNT(*) FROM comment_histories WHERE comment_id = ?`, comments[0].Id); n != 1 {
+		t.Errorf("imported comment histories = %d, want 1", n)
+	}
+	if ids := queryTicketIds(t, dst, "ラウンドトリップ", nil); !slices.Equal(ids, []int64{got.Id}) {
+		t.Errorf("fulltext search by content = %v, want [%d]", ids, got.Id)
+	}
+	if ids := queryTicketIds(t, dst, "最初のコメント", nil); !slices.Equal(ids, []int64{got.Id}) {
+		t.Errorf("fulltext search by comment = %v, want [%d]", ids, got.Id)
+	}
+	dstTags, err := dst.QueryTags()
+	if err != nil {
+		t.Fatalf("QueryTags: %v", err)
+	}
+	if findTag(dstTags, "feature:EXPORT") == nil {
+		t.Errorf("feature:EXPORT not registered on import: %+v", dstTags)
+	}
+
+	// 同じDBへ取り込んだ場合はIDが衝突せず新規IDで採番される
+	if err := src.ImportTickets(decoded); err != nil {
+		t.Fatalf("ImportTickets(same db): %v", err)
+	}
+	srcTickets, err := src.QueryTickets("", nil)
+	if err != nil {
+		t.Fatalf("QueryTickets: %v", err)
+	}
+	if len(srcTickets) != 4 {
+		t.Fatalf("tickets after re-import = %d, want 4", len(srcTickets))
+	}
+	for _, ticket := range srcTickets {
+		if ticket.Id != t1.Id && ticket.Id != t2.Id && ticket.Id <= t2.Id {
+			t.Errorf("re-imported ticket should get a new id: %+v", ticket)
+		}
 	}
 }
 

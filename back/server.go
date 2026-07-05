@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"mime"
@@ -12,6 +13,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/yosiopp/biletojy/data"
@@ -227,6 +229,87 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 			return
 		}
 		writeJson(w, http.StatusOK, current)
+	})
+
+	// チケットのエクスポート。検索と同じ条件（q, tags）で絞り込んだチケットをコメント込みで、
+	// JSON（機械可読・再インポート用）またはmarkdown（人間可読）のダウンロードとして返す
+	mux.HandleFunc("GET /api/export", func(w http.ResponseWriter, r *http.Request) {
+		format := r.URL.Query().Get("format")
+		if format == "" {
+			format = "json"
+		}
+		if format != "json" && format != "markdown" {
+			writeErrorMessage(w, http.StatusBadRequest, "format must be json or markdown")
+			return
+		}
+		q := r.URL.Query().Get("q")
+		tags := []string{}
+		if v := r.URL.Query().Get("tags"); v != "" {
+			tags = strings.Split(v, ",")
+		}
+		tickets, err := dao.ExportTickets(q, tags)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		if format == "markdown" {
+			w.Header().Set("Content-Disposition", `attachment; filename="biletojy-export.md"`)
+			w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+			io.WriteString(w, exportMarkdown(tickets))
+			return
+		}
+		w.Header().Set("Content-Disposition", `attachment; filename="biletojy-export.json"`)
+		writeJson(w, http.StatusOK, struct {
+			ExportedAt time.Time           `json:"exported_at"`
+			Tickets    []data.TicketExport `json:"tickets"`
+		}{time.Now(), tickets})
+	})
+
+	// エクスポートしたJSONデータのインポート。チケット・コメントは新規IDで登録され、
+	// 作成者・更新者・sub・タイムスタンプはデータの値をそのまま引き継ぐ（バックアップの復元用）
+	mux.HandleFunc("POST /api/import", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Tickets []data.TicketExport `json:"tickets"`
+		}
+		// エクスポートデータは通常のリクエストより大きくなるため、上限は添付ファイルと同じ10MiB
+		if !readJsonLimit(w, r, &req, _MAX_FILE_BYTES) {
+			return
+		}
+		if len(req.Tickets) == 0 {
+			writeErrorMessage(w, http.StatusBadRequest, "tickets is required")
+			return
+		}
+		for i := range req.Tickets {
+			ticket := &req.Tickets[i]
+			if ticket.Title == "" {
+				writeErrorMessage(w, http.StatusBadRequest, fmt.Sprintf("tickets[%d]: title is required", i))
+				return
+			}
+			if ticket.CreatedBy == "" {
+				ticket.CreatedBy = "anonymous"
+			}
+			if ticket.UpdatedBy == "" {
+				ticket.UpdatedBy = ticket.CreatedBy
+			}
+			for j := range ticket.Comments {
+				comment := &ticket.Comments[j]
+				if comment.Content == "" {
+					writeErrorMessage(w, http.StatusBadRequest, fmt.Sprintf("tickets[%d].comments[%d]: content is required", i, j))
+					return
+				}
+				if comment.CreatedBy == "" {
+					comment.CreatedBy = "anonymous"
+				}
+				if comment.UpdatedBy == "" {
+					comment.UpdatedBy = comment.CreatedBy
+				}
+			}
+		}
+		if err := dao.ImportTickets(req.Tickets); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJson(w, http.StatusCreated, map[string]int{"imported": len(req.Tickets)})
 	})
 
 	mux.HandleFunc("POST /api/files", func(w http.ResponseWriter, r *http.Request) {
@@ -582,8 +665,40 @@ func pathId(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return id, true
 }
 
+// エクスポートのmarkdown表現を組み立てる（人間可読用。再インポートにはJSON形式を使う）
+func exportMarkdown(tickets []data.TicketExport) string {
+	const timeFormat = "2006-01-02 15:04"
+	var b strings.Builder
+	for i, t := range tickets {
+		if i > 0 {
+			b.WriteString("\n---\n\n")
+		}
+		fmt.Fprintf(&b, "# #%d %s\n\n", t.Id, t.Title)
+		if t.Tags != "" {
+			fmt.Fprintf(&b, "- tags: %s\n", t.Tags)
+		}
+		fmt.Fprintf(&b, "- created: %s (%s)\n", t.CreatedAt.Format(timeFormat), t.CreatedBy)
+		fmt.Fprintf(&b, "- updated: %s (%s)\n", t.UpdatedAt.Format(timeFormat), t.UpdatedBy)
+		if t.Content != "" {
+			b.WriteString("\n" + strings.TrimRight(t.Content, "\n") + "\n")
+		}
+		if len(t.Comments) > 0 {
+			b.WriteString("\n## コメント\n")
+			for _, c := range t.Comments {
+				fmt.Fprintf(&b, "\n### %s (%s)\n\n%s\n", c.CreatedBy, c.CreatedAt.Format(timeFormat), strings.TrimRight(c.Content, "\n"))
+			}
+		}
+	}
+	return b.String()
+}
+
 func readJson(w http.ResponseWriter, r *http.Request, v any) bool {
-	body := http.MaxBytesReader(w, r.Body, 1<<20)
+	return readJsonLimit(w, r, v, 1<<20)
+}
+
+// 上限サイズを指定してリクエストボディのJSONをデコードする（インポートなど大きなボディを受けるAPI用）
+func readJsonLimit(w http.ResponseWriter, r *http.Request, v any, limit int64) bool {
+	body := http.MaxBytesReader(w, r.Body, limit)
 	if err := json.NewDecoder(body).Decode(v); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, Ticket } from '../api/client';
+import ExportImport from '../components/ExportImport';
 import TagFilter from '../components/TagFilter';
 import TicketRow from '../components/TicketRow';
 import ViewSelect from '../components/ViewSelect';
@@ -15,6 +16,9 @@ function TicketList() {
   const [tickets, setTickets] = useState<Ticket[] | null>(null);
   const catalog = useCatalog();
   const [error, setError] = useState('');
+  // インポート完了の通知と、完了後に一覧を再取得するためのカウンタ
+  const [notice, setNotice] = useState('');
+  const [reload, setReload] = useState(0);
 
   const q = searchParams.get('q') ?? '';
   const tagsParam = searchParams.get('tags') ?? '';
@@ -39,7 +43,7 @@ function TicketList() {
       .then(fresh(setTickets))
       .catch(fresh((e: Error) => setError(e.message)));
     return cancel;
-  }, [q, tagsParam]);
+  }, [q, tagsParam, reload]);
 
   const updateParams = (nextQ: string, nextTags: string[]) => {
     const params = new URLSearchParams(searchParams);
@@ -69,16 +73,17 @@ function TicketList() {
       />
 
       {error && <p className="text-red-600 mb-2">{error}</p>}
+      {notice && <p className="text-blue-700 mb-2">{notice}</p>}
 
       <div className="flex flex-wrap items-start justify-between mb-2">
         <ViewSelect q={q} tags={tags} onApply={updateParams} />
-        <div className="flex items-center gap-1 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           <label htmlFor="ticket-sort" className="text-neutral-500">
             並び替え:
           </label>
           <select
             id="ticket-sort"
-            className="border rounded-sm px-1 py-0.5"
+            className="border rounded-sm px-1 py-0.5 -ml-1"
             value={sort.key}
             onChange={(e) => updateSort({ ...sort, key: e.target.value })}
           >
@@ -97,6 +102,19 @@ function TicketList() {
           >
             {sort.desc ? '↓ 降順' : '↑ 昇順'}
           </button>
+          <ExportImport
+            q={q}
+            tags={tags}
+            onImported={(count) => {
+              setNotice(`${count}件のチケットをインポートしました`);
+              setError('');
+              setReload((n) => n + 1);
+            }}
+            onError={(message) => {
+              setError(message);
+              setNotice('');
+            }}
+          />
         </div>
       </div>
 

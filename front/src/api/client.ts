@@ -45,6 +45,9 @@ export type CommentHistory = {
   created_at: string;
 };
 
+// エクスポート/インポートで受け渡すチケット（コメント込み）
+export type TicketExport = Ticket & { comments: Comment[] };
+
 // 添付ファイル（画像を含む）。バイナリ本体は配信API（/api/files/{id}）で返る
 export type AttachedFile = {
   id: number;
@@ -110,6 +113,17 @@ export const api = {
     request<Comment>(`/api/tickets/${ticketId}/comments`, { method: 'POST', body: JSON.stringify(data) }),
   updateComment: (id: number, data: Pick<Comment, 'content' | 'updated_by'>) =>
     request<Comment>(`/api/comments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  // エクスポートのダウンロードURL。検索条件（q + tags）で絞り込める（インポートにはjson形式を使う）
+  exportUrl: (q: string, tags: string[], format: 'json' | 'markdown') => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (tags.length > 0) params.set('tags', tags.join(','));
+    params.set('format', format);
+    return `/api/export?${params.toString()}`;
+  },
+  // エクスポートしたJSONデータのインポート。チケット・コメントは新規IDで登録される
+  importTickets: (tickets: TicketExport[]) =>
+    request<{ imported: number }>('/api/import', { method: 'POST', body: JSON.stringify({ tickets }) }),
   uploadFile: (file: File) =>
     request<AttachedFile>(`/api/files?name=${encodeURIComponent(file.name)}`, {
       method: 'POST',
