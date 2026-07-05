@@ -42,6 +42,22 @@ issue tracking system with tag
 * `ctrl+shift+n` タグ作成
 
 ## 起動方法
+### バイナリ（GitHub Releases）
+[Releases](https://github.com/yosiopp/biletojy/releases) からOS・アーキテクチャに合ったアーカイブをダウンロードして展開する。
+フロントエンドはバイナリに埋め込まれているため単体で動作し、データベース `biletojy.db` はカレントディレクトリに自動作成される。
+
+```sh
+./biletojy            # http://localhost:8040
+```
+
+### Docker（GHCR）
+データベースはコンテナ内の `/data` に作成されるため、ボリュームをマウントして永続化する。
+
+```sh
+docker run -d --name biletojy -p 8040:8040 -v biletojy-data:/data ghcr.io/yosiopp/biletojy:latest
+```
+
+### ソースからビルド
 [just](https://github.com/casey/just) がインストールされていれば1コマンドでビルド・起動できる。
 
 ```sh

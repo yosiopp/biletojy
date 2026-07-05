@@ -79,7 +79,8 @@ npm run dev
 
 ## リリース
 `v` から始まるタグ（例: `v1.0.0`）をpushすると、GitHub Actions（`.github/workflows/release.yml`）がGoReleaser（`.goreleaser.yaml`）を実行し、
-Linux（amd64/arm64）・macOS（amd64/arm64）・Windows（amd64）のバイナリをGitHub Releasesへ添付する。
+Linux（amd64/arm64）・macOS（amd64/arm64）・Windows（amd64）のバイナリをGitHub Releasesへ添付し、
+マルチアーキ（amd64/arm64）のDockerイメージを `ghcr.io/yosiopp/biletojy`（`{バージョン}` と `latest` タグ）へpushする。
 
 ```sh
 git tag v1.0.0
