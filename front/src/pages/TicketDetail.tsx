@@ -63,20 +63,24 @@ function TicketDetail() {
         ))}
       </div>
 
-      <div className="border rounded-sm p-4 mb-6">
+      <div className="mb-6">
         <Markdown content={ticket.content} />
       </div>
 
+      <hr className="border-t-2 border-neutral-300 mb-6" />
+
       <h3 className="text-lg mb-2">コメント</h3>
       {commentError && <p className="text-red-600 mb-2">{commentError}</p>}
-      {comments.map((comment) => (
-        <div key={comment.id} className="border rounded-sm p-3 mb-2">
-          <div className="text-sm text-neutral-500 mb-1">
-            {comment.created_by} ・ {formatDateTime(comment.created_at)}
+      <div className="divide-y divide-neutral-200">
+        {comments.map((comment) => (
+          <div key={comment.id} className="py-3">
+            <div className="text-sm text-neutral-500 mb-1">
+              {comment.created_by} ・ {formatDateTime(comment.created_at)}
+            </div>
+            <Markdown content={comment.content} />
           </div>
-          <Markdown content={comment.content} />
-        </div>
-      ))}
+        ))}
+      </div>
 
       <form onSubmit={submitComment} className="mt-4">
         <textarea
