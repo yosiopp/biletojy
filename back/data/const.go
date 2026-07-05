@@ -104,6 +104,8 @@ const (
 	_SQL_EDIT_TAG      = `UPDATE tag_catalog SET tag = ?, note = ?, color = ?, is_group = ?, is_range = ? WHERE id = ?`
 	_SQL_DELETE_TAG    = `DELETE FROM tag_catalog WHERE id = ?`
 	_SQL_SET_TAG_ORDER = `UPDATE tag_catalog SET sort_order = ? WHERE id = ?`
+	// チケット保存時のカタログ未定義タグの自動登録（定義済みなら何もしない）
+	_SQL_ADD_UNKNOWN_TAG = `INSERT INTO tag_catalog (tag, is_group, is_range) VALUES (?, ?, ?) ON CONFLICT (tag) DO NOTHING`
 
 	// チケット取得
 	_SQL_GET_TICKET = `SELECT id, title, content, COALESCE(tags, ''), created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM tickets WHERE id = ?`

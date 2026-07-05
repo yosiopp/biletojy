@@ -589,3 +589,56 @@ func TestTagCatalog(t *testing.T) {
 		t.Errorf("QueryTags after delete = %d, want %d", len(tags), seeded)
 	}
 }
+
+func findTag(tags []Tag, name string) *Tag {
+	for i := range tags {
+		if tags[i].Tag == name {
+			return &tags[i]
+		}
+	}
+	return nil
+}
+
+func TestTicketRegistersUnknownTags(t *testing.T) {
+	dao := newTestDao(t)
+
+	// 作成時: 未定義タグがカタログへ自動登録される（定義済みのstatus:OPENはそのまま）
+	ticket := addTestTicket(t, dao, "タグ自動登録", "本文", "status:OPEN feature:SEARCH docs/design due-date@:2026-07-10 point#:3")
+	tags, err := dao.QueryTags()
+	if err != nil {
+		t.Fatalf("QueryTags: %v", err)
+	}
+	if tag := findTag(tags, "feature:SEARCH"); tag == nil || !tag.IsGroup || tag.IsRange {
+		t.Errorf("feature:SEARCH = %+v, want group tag", tag)
+	}
+	if tag := findTag(tags, "docs/design"); tag == nil || tag.IsGroup || tag.IsRange {
+		t.Errorf("docs/design = %+v, want plain tag", tag)
+	}
+	// 日時・数値タグは値ごとではなくグループとして登録される
+	if tag := findTag(tags, "point#:"); tag == nil || !tag.IsGroup || !tag.IsRange {
+		t.Errorf("point#: = %+v, want range group tag", tag)
+	}
+	if findTag(tags, "point#:3") != nil || findTag(tags, "due-date@:2026-07-10") != nil {
+		t.Errorf("range tag values should not be registered: %+v", tags)
+	}
+	// 定義済みの due-date@: が重複登録されない
+	count := 0
+	for _, tag := range tags {
+		if tag.Tag == "due-date@:" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("due-date@: registered %d times, want 1", count)
+	}
+
+	// 編集時も同様に自動登録される
+	ticket.Tags = "status:WIP priority:HIGH"
+	if err := dao.EditTicket(ticket); err != nil {
+		t.Fatalf("EditTicket: %v", err)
+	}
+	tags, _ = dao.QueryTags()
+	if findTag(tags, "priority:HIGH") == nil {
+		t.Errorf("priority:HIGH not registered on edit: %+v", tags)
+	}
+}

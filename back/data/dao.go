@@ -307,6 +307,27 @@ func (dao *Dao) GetTicket(id int64) (*Ticket, error) {
 	return &t, nil
 }
 
+// チケットに付与されたタグのうちタグカタログ未定義のものを自動登録する（server.goのnormalizeTagと同じ属性導出）。
+// 日時・数値タグ（グループ名末尾 @/#）は値ごとではなくグループ（例: "due-date@:"）として登録する。
+// 検索構文のメタ文字と衝突する名前（","・"|" を含む、先頭 "-"）はカタログに登録できないため除外する
+func registerUnknownTags(tx *sql.Tx, tags string) error {
+	for _, tag := range strings.Fields(tags) {
+		sep := strings.Index(tag, ":")
+		isGroup := sep > 0
+		isRange := isGroup && (strings.HasSuffix(tag[:sep], "@") || strings.HasSuffix(tag[:sep], "#"))
+		if isRange {
+			tag = tag[:sep+1]
+		}
+		if strings.HasPrefix(tag, "-") || strings.ContainsAny(tag, ",|") {
+			continue
+		}
+		if _, err := tx.Exec(_SQL_ADD_UNKNOWN_TAG, tag, isGroup, isRange); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (dao *Dao) AddTicket(ticket *Ticket) error {
 	tx, err := dao.db.Begin()
 	if err != nil {
@@ -327,6 +348,9 @@ func (dao *Dao) AddTicket(ticket *Ticket) error {
 	}
 	title, content, tags := ftsValues(ticket)
 	if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, ticket.Id, title, content, tags, ""); err != nil {
+		return err
+	}
+	if err := registerUnknownTags(tx, ticket.Tags); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -350,6 +374,9 @@ func (dao *Dao) EditTicket(ticket *Ticket) error {
 	}
 	title, content, tags := ftsValues(ticket)
 	if _, err := tx.Exec(_SQL_EDIT_TICKET_FTS, title, content, tags, ticket.Id); err != nil {
+		return err
+	}
+	if err := registerUnknownTags(tx, ticket.Tags); err != nil {
 		return err
 	}
 	return tx.Commit()
