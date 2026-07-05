@@ -23,6 +23,14 @@ issue tracking system with tag
 * Node.js 24以上（LTS）
 
 ### 本番構成（1プロセスでAPIとUIを配信）
+[just](https://github.com/casey/just) がインストールされていれば1コマンドでビルドできる。
+
+```sh
+just build            # フロント → バックエンドを一括ビルド
+just start            # ビルドして起動（http://localhost:8040）
+```
+
+手動で実行する場合:
 ```sh
 # フロントをビルド
 cd front
