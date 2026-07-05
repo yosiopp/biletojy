@@ -1,4 +1,7 @@
-import { Link } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
+
+const navClass = ({ isActive }: { isActive: boolean }) =>
+  `mx-2 text-blue-700 hover:underline ${isActive ? 'font-bold underline' : ''}`;
 
 function Header() {
   return (
@@ -11,14 +14,14 @@ function Header() {
         <nav className="inline flex-1">
           <ul className="inline-flex">
             <li>
-              <Link className="mx-2 text-blue-700 hover:underline" to="/tickets">
+              <NavLink className={navClass} to="/tickets">
                 tickets
-              </Link>
+              </NavLink>
             </li>
             <li>
-              <Link className="mx-2 text-blue-700 hover:underline" to="/tags">
+              <NavLink className={navClass} to="/tags">
                 tags
-              </Link>
+              </NavLink>
             </li>
           </ul>
         </nav>

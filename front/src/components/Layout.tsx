@@ -1,19 +1,44 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Header from './Header';
 
-// ショートカットキー
-//   ctrl+n        チケット作成
-//   ctrl+e        表示中のチケット編集
-//   ctrl+l        チケット一覧へ移動
-//   ctrl+t        タグ一覧へ移動
-//   ctrl+shift+n  タグ作成
+const SHORTCUTS: [string, string][] = [
+  ['Ctrl+N', 'チケット作成'],
+  ['Ctrl+Shift+N', 'タグ作成'],
+  ['Ctrl+E', 'チケット編集（詳細表示中）'],
+  ['Ctrl+L', 'チケット一覧へ移動'],
+  ['Ctrl+T', 'タグ一覧へ移動'],
+  ['?', 'このヘルプを表示'],
+];
+
+// 入力欄にフォーカスがある間はショートカットを無効にする
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    target.isContentEditable
+  );
+}
+
 function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     const eventListener = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) return;
+      if (event.key === 'Escape') {
+        setShowHelp(false);
+        return;
+      }
+      if (event.key === '?' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        setShowHelp((v) => !v);
+        event.preventDefault();
+        return;
+      }
       if (!event.ctrlKey || event.metaKey || event.altKey) return;
       const key = event.key.toLowerCase();
       if (key === 'n' && event.shiftKey) {
@@ -43,6 +68,54 @@ function Layout() {
       <main className="p-2">
         <Outlet />
       </main>
+
+      <button
+        type="button"
+        className="fixed bottom-4 right-4 w-8 h-8 rounded-full border bg-white text-neutral-500 shadow-sm hover:bg-neutral-100"
+        title="ショートカット一覧（?）"
+        aria-label="ショートカット一覧"
+        onClick={() => setShowHelp((v) => !v)}
+      >
+        ?
+      </button>
+
+      {showHelp && (
+        <div
+          className="fixed inset-0 z-20 bg-black/30 flex items-center justify-center"
+          onClick={() => setShowHelp(false)}
+        >
+          <div
+            role="dialog"
+            aria-label="キーボードショートカット"
+            className="bg-white rounded-sm shadow-lg p-4 w-80"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center mb-2">
+              <h2 className="text-lg flex-1">キーボードショートカット</h2>
+              <button
+                type="button"
+                className="text-neutral-400 hover:text-neutral-700"
+                aria-label="閉じる"
+                onClick={() => setShowHelp(false)}
+              >
+                ×
+              </button>
+            </div>
+            <table className="w-full text-sm">
+              <tbody>
+                {SHORTCUTS.map(([key, desc]) => (
+                  <tr key={key}>
+                    <td className="py-1 pr-3 whitespace-nowrap">
+                      <kbd className="border rounded-sm px-1.5 py-0.5 bg-neutral-50 font-mono text-xs">{key}</kbd>
+                    </td>
+                    <td className="py-1">{desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </>
   );
 }

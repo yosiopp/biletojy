@@ -11,13 +11,15 @@ function TicketDetail() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [catalog, setCatalog] = useState<Tag[]>([]);
   const [commentText, setCommentText] = useState('');
-  const [error, setError] = useState('');
+  const [ticketError, setTicketError] = useState('');
+  const [commentError, setCommentError] = useState('');
 
   useEffect(() => {
     if (!id) return;
-    api.getTicket(id).then(setTicket).catch((e: Error) => setError(e.message));
-    api.listComments(id).then(setComments).catch((e: Error) => setError(e.message));
-    api.listTags().then(setCatalog).catch((e: Error) => setError(e.message));
+    api.getTicket(id).then(setTicket).catch((e: Error) => setTicketError(e.message));
+    api.listComments(id).then(setComments).catch((e: Error) => setCommentError(e.message));
+    // カタログはタグの色付けにしか使わないため、失敗しても本文表示は妨げない
+    api.listTags().then(setCatalog).catch(() => {});
   }, [id]);
 
   const submitComment = async (e: FormEvent) => {
@@ -26,13 +28,14 @@ function TicketDetail() {
     try {
       await api.addComment(id, { content: commentText, created_by: currentUser() });
       setCommentText('');
+      setCommentError('');
       setComments(await api.listComments(id));
     } catch (err) {
-      setError((err as Error).message);
+      setCommentError((err as Error).message);
     }
   };
 
-  if (error) return <p className="text-red-600">{error}</p>;
+  if (ticketError) return <p className="text-red-600">{ticketError}</p>;
   if (!ticket) return <p className="text-neutral-500">読み込み中...</p>;
 
   return (
@@ -64,6 +67,7 @@ function TicketDetail() {
       </div>
 
       <h3 className="text-lg mb-2">コメント</h3>
+      {commentError && <p className="text-red-600 mb-2">{commentError}</p>}
       {comments.map((comment) => (
         <div key={comment.id} className="border rounded-sm p-3 mb-2">
           <div className="text-sm text-neutral-500 mb-1">

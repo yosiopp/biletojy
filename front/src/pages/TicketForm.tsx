@@ -1,9 +1,11 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { useBlocker, useNavigate, useParams } from 'react-router-dom';
 import { api, Tag } from '../api/client';
 import Markdown from '../components/Markdown';
 import TagInput from '../components/TagInput';
 import { currentUser, joinTags, setCurrentUser, splitTags } from '../lib/tags';
+
+type Draft = { title: string; content: string; tags: string };
 
 // チケット作成（/tickets/new）と編集（/tickets/:id/edit）を兼ねるフォーム
 function TicketForm() {
@@ -18,6 +20,11 @@ function TicketForm() {
   const [catalog, setCatalog] = useState<Tag[]>([]);
   const [preview, setPreview] = useState(false);
   const [error, setError] = useState('');
+  const [titleError, setTitleError] = useState(false);
+  // 未保存判定の基準値（編集時はロードしたチケットの内容）
+  const [initial, setInitial] = useState<Draft>({ title: '', content: '', tags: '' });
+  const titleRef = useRef<HTMLInputElement>(null);
+  const submittedRef = useRef(false);
 
   useEffect(() => {
     api.listTags().then(setCatalog).catch((e: Error) => setError(e.message));
@@ -28,15 +35,44 @@ function TicketForm() {
           setTitle(ticket.title);
           setContent(ticket.content);
           setTags(splitTags(ticket.tags));
+          setInitial({ title: ticket.title, content: ticket.content, tags: ticket.tags });
         })
         .catch((e: Error) => setError(e.message));
     }
   }, [id, isEdit]);
 
+  const dirty =
+    title !== initial.title || content !== initial.content || joinTags(tags) !== initial.tags;
+
+  // ルーター内の遷移（キャンセル・ブラウザバック・ショートカット遷移）を確認付きにする
+  const blocker = useBlocker(
+    useCallback(() => dirty && !submittedRef.current, [dirty]),
+  );
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return;
+    if (confirm('編集中の内容は保存されていません。このページを離れますか？')) {
+      blocker.proceed();
+    } else {
+      blocker.reset();
+    }
+  }, [blocker]);
+
+  // リロード・タブを閉じる操作にも警告を出す
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       setError('タイトルを入力してください');
+      setTitleError(true);
+      titleRef.current?.focus();
       return;
     }
     setCurrentUser(user);
@@ -45,6 +81,7 @@ function TicketForm() {
       const ticket = isEdit
         ? await api.updateTicket(id, data)
         : await api.createTicket({ ...data, created_by: user });
+      submittedRef.current = true;
       navigate(`/tickets/${ticket.id}`);
     } catch (err) {
       setError((err as Error).message);
@@ -57,11 +94,17 @@ function TicketForm() {
       {error && <p className="text-red-600 mb-2">{error}</p>}
 
       <input
+        ref={titleRef}
         type="text"
-        className="border rounded-sm w-full px-2 py-1 mb-2 text-lg"
+        className={`border rounded-sm w-full px-2 py-1 mb-2 text-lg ${
+          titleError ? 'border-red-500' : ''
+        }`}
         placeholder="タイトル"
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={(e) => {
+          setTitle(e.target.value);
+          if (e.target.value.trim()) setTitleError(false);
+        }}
         autoFocus
       />
 

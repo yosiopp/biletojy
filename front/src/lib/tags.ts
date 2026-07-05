@@ -73,6 +73,29 @@ export function hierarchyOptions(catalog: Tag[]): string[] {
   return [...options].sort();
 }
 
+// "due-date@2026-07-01" のようなコロン抜けの日時タグを "due-date@:2026-07-01" に補正する
+// 誤補正を避けるため、既知の @グループか、値が日付形式のときのみ補正する
+export function normalizeTag(input: string, groups: Iterable<string>): string {
+  const m = input.match(/^([^:]+@)([^:].*)$/);
+  if (!m) return input;
+  const [, group, rest] = m;
+  if (new Set(groups).has(group) || /^\d{4}-\d{2}-\d{2}/.test(rest)) return `${group}:${rest}`;
+  return input;
+}
+
+// 日時タグの期限状態。日付のみの場合はその日の終わりを期限とみなす
+export function dueState(name: string): 'overdue' | 'soon' | null {
+  const m = name.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if (!m) return null;
+  const due = m[4] != null
+    ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5])
+    : new Date(+m[1], +m[2] - 1, +m[3], 23, 59, 59);
+  const diff = due.getTime() - Date.now();
+  if (diff < 0) return 'overdue';
+  if (diff < 3 * 24 * 60 * 60 * 1000) return 'soon';
+  return null;
+}
+
 // グループにも階層にも属さない通常タグ
 export function plainTags(catalog: Tag[]): Tag[] {
   return catalog.filter((t) => {

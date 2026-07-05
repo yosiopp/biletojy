@@ -1,4 +1,4 @@
-import { parseTag } from '../lib/tags';
+import { dueState, parseTag } from '../lib/tags';
 
 type Props = {
   tag: string;
@@ -7,13 +7,21 @@ type Props = {
 };
 
 function TagItem({ tag, color, onRemove }: Props) {
-  const { group, name } = parseTag(tag);
-  const style = color ? { backgroundColor: `${color}20`, borderColor: color } : {};
+  const { group, name, isDate } = parseTag(tag);
+  const due = isDate ? dueState(name) : null;
+  const dueClass =
+    due === 'overdue'
+      ? 'bg-red-50 border-red-500 text-red-700'
+      : due === 'soon'
+        ? 'bg-amber-50 border-amber-500 text-amber-800'
+        : 'bg-neutral-100 border-transparent';
+  const style = !due && color ? { backgroundColor: `${color}20`, borderColor: color } : {};
 
   return (
     <span
-      className="inline-flex items-center rounded-lg bg-neutral-100 border border-transparent py-0.5 px-2 mr-1 mb-1 whitespace-nowrap"
+      className={`inline-flex items-center rounded-lg border py-0.5 px-2 mr-1 mb-1 whitespace-nowrap ${dueClass}`}
       style={style}
+      title={due === 'overdue' ? '期限超過' : due === 'soon' ? '期限まで3日以内' : undefined}
     >
       {group != null ? (
         <>

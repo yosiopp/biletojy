@@ -59,7 +59,19 @@ function TagList() {
   };
 
   const remove = async (tag: Tag) => {
-    if (!confirm(`タグ「${tag.tag}」を削除しますか？`)) return;
+    let message = `タグ「${tag.tag}」を削除しますか？`;
+    try {
+      const used = await api.listTickets('', [tag.tag]);
+      if (used.length > 0) {
+        message =
+          `タグ「${tag.tag}」は ${used.length} 件のチケットで使用されています。\n` +
+          '削除してもチケット側のタグ表記は残りますが、色やグループなどの機能は失われます。\n' +
+          '削除しますか？';
+      }
+    } catch {
+      // 件数の取得に失敗した場合は通常の確認にフォールバック
+    }
+    if (!confirm(message)) return;
     try {
       await api.deleteTag(tag.id);
       await reload();

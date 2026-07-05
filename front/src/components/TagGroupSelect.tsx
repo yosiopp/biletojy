@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react';
 import { parseTag } from '../lib/tags';
 
 export type TagGroupOption = {
@@ -17,12 +17,18 @@ type Props = {
 
 // タググループのチップ。チップ自体をクリックすると選択肢のプルダウンが開く
 // 末尾@のグループは選択肢の代わりに日時ピッカーを表示する
+// キーボード: ↑↓で選択肢を移動、Enterで確定、Escで閉じる
 function TagGroupSelect({ group, options, value, color, onChange }: Props) {
   const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
   const [dateValue, setDateValue] = useState('');
   const rootRef = useRef<HTMLSpanElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const isDate = group.endsWith('@');
   const selectedName = value ? parseTag(value).name : '';
+
+  // 先頭にクリア用の選択肢を加えたリスト（キーボード移動の対象）
+  const items: TagGroupOption[] = [{ value: '', label: '-' }, ...options];
 
   useEffect(() => {
     if (!open) return;
@@ -33,27 +39,68 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
     return () => document.removeEventListener('mousedown', onOutside);
   }, [open]);
 
+  const toggle = () => {
+    if (isDate) setDateValue(selectedName);
+    setActive(open ? -1 : Math.max(items.findIndex((item) => item.value === value), 0));
+    setOpen(!open);
+  };
+
   const select = (tag: string) => {
     onChange(tag);
     setOpen(false);
+    setActive(-1);
+  };
+
+  const close = () => {
+    setOpen(false);
+    setActive(-1);
+    buttonRef.current?.focus();
+  };
+
+  const onKeyDown = (e: ReactKeyboardEvent) => {
+    if (!open) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        toggle();
+      }
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      close();
+    } else if (isDate) {
+      if (e.key === 'Enter' && dateValue) {
+        e.preventDefault();
+        select(`${group}:${dateValue}`);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActive((i) => Math.min(i + 1, items.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActive((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (active >= 0) select(items[active].value);
+    }
   };
 
   const chipStyle = value && color ? { backgroundColor: `${color}20`, borderColor: color } : {};
 
   return (
-    <span ref={rootRef} className="relative inline-block mr-1 mb-1">
+    <span ref={rootRef} className="relative inline-block mr-1 mb-1" onKeyDown={onKeyDown}>
       <button
+        ref={buttonRef}
         type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className={`inline-flex items-center rounded-lg border py-0.5 px-2 whitespace-nowrap ${
           value
             ? 'bg-neutral-100 border-transparent'
             : 'bg-white border-dashed border-neutral-300 text-neutral-500 hover:bg-neutral-50'
         }`}
         style={chipStyle}
-        onClick={() => {
-          if (isDate) setDateValue(selectedName);
-          setOpen(!open);
-        }}
+        onClick={toggle}
       >
         <span className="border-r border-neutral-300 pr-1 text-sm opacity-70">{group.replace(/@$/, '')}</span>
         <span className={`pl-2 ${value ? '' : 'text-neutral-400'}`}>{selectedName || '-'}</span>
@@ -68,6 +115,7 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
                 type="datetime-local"
                 className="border rounded-sm px-1 py-0.5"
                 value={dateValue}
+                autoFocus
                 onChange={(e) => setDateValue(e.target.value)}
               />
               <div className="flex gap-1 justify-end">
@@ -91,28 +139,24 @@ function TagGroupSelect({ group, options, value, color, onChange }: Props) {
               </div>
             </div>
           ) : (
-            <>
-              <button
-                type="button"
-                className="block w-full text-left px-2 py-1 text-sm text-neutral-400 hover:bg-neutral-100"
-                onClick={() => select('')}
-              >
-                -
-              </button>
-              {options.map((option) => (
+            <div role="listbox" aria-label={group}>
+              {items.map((option, index) => (
                 <button
-                  key={option.value}
+                  key={option.value || '-'}
                   type="button"
-                  className={`block w-full text-left px-2 py-1 text-sm hover:bg-neutral-100 ${
-                    option.value === value ? 'bg-blue-50' : ''
-                  }`}
+                  role="option"
+                  aria-selected={option.value === value}
+                  className={`block w-full text-left px-2 py-1 text-sm ${
+                    index === active ? 'bg-blue-100' : option.value === value ? 'bg-blue-50' : ''
+                  } ${option.value === '' ? 'text-neutral-400' : ''} hover:bg-neutral-100`}
                   onClick={() => select(option.value)}
+                  onMouseEnter={() => setActive(index)}
                 >
                   {option.label}
                   {option.note && <span className="text-neutral-400 ml-1">（{option.note}）</span>}
                 </button>
               ))}
-            </>
+            </div>
           )}
         </div>
       )}

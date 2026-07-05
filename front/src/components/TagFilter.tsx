@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Tag } from '../api/client';
-import { groupCatalog, hierarchyOptions, parseTag, tagColor } from '../lib/tags';
+import { groupCatalog, hierarchyOptions, normalizeTag, parseTag, tagColor } from '../lib/tags';
 import TagGroupSelect from './TagGroupSelect';
 import TagItem from './TagItem';
 
@@ -43,7 +43,8 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
   };
 
   const submit = (raw: string) => {
-    const input = raw.trim();
+    // コロン抜けの日時タグ（例: due-date@2026-07-01）を正しい形式に補正する
+    const input = normalizeTag(raw.trim(), groups.keys());
     if (!input) return;
     if (isTagQuery(input)) {
       addTag(input);
