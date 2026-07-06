@@ -102,9 +102,9 @@ function TicketDetail() {
       </div>
 
       {backlinks.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-lg mb-2">このチケットを参照しているチケット</h3>
-          <ul>
+        <div className="mb-6 pl-3 border-l-2 border-neutral-200 dark:border-neutral-700">
+          <h3 className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">このチケットを参照しているチケット</h3>
+          <ul className="text-sm">
             {backlinks.map((b) => (
               <li key={b.id}>
                 <Link to={`/tickets/${b.id}`} className="text-blue-700 dark:text-blue-400 hover:underline">
