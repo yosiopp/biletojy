@@ -11,7 +11,7 @@ export type TagGroupOption = {
 type Props = {
   group: string; // "status" や "due-date@"
   options: TagGroupOption[];
-  value: string; // 選択中の条件（"status:OPEN"、OR: "status:OPEN|status:WIP"、NOT: "-status:CLOSE"）。未選択は ''
+  value: string; // 選択中の条件（"status:OPEN"、OR: "status:OPEN|status:WIP"、NOT: "-status:CLOSED"）。未選択は ''
   color?: string | null;
   onChange: (cond: string) => void; // '' でクリア
   // 検索条件として使うときtrue。OR（複数選択）と除外（NOT）はチケットに保存できない
@@ -33,7 +33,7 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
   const isRange = isDate || group.endsWith('#');
   const { not, alts } = parseCond(value);
   const chipLabel = alts.map((a) => parseTag(a).name).join('|');
-  // 除外条件は "-status:CLOSE" の記法に合わせて "-" をグループ名の前に表示する
+  // 除外条件は "-status:CLOSED" の記法に合わせて "-" をグループ名の前に表示する
   const groupLabel = (not ? '-' : '') + group.replace(/[@#]$/, '');
 
   // キーボード移動の対象: 0=クリア、1..n=選択肢、（filter時のみ）n+1=除外トグル

@@ -138,6 +138,7 @@ func NewDao() (*Dao, error) {
 //   - v3未満: sub関連カラムを追加する（新規DBは_SQL_INITで作成済みのため、カラムの有無で判定する）
 //   - v4未満: tag_catalogへsort_orderカラムを追加する（同上）
 //   - v5未満: 旧imagesテーブルの内容をfilesテーブルへ移行する（テーブルの有無で判定する）
+//   - v6未満: プリセットのstatus:CLOSEタグをstatus:CLOSEDへ改名し、チケットのタグ表記も書き換える
 func migrate(db *sql.DB) error {
 	var version int
 	if err := db.QueryRow(_SQL_GET_USER_VERSION).Scan(&version); err != nil {
@@ -186,8 +187,57 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 	}
+	if err := renameCloseTag(db); err != nil {
+		return err
+	}
 	_, err := db.Exec(_SQL_SET_USER_VERSION)
 	return err
+}
+
+// v6: プリセットのstatus:CLOSEタグをstatus:CLOSEDへ改名し、使用中チケットのタグ表記とFTSも書き換える。
+// ユーザー操作によるRenameTagと異なりスキーマ移行のため、更新者・更新日時・履歴は変更しない
+func renameCloseTag(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(_SQL_RENAME_CLOSE_TAG); err != nil {
+		return err
+	}
+	// LIKEはstatus:CLOSEDにもマッチするが、replaceTagTokensの完全一致判定で書き換え対象外になる
+	rows, err := tx.Query(_SQL_QUERY_TICKETS_BY_TAG, "%status:CLOSE%")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	tickets := []Ticket{}
+	for rows.Next() {
+		t, err := scanTicket(rows)
+		if err != nil {
+			return err
+		}
+		tickets = append(tickets, t)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	rows.Close()
+
+	for _, t := range tickets {
+		tags, changed := replaceTagTokens(t.Tags, "status:CLOSE", "status:CLOSED")
+		if !changed {
+			continue
+		}
+		if _, err := tx.Exec(_SQL_MIGRATE_TICKET_TAGS, tags, t.Id); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(_SQL_EDIT_TICKET_FTS_TAGS, Bigram(tags), t.Id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // FTSテーブルを全チケットから再構築する

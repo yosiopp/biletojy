@@ -609,17 +609,17 @@ func TestTagReorder(t *testing.T) {
 
 	// シードはsort_order付きで投入されるため、定義順（アルファベット順ではない）で返る
 	names, ids := statusOrder()
-	if got, want := strings.Join(names, ","), "status:OPEN,status:WIP,status:DONE,status:CLOSE"; got != want {
+	if got, want := strings.Join(names, ","), "status:OPEN,status:WIP,status:DONE,status:CLOSED"; got != want {
 		t.Fatalf("seeded order = %s, want %s", got, want)
 	}
 
 	// 並び替え後は指定したID順で返る
 	w := request(t, handler, "PUT", "/api/tags/order", map[string][]int64{
-		"ids": {ids["status:CLOSE"], ids["status:DONE"], ids["status:WIP"], ids["status:OPEN"]},
+		"ids": {ids["status:CLOSED"], ids["status:DONE"], ids["status:WIP"], ids["status:OPEN"]},
 	})
 	assertStatus(t, w, http.StatusNoContent)
 	names, _ = statusOrder()
-	if got, want := strings.Join(names, ","), "status:CLOSE,status:DONE,status:WIP,status:OPEN"; got != want {
+	if got, want := strings.Join(names, ","), "status:CLOSED,status:DONE,status:WIP,status:OPEN"; got != want {
 		t.Errorf("reordered = %s, want %s", got, want)
 	}
 
@@ -739,7 +739,7 @@ func TestExportAndImport(t *testing.T) {
 
 	created := createTicket(t, handler, data.Ticket{Title: "エクスポート対象", Content: "本文", Tags: "status:OPEN", CreatedBy: "alice"})
 	assertStatus(t, request(t, handler, "POST", fmt.Sprintf("/api/tickets/%d/comments", created.Id), data.Comment{Content: "調査した", CreatedBy: "bob"}), http.StatusCreated)
-	createTicket(t, handler, data.Ticket{Title: "対象外", Content: "別の本文", Tags: "status:CLOSE"})
+	createTicket(t, handler, data.Ticket{Title: "対象外", Content: "別の本文", Tags: "status:CLOSED"})
 
 	// JSONエクスポート（formatデフォルト）。検索条件（tags）で絞り込める
 	w := request(t, handler, "GET", "/api/export?tags=status:OPEN", nil)

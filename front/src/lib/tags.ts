@@ -28,7 +28,7 @@ export function parseTag(raw: string): ParsedTag {
 }
 
 // タグ絞り込み条件の1要素。先頭 "-" で除外（NOT）、"|" 区切りでOR
-// （例: "-status:CLOSE", "status:OPEN|status:WIP"）。NOTはOR全体に掛かる
+// （例: "-status:CLOSED", "status:OPEN|status:WIP"）。NOTはOR全体に掛かる
 export type ParsedCond = {
   raw: string;
   not: boolean;

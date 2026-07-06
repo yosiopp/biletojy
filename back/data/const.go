@@ -97,7 +97,7 @@ const (
 		('status:OPEN', '未処理', '#e11d48', 1, 0, 1),
 		('status:WIP', '処理中', '#f59e0b', 1, 0, 2),
 		('status:DONE', '処理済', '#10b981', 1, 0, 3),
-		('status:CLOSE', '完了', '#64748b', 1, 0, 4),
+		('status:CLOSED', '完了', '#64748b', 1, 0, 4),
 		('type:ISSUE', '課題', '#3b82f6', 1, 0, 1),
 		('type:TASK', 'タスク', '#8b5cf6', 1, 0, 2),
 		('type:BUG', 'バグ', '#ef4444', 1, 0, 3),
@@ -181,10 +181,10 @@ const (
 		ORDER BY t.updated_at DESC`
 
 	// マイグレーション（v2: FTSインデックス再構築、v3: subカラム追加、v4: sort_orderカラム追加、
-	// v5: imagesテーブルをfilesテーブルへ移行）
-	_SCHEMA_VERSION            = 5
+	// v5: imagesテーブルをfilesテーブルへ移行、v6: status:CLOSEをstatus:CLOSEDへ改名）
+	_SCHEMA_VERSION            = 6
 	_SQL_GET_USER_VERSION      = `PRAGMA user_version`
-	_SQL_SET_USER_VERSION      = `PRAGMA user_version = 5`
+	_SQL_SET_USER_VERSION      = `PRAGMA user_version = 6`
 	_SQL_DELETE_ALL_TICKET_FTS = `DELETE FROM tickets_fts`
 	_SQL_QUERY_TICKETS_FOR_FTS = `SELECT id, title, content, COALESCE(tags, '') FROM tickets`
 	// カラムの有無で既存DB（ALTERが必要）か新規DB（_SQL_INITで作成済み）かを判定する
@@ -195,7 +195,8 @@ const (
 	_SQL_COUNT_IMAGES_TABLE      = `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'images'`
 	_SQL_MIGRATE_IMAGES_TO_FILES = `INSERT INTO files (id, name, mime, data, created_at) SELECT id, '', mime, data, created_at FROM images`
 	_SQL_DROP_IMAGES_TABLE       = `DROP TABLE images`
-	// シード済みの既存DBにも_SQL_INIT_TAG_CATALOGと同じstatusの並び順を設定する
+	// シード済みの既存DBにも_SQL_INIT_TAG_CATALOGと同じstatusの並び順を設定する。
+	// v6の改名より前（対象DBはv4未満＝旧名のまま）に実行されるため 'status:CLOSE' を参照する
 	_SQL_BACKFILL_STATUS_ORDER = `UPDATE tag_catalog SET sort_order = CASE tag
 		WHEN 'status:OPEN' THEN 1
 		WHEN 'status:WIP' THEN 2
@@ -203,6 +204,11 @@ const (
 		WHEN 'status:CLOSE' THEN 4
 		END
 		WHERE tag IN ('status:OPEN', 'status:WIP', 'status:DONE', 'status:CLOSE')`
+	// v6: プリセットのstatus:CLOSEタグをstatus:CLOSEDへ改名する。
+	// 万一status:CLOSEDが既に存在する場合はUNIQUE制約違反で起動不能になるため改名しない
+	_SQL_RENAME_CLOSE_TAG = `UPDATE tag_catalog SET tag = 'status:CLOSED'
+		WHERE tag = 'status:CLOSE' AND NOT EXISTS (SELECT 1 FROM tag_catalog WHERE tag = 'status:CLOSED')`
+	_SQL_MIGRATE_TICKET_TAGS = `UPDATE tickets SET tags = ? WHERE id = ?`
 )
 
 // v3で追加されたカラムを既存DBへ足すALTER文

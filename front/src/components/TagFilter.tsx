@@ -107,7 +107,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
     // 先頭 - は除外、| 区切りはOR条件。各択のコロン抜け日時タグ（例: due-date@2026-07-01）を補正する
     const { not, alts } = parseCond(input);
     const normalized = alts.map((a) => normalizeTag(a, groups.keys()));
-    // ORの2つ目以降はグループ名を省略できる（status:WIP|CLOSE → status:WIP|status:CLOSE）
+    // ORの2つ目以降はグループ名を省略できる（status:WIP|CLOSED → status:WIP|status:CLOSED）
     // 単体で有効なタグはそのまま優先し、無効なときだけ直前の択のグループで補完する
     let lastGroup: string | null = null;
     const expanded = normalized.map((a) => {

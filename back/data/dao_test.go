@@ -299,21 +299,21 @@ func TestQueryTicketsNotOr(t *testing.T) {
 
 	t1 := addTestTicket(t, dao, "対応中のバグ", "内容1", "status:OPEN type:BUG")
 	t2 := addTestTicket(t, dao, "作業中の設計", "内容2", "status:WIP docs/design")
-	t3 := addTestTicket(t, dao, "完了済み", "内容3", "status:CLOSE type:BUG")
+	t3 := addTestTicket(t, dao, "完了済み", "内容3", "status:CLOSED type:BUG")
 	t4 := addTestTicket(t, dao, "期限あり", "内容4", "status:WIP due-date@:2026-02-01")
 
 	tests := []struct {
 		tags []string
 		want []int64
 	}{
-		{[]string{"-status:CLOSE"}, []int64{t4.Id, t2.Id, t1.Id}},                 // NOT
+		{[]string{"-status:CLOSED"}, []int64{t4.Id, t2.Id, t1.Id}},                 // NOT
 		{[]string{"-docs"}, []int64{t4.Id, t3.Id, t1.Id}},                         // 階層の前方一致のNOT
 		{[]string{"status:OPEN|status:WIP"}, []int64{t4.Id, t2.Id, t1.Id}},        // OR
 		{[]string{"status:OPEN|docs/design"}, []int64{t2.Id, t1.Id}},              // グループを跨ぐOR
 		{[]string{"-status:OPEN|status:WIP"}, []int64{t3.Id}},                     // NOTはOR全体に掛かる
-		{[]string{"type:BUG", "-status:CLOSE"}, []int64{t1.Id}},                   // ANDとの組み合わせ
-		{[]string{"-status:CLOSE", "-status:WIP"}, []int64{t1.Id}},                // NOT同士のAND
-		{[]string{"status:OPEN|status:CLOSE", "type:BUG"}, []int64{t3.Id, t1.Id}}, // ORとANDの組み合わせ
+		{[]string{"type:BUG", "-status:CLOSED"}, []int64{t1.Id}},                   // ANDとの組み合わせ
+		{[]string{"-status:CLOSED", "-status:WIP"}, []int64{t1.Id}},                // NOT同士のAND
+		{[]string{"status:OPEN|status:CLOSED", "type:BUG"}, []int64{t3.Id, t1.Id}}, // ORとANDの組み合わせ
 		{[]string{"due-date@:>=2026-01-01|status:OPEN"}, []int64{t4.Id, t1.Id}},   // 範囲条件を含むOR
 		{[]string{"-due-date@:>=2026-01-01"}, []int64{t3.Id, t2.Id, t1.Id}},       // 範囲条件のNOT（タグなしも含む）
 		{[]string{"-"}, []int64{t4.Id, t3.Id, t2.Id, t1.Id}},                      // 空の条件は無視
@@ -326,7 +326,7 @@ func TestQueryTicketsNotOr(t *testing.T) {
 	}
 
 	// 全文検索との組み合わせ
-	if got := queryTicketIds(t, dao, "バグ", []string{"-status:CLOSE"}); !slices.Equal(got, []int64{t1.Id}) {
+	if got := queryTicketIds(t, dao, "バグ", []string{"-status:CLOSED"}); !slices.Equal(got, []int64{t1.Id}) {
 		t.Errorf("QueryTickets(q + NOT) = %v, want [%d]", got, t1.Id)
 	}
 }
@@ -468,7 +468,7 @@ func TestCommentsFullText(t *testing.T) {
 
 // v3時点のDB（tag_catalogにsort_orderカラムがない）からの移行。
 // カラムが追加され、既存タグを保ったまま（シードを再投入せず）起動でき、
-// プリセットのstatusタグにはシードと同じ並び順が設定される
+// プリセットのstatusタグにはシードと同じ並び順が設定される（status:CLOSEはv6でCLOSEDへ改名される）
 func TestMigrateAddsSortOrderColumn(t *testing.T) {
 	t.Chdir(t.TempDir())
 	db, err := sql.Open("sqlite", _DB_FILE)
@@ -484,7 +484,7 @@ func TestMigrateAddsSortOrderColumn(t *testing.T) {
 			is_group INTEGER NOT NULL DEFAULT 0,
 			is_range INTEGER NOT NULL DEFAULT 0
 		)`,
-		// v3時点のシード相当（アルファベット順で返っていた）と独自タグ
+		// v3時点のシード相当（アルファベット順で返っていた。CLOSEは当時の名前）と独自タグ
 		`INSERT INTO tag_catalog (tag, is_group) VALUES
 			('status:OPEN', 1), ('status:WIP', 1), ('status:DONE', 1), ('status:CLOSE', 1), ('mytag', 0)`,
 		`PRAGMA user_version = 3`,
@@ -512,12 +512,59 @@ func TestMigrateAddsSortOrderColumn(t *testing.T) {
 		names = append(names, tag.Tag)
 	}
 	// statusはシード順、独自タグ（グループでないタグ）はsort_order 0のままグループの後に並ぶ
-	want := []string{"status:OPEN", "status:WIP", "status:DONE", "status:CLOSE", "mytag"}
+	want := []string{"status:OPEN", "status:WIP", "status:DONE", "status:CLOSED", "mytag"}
 	if !slices.Equal(names, want) {
 		t.Errorf("tags after migration = %v, want %v", names, want)
 	}
 	if tags[0].SortOrder != 1 || tags[4].SortOrder != 0 {
 		t.Errorf("sort_order after migration = %+v", tags)
+	}
+}
+
+// v5時点のDB（プリセットが旧名status:CLOSE）からの移行。
+// タグカタログと使用中チケットのタグ表記がstatus:CLOSEDへ書き換えられる
+func TestMigrateRenamesCloseTag(t *testing.T) {
+	t.Chdir(t.TempDir())
+	dao, err := NewDao()
+	if err != nil {
+		t.Fatalf("NewDao: %v", err)
+	}
+	// チケット追加でstatus:CLOSEがカタログへ自動登録されるので、シードのstatus:CLOSEDを消してv5時点の状態へ巻き戻す
+	ticket := addTestTicket(t, dao, "完了済み", "内容", "status:CLOSE type:BUG")
+	for _, q := range []string{
+		`DELETE FROM tag_catalog WHERE tag = 'status:CLOSED'`,
+		`PRAGMA user_version = 5`,
+	} {
+		if _, err := dao.db.Exec(q); err != nil {
+			t.Fatalf("exec %q: %v", q, err)
+		}
+	}
+	dao.Close()
+
+	dao, err = NewDao()
+	if err != nil {
+		t.Fatalf("NewDao: %v", err)
+	}
+	t.Cleanup(dao.Close)
+
+	tags, err := dao.QueryTags()
+	if err != nil {
+		t.Fatalf("QueryTags: %v", err)
+	}
+	for _, tag := range tags {
+		if tag.Tag == "status:CLOSE" {
+			t.Errorf("tag_catalog still has status:CLOSE after migration")
+		}
+	}
+	got, err := dao.GetTicket(ticket.Id)
+	if err != nil {
+		t.Fatalf("GetTicket: %v", err)
+	}
+	if want := "status:CLOSED type:BUG"; got.Tags != want {
+		t.Errorf("ticket tags after migration = %q, want %q", got.Tags, want)
+	}
+	if ids := queryTicketIds(t, dao, "", []string{"status:CLOSED"}); !slices.Equal(ids, []int64{ticket.Id}) {
+		t.Errorf("QueryTickets(status:CLOSED) = %v, want [%d]", ids, ticket.Id)
 	}
 }
 
