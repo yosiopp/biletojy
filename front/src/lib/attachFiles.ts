@@ -1,4 +1,4 @@
-import { ChangeEvent, ClipboardEvent, Dispatch, DragEvent, SetStateAction } from 'react';
+import { ChangeEvent, ClipboardEvent, Dispatch, DragEvent, SetStateAction, useState } from 'react';
 import { api } from '../api/client';
 
 type SetValue = Dispatch<SetStateAction<string>>;
@@ -65,6 +65,24 @@ export function dropFiles(e: DragEvent<HTMLTextAreaElement>, setValue: SetValue,
   if (uploadFiles(files, { start: selectionStart, end: selectionEnd }, setValue, onError)) {
     e.preventDefault();
   }
+}
+
+// ドロップ先として有効なことが分かるよう、ファイルのドラッグ中だけ編集エリアをハイライトするためのフック。
+// draggingがtrueの間はドロップ可能の強調クラスを付与し、dragPropsを編集エリアへ渡す
+export function useFileDrag(onDrop: (e: DragEvent<HTMLTextAreaElement>) => void) {
+  const [dragging, setDragging] = useState(false);
+  return {
+    dragging,
+    dragProps: {
+      // テキスト選択のドラッグでは反応させない（ファイルのドラッグのみハイライト）
+      onDragOver: (e: DragEvent<HTMLTextAreaElement>) => setDragging(e.dataTransfer.types.includes('Files')),
+      onDragLeave: () => setDragging(false),
+      onDrop: (e: DragEvent<HTMLTextAreaElement>) => {
+        setDragging(false);
+        onDrop(e);
+      },
+    },
+  };
 }
 
 // ファイル選択（input[type=file]）でのアップロードを処理し、本文の末尾へリンクを追記する

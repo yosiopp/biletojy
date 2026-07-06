@@ -6,7 +6,7 @@ import Markdown from '../components/Markdown';
 import TagItem from '../components/TagItem';
 import TicketRefTextarea from '../components/TicketRefTextarea';
 import { formatDateTime } from '../lib/date';
-import { dropFiles, pasteFiles, selectFiles } from '../lib/attachFiles';
+import { dropFiles, pasteFiles, selectFiles, useFileDrag } from '../lib/attachFiles';
 import { staleGuard } from '../lib/staleGuard';
 import { currentUser, splitTags, tagColor } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
@@ -24,6 +24,7 @@ function TicketDetail() {
   // 履歴を開いているコメントのID
   const [openHistories, setOpenHistories] = useState<Record<number, boolean>>({});
   const fileRef = useRef<HTMLInputElement>(null);
+  const fileDrag = useFileDrag((e) => dropFiles(e, setCommentText, setCommentError));
 
   useEffect(() => {
     if (!id) return;
@@ -155,12 +156,14 @@ function TicketDetail() {
 
       <form onSubmit={submitComment} className="mt-4">
         <TicketRefTextarea
-          className="border rounded-sm w-full p-2 h-24"
+          className={`border rounded-sm w-full p-2 h-24 ${
+            fileDrag.dragging ? 'border-blue-500 bg-blue-50 dark:bg-blue-950' : ''
+          }`}
           placeholder="コメントを追加（markdown可、画像・ファイル添付可（ペースト/ドロップ）、#でチケット参照）"
           value={commentText}
           onChange={setCommentText}
           onPaste={(e) => pasteFiles(e, setCommentText, setCommentError)}
-          onDrop={(e) => dropFiles(e, setCommentText, setCommentError)}
+          {...fileDrag.dragProps}
         />
         <button
           type="submit"

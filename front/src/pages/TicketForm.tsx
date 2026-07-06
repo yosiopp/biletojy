@@ -4,7 +4,7 @@ import { api, Template } from '../api/client';
 import Markdown from '../components/Markdown';
 import TagInput from '../components/TagInput';
 import TicketRefTextarea from '../components/TicketRefTextarea';
-import { dropFiles, pasteFiles, selectFiles } from '../lib/attachFiles';
+import { dropFiles, pasteFiles, selectFiles, useFileDrag } from '../lib/attachFiles';
 import { currentUser, joinTags, splitTags } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
 
@@ -31,6 +31,7 @@ function TicketForm() {
   const [templateId, setTemplateId] = useState('');
   const titleRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const fileDrag = useFileDrag((e) => dropFiles(e, setContent, setError));
   const submittedRef = useRef(false);
 
   useEffect(() => {
@@ -198,12 +199,14 @@ function TicketForm() {
         </div>
       ) : (
         <TicketRefTextarea
-          className="border rounded-sm w-full p-2 h-64 mb-2 font-mono text-sm"
+          className={`border rounded-sm w-full p-2 h-64 mb-2 font-mono text-sm ${
+            fileDrag.dragging ? 'border-blue-500 bg-blue-50 dark:bg-blue-950' : ''
+          }`}
           placeholder={'本文（markdown / mermaid可、画像・ファイル添付可（ペースト/ドロップ）、#でチケット参照）\n\n```mermaid\ngraph TD; A-->B;\n```'}
           value={content}
           onChange={setContent}
           onPaste={(e) => pasteFiles(e, setContent, setError)}
-          onDrop={(e) => dropFiles(e, setContent, setError)}
+          {...fileDrag.dragProps}
         />
       )}
 
