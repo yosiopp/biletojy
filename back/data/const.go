@@ -191,7 +191,7 @@ const (
 	_SQL_COUNT_SUB_COLUMN        = `SELECT COUNT(*) FROM pragma_table_info('tickets') WHERE name = 'created_sub'`
 	_SQL_COUNT_SORT_ORDER_COLUMN = `SELECT COUNT(*) FROM pragma_table_info('tag_catalog') WHERE name = 'sort_order'`
 	_SQL_ADD_SORT_ORDER_COLUMN   = `ALTER TABLE tag_catalog ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0`
-	// 旧imagesテーブル（v5でfilesへ一般化）の移行。既存本文が参照する /api/images/{id} のIDを引き継ぐ
+	// 旧imagesテーブル（v5でfilesへ一般化）の移行。IDを引き継いでfilesへ移す
 	_SQL_COUNT_IMAGES_TABLE      = `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'images'`
 	_SQL_MIGRATE_IMAGES_TO_FILES = `INSERT INTO files (id, name, mime, data, created_at) SELECT id, '', mime, data, created_at FROM images`
 	_SQL_DROP_IMAGES_TABLE       = `DROP TABLE images`

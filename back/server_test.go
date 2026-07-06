@@ -876,21 +876,10 @@ func TestFileUploadAndServe(t *testing.T) {
 		t.Errorf("304 response has body: %d bytes", w.Body.Len())
 	}
 
-	// 旧URL（/api/images/{id}）でも同じ内容が配信される（既存本文の画像リンクの後方互換）
-	w = request(t, handler, "GET", fmt.Sprintf("/api/images/%d", created.Id), nil)
-	assertStatus(t, w, http.StatusOK)
-	if !bytes.Equal(w.Body.Bytes(), png) {
-		t.Errorf("served via /api/images = %d bytes, want %d bytes (same content)", w.Body.Len(), len(png))
-	}
-
 	// バリデーションと404
 	assertErrorResponse(t, uploadFile(t, handler, "/api/files", "text/plain", nil), http.StatusBadRequest)
 	assertErrorResponse(t, request(t, handler, "GET", "/api/files/9999", nil), http.StatusNotFound)
 	assertErrorResponse(t, request(t, handler, "GET", "/api/files/abc", nil), http.StatusBadRequest)
-	assertErrorResponse(t, request(t, handler, "GET", "/api/images/9999", nil), http.StatusNotFound)
-
-	// アップロードは/api/filesへ一般化されたため、旧POST /api/imagesは404を返す
-	assertErrorResponse(t, uploadFile(t, handler, "/api/images", "image/png", png), http.StatusNotFound)
 
 	// 10MiB超は413
 	assertErrorResponse(t, uploadFile(t, handler, "/api/files", "image/png", bytes.Repeat([]byte{0}, 10<<20+1)), http.StatusRequestEntityTooLarge)

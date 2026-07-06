@@ -178,7 +178,7 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 	if count > 0 {
-		// 既存本文が参照する /api/images/{id} のIDを引き継いでfilesへ移す（ファイル名は記録がないため空）
+		// IDを引き継いでfilesへ移す（ファイル名は記録がないため空）
 		if _, err := db.Exec(_SQL_MIGRATE_IMAGES_TO_FILES); err != nil {
 			return err
 		}

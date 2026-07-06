@@ -366,8 +366,6 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		http.ServeContent(w, r, "", file.CreatedAt, bytes.NewReader(file.Data))
 	}
 	mux.HandleFunc("GET /api/files/{id}", serveFile)
-	// ファイル一般化前の画像URL（/api/images/{id}）を参照している既存チケット本文のための後方互換エイリアス
-	mux.HandleFunc("GET /api/images/{id}", serveFile)
 
 	mux.HandleFunc("GET /api/templates", func(w http.ResponseWriter, r *http.Request) {
 		templates, err := dao.QueryTemplates()

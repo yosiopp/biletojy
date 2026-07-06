@@ -1041,7 +1041,7 @@ func TestMigrateImagesToFiles(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	for _, q := range []string{
-		// v4時点のimagesテーブルと既存データ（本文は /api/images/3 を参照している想定）
+		// v4時点のimagesテーブルと既存データ
 		`CREATE TABLE images (
 			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 			mime VARCHAR(100) NOT NULL,
@@ -1065,7 +1065,7 @@ func TestMigrateImagesToFiles(t *testing.T) {
 	}
 	t.Cleanup(dao.Close)
 
-	// IDを引き継いでfilesへ移行される（旧URLの /api/images/3 が引き続き同じ内容を返せる）
+	// IDを引き継いでfilesへ移行される
 	file, err := dao.GetFile(3)
 	if err != nil {
 		t.Fatalf("GetFile: %v", err)
