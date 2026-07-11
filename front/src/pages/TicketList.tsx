@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api, Ticket } from '../api/client';
 import ExportImport from '../components/ExportImport';
 import TagFilter from '../components/TagFilter';
+import TicketBoard from '../components/TicketBoard';
 import TicketRow from '../components/TicketRow';
 import TicketTree from '../components/TicketTree';
 import ViewSelect from '../components/ViewSelect';
@@ -27,7 +28,7 @@ function TicketList() {
   const tags = tagsParam.split(',').filter((t) => t.length > 0);
   const hasFilter = q.length > 0 || tags.length > 0;
   const sort = parseSort(searchParams.get('sort'));
-  // 表示モード（リスト / ツリー）と表示対象（ツリーのルート階層タグ）
+  // 表示モード（リスト / ツリー / カンバン）と表示対象（ツリーのルート階層タグ、カンバンの基準タググループ）
   const mode = parseViewMode(searchParams.get('view'));
   const by = searchParams.get('by') ?? '';
 
@@ -50,12 +51,17 @@ function TicketList() {
     return cancel;
   }, [q, tagsParam, reload]);
 
-  // ツリーのルートに選べる階層タグ（中間階層含む）。URL直指定でカタログに無い値が来ても表示が崩れないように含める
+  // 表示対象の選択肢。ツリーはルートに選べる階層タグ（中間階層含む）、カンバンは基準に選べる
+  // タググループ（日時・数値グループは値が離散でないため対象外）。
+  // URL直指定でカタログに無い値が来ても選択欄の表示が崩れないように含める
   const byOptions = useMemo(() => {
-    const options = hierarchyOptions(catalog);
+    const options =
+      mode === 'board'
+        ? [...groupCatalog(catalog).keys()].filter((g) => !/[@#]$/.test(g))
+        : hierarchyOptions(catalog).sort();
     if (by && !options.includes(by)) options.push(by);
-    return options.sort();
-  }, [catalog, by]);
+    return options;
+  }, [catalog, by, mode]);
 
   // 検索条件と表示モードをまとめてURLパラメータへ反映する（リスト表示は view / by を付けない）
   const applyView = (nextQ: string, nextTags: string[], nextMode: ViewMode, nextBy: string) => {
@@ -72,6 +78,10 @@ function TicketList() {
   };
 
   const updateParams = (nextQ: string, nextTags: string[]) => applyView(nextQ, nextTags, mode, by);
+
+  // カンバンでのタグ付け替えを一覧の再取得なしで反映する
+  const replaceTicket = (updated: Ticket) =>
+    setTickets((prev) => prev && prev.map((t) => (t.id === updated.id ? updated : t)));
 
   const updateSort = (next: SortSpec) => {
     const params = new URLSearchParams(searchParams);
@@ -108,13 +118,13 @@ function TicketList() {
                     ? 'bg-neutral-200 dark:bg-neutral-600'
                     : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
                 }`}
-                onClick={() => applyView(q, tags, value, by)}
+                onClick={() => applyView(q, tags, value, value === mode ? by : '')}
               >
                 {label}
               </button>
             ))}
           </div>
-          {mode === 'tree' && (
+          {mode !== 'list' && (
             <label className="text-sm mb-1 text-neutral-500 dark:text-neutral-400">
               対象:{' '}
               <select
@@ -122,7 +132,7 @@ function TicketList() {
                 value={by}
                 onChange={(e) => applyView(q, tags, mode, e.target.value)}
               >
-                <option value="">すべて</option>
+                <option value="">{mode === 'tree' ? 'すべて' : '-'}</option>
                 {byOptions.map((option) => (
                   <option key={option} value={option}>
                     {option}
@@ -189,6 +199,19 @@ function TicketList() {
         ))}
       {tickets != null && mode === 'tree' && tickets.length > 0 && (
         <TicketTree tickets={sortTickets(tickets, sort)} catalog={catalog} by={by} />
+      )}
+      {tickets != null && mode === 'board' && tickets.length > 0 && (
+        by ? (
+          <TicketBoard
+            tickets={sortTickets(tickets, sort)}
+            catalog={catalog}
+            by={by}
+            onUpdated={replaceTicket}
+            onError={setError}
+          />
+        ) : (
+          <p className="text-neutral-500 dark:text-neutral-400 p-4">対象のタググループを選択してください</p>
+        )
       )}
       {tickets != null && tickets.length === 0 && (
         <div className="text-neutral-500 dark:text-neutral-400 p-4">
