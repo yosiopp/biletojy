@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/yosiopp/biletojy/data"
 )
@@ -34,12 +33,10 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/tickets", func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query().Get("q")
-		tags := []string{}
-		if v := r.URL.Query().Get("tags"); v != "" {
-			tags = strings.Split(v, ",")
-		}
-		tickets, err := dao.QueryTickets(q, tags)
+		q, tags := searchCond(r)
+		// limitは補完UIなど先頭数件だけ必要な用途向け（0または未指定で全件）
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		tickets, err := dao.QueryTickets(q, tags, limit)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -242,11 +239,7 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 			writeErrorMessage(w, http.StatusBadRequest, "format must be json or markdown")
 			return
 		}
-		q := r.URL.Query().Get("q")
-		tags := []string{}
-		if v := r.URL.Query().Get("tags"); v != "" {
-			tags = strings.Split(v, ",")
-		}
+		q, tags := searchCond(r)
 		tickets, err := dao.ExportTickets(q, tags)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
@@ -339,7 +332,7 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		writeJson(w, http.StatusCreated, file)
 	})
 
-	serveFile := func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/files/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id, ok := pathId(w, r)
 		if !ok {
 			return
@@ -364,8 +357,7 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 			w.Header().Set("X-Content-Type-Options", "nosniff")
 		}
 		http.ServeContent(w, r, "", file.CreatedAt, bytes.NewReader(file.Data))
-	}
-	mux.HandleFunc("GET /api/files/{id}", serveFile)
+	})
 
 	mux.HandleFunc("GET /api/templates", func(w http.ResponseWriter, r *http.Request) {
 		templates, err := dao.QueryTemplates()
@@ -445,8 +437,11 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 	})
 
 	mux.HandleFunc("POST /api/tags", func(w http.ResponseWriter, r *http.Request) {
-		tag := saveTag(w, r, dao.AddTag)
-		if tag == nil {
+		var tag data.Tag
+		if !readJson(w, r, &tag) {
+			return
+		}
+		if !saveTag(w, &tag, dao.AddTag) {
 			return
 		}
 		writeJson(w, http.StatusCreated, tag)
@@ -480,11 +475,14 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		if _, ok := fetchOr404(w, dao.GetTag, id, "tag"); !ok {
 			return
 		}
-		tag := saveTag(w, r, func(tag *data.Tag) error {
+		var tag data.Tag
+		if !readJson(w, r, &tag) {
+			return
+		}
+		if !saveTag(w, &tag, func(tag *data.Tag) error {
 			tag.Id = id
 			return dao.EditTag(tag)
-		})
-		if tag == nil {
+		}) {
 			return
 		}
 		writeJson(w, http.StatusOK, tag)
@@ -506,22 +504,15 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		if !readJson(w, r, &req) {
 			return
 		}
-		if msg := validateTag(req.Tag.Tag); msg != "" {
-			writeErrorMessage(w, http.StatusBadRequest, msg)
-			return
-		}
-		normalizeTag(&req.Tag)
-		req.Tag.Id = id
 		// 書き換えたチケットの更新者はチケット編集と同じくクライアント申告値＋ヘッダ由来のsub
 		if req.UpdatedBy == "" {
 			req.UpdatedBy = "anonymous"
 		}
-		if _, err := dao.RenameTag(&req.Tag, req.UpdatedBy, requestSub(r)); err != nil {
-			if data.IsUniqueConstraintErr(err) {
-				writeErrorMessage(w, http.StatusConflict, "tag already exists")
-				return
-			}
-			writeError(w, http.StatusInternalServerError, err)
+		if !saveTag(w, &req.Tag, func(tag *data.Tag) error {
+			tag.Id = id
+			_, err := dao.RenameTag(tag, req.UpdatedBy, requestSub(r))
+			return err
+		}) {
 			return
 		}
 		writeJson(w, http.StatusOK, req.Tag)
@@ -595,27 +586,14 @@ func requestSub(r *http.Request) string {
 	return sub
 }
 
-// タググループ(:を含む)、日時・数値タグ(グループ名末尾@/#)の属性をタグ名から導出する
-func normalizeTag(tag *data.Tag) {
-	sep := strings.Index(tag.Tag, ":")
-	tag.IsGroup = sep > 0
-	tag.IsRange = sep > 0 && (strings.HasSuffix(tag.Tag[:sep], "@") || strings.HasSuffix(tag.Tag[:sep], "#"))
-}
-
-// タグ名を検証し、問題があればエラーメッセージを返す。
-// "," "|" 空白は検索構文（カンマ区切り・OR・タグのスペース区切り）のメタ文字、先頭 "-" はNOT指定と衝突するため使えない
-func validateTag(name string) string {
-	switch {
-	case name == "":
-		return "tag is required"
-	case strings.HasPrefix(name, "-"):
-		return "tag must not start with '-'"
-	case strings.ContainsAny(name, ",|"):
-		return "tag must not contain ',' or '|'"
-	case strings.ContainsFunc(name, unicode.IsSpace):
-		return "tag must not contain whitespace"
+// クエリパラメータから検索条件（q, カンマ区切りtags）を取り出す。一覧とエクスポートで同じ解釈を共有する
+func searchCond(r *http.Request) (string, []string) {
+	q := r.URL.Query().Get("q")
+	tags := []string{}
+	if v := r.URL.Query().Get("tags"); v != "" {
+		tags = strings.Split(v, ",")
 	}
-	return ""
+	return q, tags
 }
 
 // エンティティを取得する。エラーなら500、存在しなければ404（"<name> not found"）を書き込みfalseを返す
@@ -632,26 +610,22 @@ func fetchOr404[T any](w http.ResponseWriter, get func(int64) (*T, error), id in
 	return v, true
 }
 
-// タグの保存処理（検証 → 属性導出 → 保存。重複は409）。レスポンス書き込み済みならnilを返す
-func saveTag(w http.ResponseWriter, r *http.Request, save func(*data.Tag) error) *data.Tag {
-	var tag data.Tag
-	if !readJson(w, r, &tag) {
-		return nil
-	}
-	if msg := validateTag(tag.Tag); msg != "" {
+// タグの保存処理（検証 → 属性導出 → 保存。重複は409）。エラー応答を書き込んだ場合はfalseを返す
+func saveTag(w http.ResponseWriter, tag *data.Tag, save func(*data.Tag) error) bool {
+	if msg := data.TagNameError(tag.Tag); msg != "" {
 		writeErrorMessage(w, http.StatusBadRequest, msg)
-		return nil
+		return false
 	}
-	normalizeTag(&tag)
-	if err := save(&tag); err != nil {
+	tag.IsGroup, tag.IsRange = data.TagAttrs(tag.Tag)
+	if err := save(tag); err != nil {
 		if data.IsUniqueConstraintErr(err) {
 			writeErrorMessage(w, http.StatusConflict, "tag already exists")
-			return nil
+			return false
 		}
 		writeError(w, http.StatusInternalServerError, err)
-		return nil
+		return false
 	}
-	return &tag
+	return true
 }
 
 func pathId(w http.ResponseWriter, r *http.Request) (int64, bool) {

@@ -725,10 +725,9 @@ func TestNormalizeTag(t *testing.T) {
 		{":value", false, false}, // グループ名が空はグループ扱いしない
 	}
 	for _, tt := range tests {
-		tag := data.Tag{Tag: tt.tag}
-		normalizeTag(&tag)
-		if tag.IsGroup != tt.wantGroup || tag.IsRange != tt.wantRange {
-			t.Errorf("normalizeTag(%q) = is_group=%v is_range=%v, want %v %v", tt.tag, tag.IsGroup, tag.IsRange, tt.wantGroup, tt.wantRange)
+		isGroup, isRange := data.TagAttrs(tt.tag)
+		if isGroup != tt.wantGroup || isRange != tt.wantRange {
+			t.Errorf("TagAttrs(%q) = is_group=%v is_range=%v, want %v %v", tt.tag, isGroup, isRange, tt.wantGroup, tt.wantRange)
 		}
 	}
 }

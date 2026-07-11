@@ -126,7 +126,7 @@ function TicketRefTextarea({ value, onChange, onKeyDown, onSelect, onBlur, onScr
     });
     const timer = setTimeout(() => {
       const exact = /^\d+$/.test(query) ? api.getTicket(query).catch(() => null) : Promise.resolve(null);
-      Promise.all([exact, api.listTickets(query, [])])
+      Promise.all([exact, api.listTickets(query, [], LIMIT)])
         .then(([byId, list]) => {
           const rest = byId ? list.filter((t) => t.id !== byId.id) : list;
           apply(byId ? [byId, ...rest] : rest);

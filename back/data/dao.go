@@ -3,7 +3,9 @@ package data
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -206,38 +208,54 @@ func renameCloseTag(db *sql.DB) error {
 	if _, err := tx.Exec(_SQL_RENAME_CLOSE_TAG); err != nil {
 		return err
 	}
-	// LIKEはstatus:CLOSEDにもマッチするが、replaceTagTokensの完全一致判定で書き換え対象外になる
-	rows, err := tx.Query(_SQL_QUERY_TICKETS_BY_TAG, "%status:CLOSE%")
-	if err != nil {
+	if _, err := rewriteTicketTags(tx, "status:CLOSE", "status:CLOSED", func(t Ticket, tags string) error {
+		_, err := tx.Exec(_SQL_MIGRATE_TICKET_TAGS, tags, t.Id)
 		return err
+	}); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// oldNameを使用している全チケットのタグ表記をnewNameへ書き換え、FTSも更新する。
+// チケット本体の保存（履歴・更新者の扱いは呼び出し側による）はupdateへ書き換え後のタグとともに委ねる。
+// 書き換えたチケット数を返す
+func rewriteTicketTags(tx *sql.Tx, oldName, newName string, update func(t Ticket, tags string) error) (int, error) {
+	// LIKEは上位集合を返す（oldNameを含むだけのタグにもマッチする）が、
+	// replaceTagTokensのトークン単位の判定で実際の書き換え対象が決まる
+	rows, err := tx.Query(_SQL_QUERY_TICKETS_BY_TAG, "%"+oldName+"%")
+	if err != nil {
+		return 0, err
 	}
 	defer rows.Close()
 	tickets := []Ticket{}
 	for rows.Next() {
 		t, err := scanTicket(rows)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		tickets = append(tickets, t)
 	}
 	if err := rows.Err(); err != nil {
-		return err
+		return 0, err
 	}
 	rows.Close()
 
+	updated := 0
 	for _, t := range tickets {
-		tags, changed := replaceTagTokens(t.Tags, "status:CLOSE", "status:CLOSED")
+		tags, changed := replaceTagTokens(t.Tags, oldName, newName)
 		if !changed {
 			continue
 		}
-		if _, err := tx.Exec(_SQL_MIGRATE_TICKET_TAGS, tags, t.Id); err != nil {
-			return err
+		if err := update(t, tags); err != nil {
+			return 0, err
 		}
 		if _, err := tx.Exec(_SQL_EDIT_TICKET_FTS_TAGS, Bigram(tags), t.Id); err != nil {
-			return err
+			return 0, err
 		}
+		updated++
 	}
-	return tx.Commit()
+	return updated, nil
 }
 
 // FTSテーブルを全チケットから再構築する
@@ -306,7 +324,9 @@ func ftsValues(t *Ticket) (title, content, tags string) {
 // 各条件は完全一致または階層の前方一致で、先頭 "-" で除外（NOT）、"|" 区切りでOR指定できる。
 // 日時タグ・数値タグは "due-date@:>=2026-01-01" "estimate#:>=2" のように比較演算子（>, <, >=, <=, =）付きで範囲指定できる。
 // NOT/ORを含むタグ条件はSQLに落とし込みにくいため、タグの絞り込みはGo側で行う
-func (dao *Dao) QueryTickets(q string, tags []string) ([]Ticket, error) {
+// 検索条件（q, tags）に一致するチケットをupdated_at降順で返す。
+// タグ条件はGo側で判定するためSQLのLIMITは使えず、limit > 0 のとき一致した先頭limit件で打ち切る（0で全件）
+func (dao *Dao) QueryTickets(q string, tags []string, limit int) ([]Ticket, error) {
 	query := _SQL_QUERY_TICKETS_BASE
 	args := []any{}
 	// 空白のみ・記号のみの検索語は空のMATCH式（構文エラー）になるため、変換後に判定する
@@ -338,6 +358,9 @@ func (dao *Dao) QueryTickets(q string, tags []string) ([]Ticket, error) {
 			continue
 		}
 		tickets = append(tickets, t)
+		if limit > 0 && len(tickets) == limit {
+			break
+		}
 	}
 	return tickets, rows.Err()
 }
@@ -388,21 +411,31 @@ func (dao *Dao) GetTicket(id int64) (*Ticket, error) {
 	return &t, nil
 }
 
-// チケットに付与されたタグのうちタグカタログ未定義のものを自動登録する（server.goのnormalizeTagと同じ属性導出）。
+// チケットに付与されたタグのうちタグカタログ未定義のものを自動登録する。
 // 日時・数値タグ（グループ名末尾 @/#）は値ごとではなくグループ（例: "due-date@:"）として登録する。
-// 検索構文のメタ文字と衝突する名前（","・"|" を含む、先頭 "-"）はカタログに登録できないため除外する
+// タグAPIの検証（TagNameError）に通らない名前はカタログに登録できないため除外する
 func registerUnknownTags(tx *sql.Tx, tags string) error {
 	for _, tag := range strings.Fields(tags) {
 		sep := strings.Index(tag, ":")
-		isGroup := sep > 0
-		isRange := isGroup && (strings.HasSuffix(tag[:sep], "@") || strings.HasSuffix(tag[:sep], "#"))
+		isGroup, isRange := TagAttrs(tag)
 		if isRange {
 			tag = tag[:sep+1]
 		}
-		if strings.HasPrefix(tag, "-") || strings.ContainsAny(tag, ",|") {
+		if TagNameError(tag) != "" {
 			continue
 		}
-		if _, err := tx.Exec(_SQL_ADD_UNKNOWN_TAG, tag, isGroup, isRange); err != nil {
+		// 一覧のセクション区分（_SQL_QUERY_TAGSと同じ。グループ接頭辞、値なしのグループエントリは ":"、
+		// グループでないタグは ""）を渡し、同一セクションの末尾に並ぶsort_orderを設定させる
+		var section string
+		switch {
+		case sep <= 0:
+			section = ""
+		case sep == len(tag)-1:
+			section = ":"
+		default:
+			section = tag[:sep+1]
+		}
+		if _, err := tx.Exec(_SQL_ADD_UNKNOWN_TAG, tag, isGroup, isRange, section); err != nil {
 			return err
 		}
 	}
@@ -513,8 +546,8 @@ func (dao *Dao) QueryComments(ticketId int64) ([]Comment, error) {
 	defer rows.Close()
 	comments := []Comment{}
 	for rows.Next() {
-		var c Comment
-		if err := rows.Scan(&c.Id, &c.TicketId, &c.Content, &c.CreatedBy, &c.CreatedSub, &c.UpdatedBy, &c.UpdatedSub, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		c, err := scanComment(rows)
+		if err != nil {
 			return nil, err
 		}
 		comments = append(comments, c)
@@ -522,9 +555,14 @@ func (dao *Dao) QueryComments(ticketId int64) ([]Comment, error) {
 	return comments, rows.Err()
 }
 
-func (dao *Dao) GetComment(id int64) (*Comment, error) {
+// コメントの9カラム（id〜updated_at）をスキャンする
+func scanComment(row interface{ Scan(...any) error }) (Comment, error) {
 	var c Comment
-	err := dao.db.QueryRow(_SQL_GET_COMMENT, id).Scan(&c.Id, &c.TicketId, &c.Content, &c.CreatedBy, &c.CreatedSub, &c.UpdatedBy, &c.UpdatedSub, &c.CreatedAt, &c.UpdatedAt)
+	return c, row.Scan(&c.Id, &c.TicketId, &c.Content, &c.CreatedBy, &c.CreatedSub, &c.UpdatedBy, &c.UpdatedSub, &c.CreatedAt, &c.UpdatedAt)
+}
+
+func (dao *Dao) GetComment(id int64) (*Comment, error) {
+	c, err := scanComment(dao.db.QueryRow(_SQL_GET_COMMENT, id))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -612,19 +650,58 @@ func refreshCommentsFts(tx *sql.Tx, ticketId int64) error {
 
 // エクスポート用に検索条件（QueryTicketsと同じq, tags）に一致するチケットをコメント込みで返す
 func (dao *Dao) ExportTickets(q string, tags []string) ([]TicketExport, error) {
-	tickets, err := dao.QueryTickets(q, tags)
+	tickets, err := dao.QueryTickets(q, tags, 0)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, len(tickets))
+	for i, t := range tickets {
+		ids[i] = t.Id
+	}
+	byTicket, err := dao.queryCommentsByTickets(ids)
 	if err != nil {
 		return nil, err
 	}
 	exports := []TicketExport{}
 	for _, t := range tickets {
-		comments, err := dao.QueryComments(t.Id)
-		if err != nil {
-			return nil, err
+		comments := byTicket[t.Id]
+		if comments == nil {
+			comments = []Comment{}
 		}
 		exports = append(exports, TicketExport{Ticket: t, Comments: comments})
 	}
 	return exports, nil
+}
+
+// 指定したチケットID群のコメントをチケットごとにまとめて返す（チケットごとのN+1クエリを避けるエクスポート用）
+func (dao *Dao) queryCommentsByTickets(ids []int64) (map[int64][]Comment, error) {
+	byTicket := map[int64][]Comment{}
+	// SQLiteのバインド変数上限を超えないようINのプレースホルダをチャンク単位で展開する
+	for chunk := range slices.Chunk(ids, 500) {
+		query := fmt.Sprintf(_SQL_QUERY_COMMENTS_BY_TICKETS, strings.TrimSuffix(strings.Repeat("?,", len(chunk)), ","))
+		args := make([]any, len(chunk))
+		for i, id := range chunk {
+			args[i] = id
+		}
+		rows, err := dao.db.Query(query, args...)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			c, err := scanComment(rows)
+			if err != nil {
+				rows.Close()
+				return nil, err
+			}
+			byTicket[c.TicketId] = append(byTicket[c.TicketId], c)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		rows.Close()
+	}
+	return byTicket, nil
 }
 
 // エクスポートデータのチケット（コメント込み）をひとつのトランザクションで登録する。
@@ -821,41 +898,16 @@ func (dao *Dao) RenameTag(tag *Tag, updatedBy, updatedSub string) (int, error) {
 		return 0, tx.Commit()
 	}
 
-	rows, err := tx.Query(_SQL_QUERY_TICKETS_BY_TAG, "%"+oldName+"%")
+	now := time.Now()
+	updated, err := rewriteTicketTags(tx, oldName, tag.Tag, func(t Ticket, tags string) error {
+		if _, err := tx.Exec(_SQL_EDIT_TICKET, t.Title, t.Content, tags, updatedBy, updatedSub, now, t.Id); err != nil {
+			return err
+		}
+		_, err := tx.Exec(_SQL_ADD_TICKET_HISTORY, t.Id, t.Title, t.Content, tags, updatedBy, updatedSub, now)
+		return err
+	})
 	if err != nil {
 		return 0, err
-	}
-	defer rows.Close()
-	tickets := []Ticket{}
-	for rows.Next() {
-		t, err := scanTicket(rows)
-		if err != nil {
-			return 0, err
-		}
-		tickets = append(tickets, t)
-	}
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-	rows.Close()
-
-	now := time.Now()
-	updated := 0
-	for _, t := range tickets {
-		tags, changed := replaceTagTokens(t.Tags, oldName, tag.Tag)
-		if !changed {
-			continue
-		}
-		if _, err := tx.Exec(_SQL_EDIT_TICKET, t.Title, t.Content, tags, updatedBy, updatedSub, now, t.Id); err != nil {
-			return 0, err
-		}
-		if _, err := tx.Exec(_SQL_ADD_TICKET_HISTORY, t.Id, t.Title, t.Content, tags, updatedBy, updatedSub, now); err != nil {
-			return 0, err
-		}
-		if _, err := tx.Exec(_SQL_EDIT_TICKET_FTS_TAGS, Bigram(tags), t.Id); err != nil {
-			return 0, err
-		}
-		updated++
 	}
 	return updated, tx.Commit()
 }

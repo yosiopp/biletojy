@@ -34,7 +34,7 @@ func addTestTicket(t *testing.T, dao *Dao, title, content, tags string) *Ticket 
 
 func queryTicketIds(t *testing.T, dao *Dao, q string, tags []string) []int64 {
 	t.Helper()
-	tickets, err := dao.QueryTickets(q, tags)
+	tickets, err := dao.QueryTickets(q, tags, 0)
 	if err != nil {
 		t.Fatalf("QueryTickets(%q, %v): %v", q, tags, err)
 	}
@@ -233,7 +233,7 @@ func TestQueryTicketsNullTags(t *testing.T) {
 	}
 	id, _ := res.LastInsertId()
 
-	tickets, err := dao.QueryTickets("", nil)
+	tickets, err := dao.QueryTickets("", nil, 0)
 	if err != nil {
 		t.Fatalf("QueryTickets: %v", err)
 	}
@@ -377,6 +377,34 @@ func TestQueryTicketsOrder(t *testing.T) {
 	}
 	if got := queryTicketIds(t, dao, "", nil); !slices.Equal(got, []int64{t1.Id, t2.Id}) {
 		t.Errorf("QueryTickets order after edit = %v, want [%d %d]", got, t1.Id, t2.Id)
+	}
+}
+
+func TestQueryTicketsLimit(t *testing.T) {
+	dao := newTestDao(t)
+
+	t1 := addTestTicket(t, dao, "チケット1", "内容", "status:OPEN")
+	addTestTicket(t, dao, "チケット2", "内容", "status:CLOSED")
+	t3 := addTestTicket(t, dao, "チケット3", "内容", "status:OPEN")
+
+	// updated_at降順の先頭からlimit件で打ち切る。タグ条件の絞り込み後に数える
+	tickets, err := dao.QueryTickets("", []string{"status:OPEN"}, 1)
+	if err != nil {
+		t.Fatalf("QueryTickets(limit=1): %v", err)
+	}
+	if len(tickets) != 1 || tickets[0].Id != t3.Id {
+		t.Errorf("QueryTickets(limit=1) = %+v, want [%d]", tickets, t3.Id)
+	}
+
+	// limitが件数を超える場合とlimit=0（全件）はすべて返す
+	for _, limit := range []int{5, 0} {
+		tickets, err := dao.QueryTickets("", []string{"status:OPEN"}, limit)
+		if err != nil {
+			t.Fatalf("QueryTickets(limit=%d): %v", limit, err)
+		}
+		if len(tickets) != 2 || tickets[0].Id != t3.Id || tickets[1].Id != t1.Id {
+			t.Errorf("QueryTickets(limit=%d) = %+v, want [%d %d]", limit, tickets, t3.Id, t1.Id)
+		}
 	}
 }
 
@@ -988,7 +1016,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 	}
 
 	// 内容・作成者・タイムスタンプが引き継がれる（updated_at降順の並びも変わらない）
-	tickets, err := dst.QueryTickets("", nil)
+	tickets, err := dst.QueryTickets("", nil, 0)
 	if err != nil {
 		t.Fatalf("QueryTickets: %v", err)
 	}
@@ -1041,7 +1069,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 	if err := src.ImportTickets(decoded); err != nil {
 		t.Fatalf("ImportTickets(same db): %v", err)
 	}
-	srcTickets, err := src.QueryTickets("", nil)
+	srcTickets, err := src.QueryTickets("", nil, 0)
 	if err != nil {
 		t.Fatalf("QueryTickets: %v", err)
 	}

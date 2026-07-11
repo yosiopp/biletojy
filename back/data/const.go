@@ -123,12 +123,11 @@ const (
 	// 実際の書き換え対象はGo側でトークン単位に判定する）
 	_SQL_QUERY_TICKETS_BY_TAG = `SELECT id, title, content, COALESCE(tags, ''), created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM tickets WHERE tags LIKE ?`
 	// チケット保存時のカタログ未定義タグの自動登録（定義済みなら何もしない）。
-	// 一覧でセクション末尾に並ぶよう、同一セクション（_SQL_QUERY_TAGSの区分と同じ。グループ接頭辞、
-	// 値なしのグループエントリは ':'、グループでないタグは ''）の最大sort_order + 1を設定する
+	// 一覧でセクション末尾に並ぶよう、?4（Go側で導出したセクション区分）と同一セクションの
+	// 最大sort_order + 1を設定する
 	_SQL_ADD_UNKNOWN_TAG = `INSERT INTO tag_catalog (tag, is_group, is_range, sort_order)
 		SELECT ?1, ?2, ?3, COALESCE(MAX(sort_order), 0) + 1 FROM tag_catalog
-		WHERE CASE WHEN instr(tag, ':') <= 1 THEN '' WHEN instr(tag, ':') = length(tag) THEN ':' ELSE substr(tag, 1, instr(tag, ':')) END
-			= CASE WHEN instr(?1, ':') <= 1 THEN '' WHEN instr(?1, ':') = length(?1) THEN ':' ELSE substr(?1, 1, instr(?1, ':')) END
+		WHERE CASE WHEN instr(tag, ':') <= 1 THEN '' WHEN instr(tag, ':') = length(tag) THEN ':' ELSE substr(tag, 1, instr(tag, ':')) END = ?4
 		ON CONFLICT (tag) DO NOTHING`
 
 	// チケット取得
@@ -147,6 +146,9 @@ const (
 	// コメント
 	_SQL_GET_COMMENT    = `SELECT id, ticket_id, content, created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM comments WHERE id = ?`
 	_SQL_QUERY_COMMENTS = `SELECT id, ticket_id, content, created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM comments WHERE ticket_id = ? ORDER BY created_at ASC`
+	// エクスポート用にコメントを複数チケット分まとめて取得する（%sは実行時にIDの数だけプレースホルダへ展開。
+	// チケット内の並び順は_SQL_QUERY_COMMENTSと揃える）
+	_SQL_QUERY_COMMENTS_BY_TICKETS = `SELECT id, ticket_id, content, created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM comments WHERE ticket_id IN (%s) ORDER BY created_at ASC`
 	// FTS再構築用（コメント本文のみ。並び順は_SQL_QUERY_COMMENTSと揃える）
 	_SQL_QUERY_COMMENT_CONTENTS = `SELECT content FROM comments WHERE ticket_id = ? ORDER BY created_at ASC`
 	_SQL_ADD_COMMENT            = `INSERT INTO comments (ticket_id, content, created_by, created_sub, updated_by, updated_sub, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`

@@ -93,10 +93,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  listTickets: (q: string, tags: string[]) => {
+  // limitは補完UIなど先頭数件だけ必要な用途向け（省略で全件）
+  listTickets: (q: string, tags: string[], limit?: number) => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (tags.length > 0) params.set('tags', tags.join(','));
+    if (limit) params.set('limit', String(limit));
     const qs = params.toString();
     return request<Ticket[]>(`/api/tickets${qs ? `?${qs}` : ''}`);
   },
