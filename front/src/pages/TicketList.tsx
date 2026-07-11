@@ -4,11 +4,13 @@ import { api, Ticket } from '../api/client';
 import ExportImport from '../components/ExportImport';
 import TagFilter from '../components/TagFilter';
 import TicketRow from '../components/TicketRow';
+import TicketTree from '../components/TicketTree';
 import ViewSelect from '../components/ViewSelect';
 import { buildSort, HIERARCHY_SORT_KEY, parseSort, sortTickets, SortSpec } from '../lib/sort';
 import { staleGuard } from '../lib/staleGuard';
-import { groupCatalog } from '../lib/tags';
+import { groupCatalog, hierarchyOptions } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
+import { parseViewMode, VIEW_MODES, ViewMode } from '../lib/viewMode';
 
 function TicketList() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -25,6 +27,9 @@ function TicketList() {
   const tags = tagsParam.split(',').filter((t) => t.length > 0);
   const hasFilter = q.length > 0 || tags.length > 0;
   const sort = parseSort(searchParams.get('sort'));
+  // 表示モード（リスト / ツリー）と表示対象（ツリーのルート階層タグ）
+  const mode = parseViewMode(searchParams.get('view'));
+  const by = searchParams.get('by') ?? '';
 
   // ソートキーに選べる日時・数値タググループ（例: due-date@, estimate#）。
   // URL直指定などでカタログに無いキーが来ても選択欄の表示が崩れないように含める
@@ -45,14 +50,28 @@ function TicketList() {
     return cancel;
   }, [q, tagsParam, reload]);
 
-  const updateParams = (nextQ: string, nextTags: string[]) => {
+  // ツリーのルートに選べる階層タグ（中間階層含む）。URL直指定でカタログに無い値が来ても表示が崩れないように含める
+  const byOptions = useMemo(() => {
+    const options = hierarchyOptions(catalog);
+    if (by && !options.includes(by)) options.push(by);
+    return options.sort();
+  }, [catalog, by]);
+
+  // 検索条件と表示モードをまとめてURLパラメータへ反映する（リスト表示は view / by を付けない）
+  const applyView = (nextQ: string, nextTags: string[], nextMode: ViewMode, nextBy: string) => {
     const params = new URLSearchParams(searchParams);
     if (nextQ) params.set('q', nextQ);
     else params.delete('q');
     if (nextTags.length > 0) params.set('tags', nextTags.join(','));
     else params.delete('tags');
+    if (nextMode !== 'list') params.set('view', nextMode);
+    else params.delete('view');
+    if (nextMode !== 'list' && nextBy) params.set('by', nextBy);
+    else params.delete('by');
     setSearchParams(params);
   };
+
+  const updateParams = (nextQ: string, nextTags: string[]) => applyView(nextQ, nextTags, mode, by);
 
   const updateSort = (next: SortSpec) => {
     const params = new URLSearchParams(searchParams);
@@ -76,7 +95,43 @@ function TicketList() {
       {notice && <p className="text-blue-700 dark:text-blue-400 mb-2">{notice}</p>}
 
       <div className="flex flex-wrap items-start justify-between mb-2">
-        <ViewSelect q={q} tags={tags} onApply={updateParams} />
+        <div className="flex flex-wrap items-center">
+          <ViewSelect q={q} tags={tags} mode={mode} by={by} onApply={applyView} />
+          <div className="inline-flex border rounded-sm text-sm mr-2 mb-1" role="group" aria-label="表示モード">
+            {VIEW_MODES.map(({ value, label }, i) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={mode === value}
+                className={`px-2 py-0.5 ${i > 0 ? 'border-l' : ''} ${
+                  mode === value
+                    ? 'bg-neutral-200 dark:bg-neutral-600'
+                    : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                }`}
+                onClick={() => applyView(q, tags, value, by)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {mode === 'tree' && (
+            <label className="text-sm mb-1 text-neutral-500 dark:text-neutral-400">
+              対象:{' '}
+              <select
+                className="border rounded-sm px-1 py-0.5 text-neutral-900 dark:text-neutral-100"
+                value={by}
+                onChange={(e) => applyView(q, tags, mode, e.target.value)}
+              >
+                <option value="">すべて</option>
+                {byOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <label htmlFor="ticket-sort" className="text-neutral-500 dark:text-neutral-400">
             並び替え:
@@ -119,17 +174,22 @@ function TicketList() {
         </div>
       </div>
 
-      <div className="hidden sm:flex text-neutral-500 dark:text-neutral-400 border-b">
-        <div className="flex-none w-16 py-1 pl-4">id</div>
-        <div className="w-2/4 py-1">title</div>
-        <div className="flex-1 py-1">tags</div>
-        <div className="flex-none w-40 py-1 pr-4">updated</div>
-      </div>
+      {mode === 'list' && (
+        <div className="hidden sm:flex text-neutral-500 dark:text-neutral-400 border-b">
+          <div className="flex-none w-16 py-1 pl-4">id</div>
+          <div className="w-2/4 py-1">title</div>
+          <div className="flex-1 py-1">tags</div>
+          <div className="flex-none w-40 py-1 pr-4">updated</div>
+        </div>
+      )}
       {tickets == null && !error && <p className="text-neutral-500 dark:text-neutral-400 p-4">読み込み中...</p>}
-      {tickets != null &&
+      {tickets != null && mode === 'list' &&
         sortTickets(tickets, sort).map((ticket) => (
           <TicketRow key={ticket.id} ticket={ticket} catalog={catalog} />
         ))}
+      {tickets != null && mode === 'tree' && tickets.length > 0 && (
+        <TicketTree tickets={sortTickets(tickets, sort)} catalog={catalog} by={by} />
+      )}
       {tickets != null && tickets.length === 0 && (
         <div className="text-neutral-500 dark:text-neutral-400 p-4">
           {hasFilter ? (

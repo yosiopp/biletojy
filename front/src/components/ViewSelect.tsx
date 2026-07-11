@@ -2,18 +2,22 @@ import { useRef, useState } from 'react';
 import { splitTags } from '../lib/tags';
 import { useMenuKeys } from '../lib/useMenuKeys';
 import { useOutsideClick } from '../lib/useOutsideClick';
+import { parseViewMode, ViewMode, viewModeLabel } from '../lib/viewMode';
 import { deleteView, loadViews, matchesView, SavedView, saveView } from '../lib/views';
 
 type Props = {
   q: string;
   tags: string[];
-  onApply: (q: string, tags: string[]) => void;
+  // 表示モードと表示対象（ツリーのルート階層タグ等）もビューの一部として保存・適用する
+  mode: ViewMode;
+  by: string;
+  onApply: (q: string, tags: string[], mode: ViewMode, by: string) => void;
 };
 
 // 保存済み検索（ビュー）のチップ。クリックでビュー一覧のプルダウンが開く
-// 現在の検索条件（q + tags）に名前を付けて保存し、選択で一覧の条件を差し替える
+// 現在の検索条件（q + tags）と表示モードに名前を付けて保存し、選択で一覧の条件を差し替える
 // キーボード: ↑↓で移動、Enter/Spaceで適用、Delete/Backspaceで削除、Escで閉じる
-function ViewSelect({ q, tags, onApply }: Props) {
+function ViewSelect({ q, tags, mode, by, onApply }: Props) {
   const [open, setOpen] = useState(false);
   const [views, setViews] = useState<SavedView[]>(loadViews);
   const [active, setActive] = useState(-1);
@@ -21,8 +25,8 @@ function ViewSelect({ q, tags, onApply }: Props) {
   const rootRef = useRef<HTMLSpanElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  const hasFilter = q.length > 0 || tags.length > 0;
-  const current = views.find((v) => matchesView(v, q, tags));
+  const canSave = q.length > 0 || tags.length > 0 || mode !== 'list';
+  const current = views.find((v) => matchesView(v, q, tags, mode, by));
 
   useOutsideClick(rootRef, open ? () => setOpen(false) : undefined);
 
@@ -35,23 +39,39 @@ function ViewSelect({ q, tags, onApply }: Props) {
     // 別タブでの保存も拾えるように開くたびに読み直す
     const list = loadViews();
     setViews(list);
-    setActive(Math.max(list.findIndex((v) => matchesView(v, q, tags)), list.length > 0 ? 0 : -1));
+    setActive(Math.max(list.findIndex((v) => matchesView(v, q, tags, mode, by)), list.length > 0 ? 0 : -1));
     setName('');
     setOpen(true);
   };
 
   const apply = (view: SavedView) => {
-    onApply(view.q, [...view.tags]);
+    onApply(view.q, [...view.tags], parseViewMode(view.view), view.by ?? '');
     setOpen(false);
     setActive(-1);
   };
 
   const save = () => {
     const trimmed = name.trim();
-    if (!trimmed || !hasFilter) return;
-    setViews(saveView({ name: trimmed, q, tags }));
+    if (!trimmed || !canSave) return;
+    setViews(
+      saveView({
+        name: trimmed,
+        q,
+        tags,
+        view: mode !== 'list' ? mode : undefined,
+        by: mode !== 'list' && by ? by : undefined,
+      }),
+    );
     setName('');
     close();
+  };
+
+  // プルダウン内でビューの内容を示すメタ表示（表示モード + タグ・検索ワード）
+  const viewMeta = (view: SavedView) => {
+    const parts = [...view.tags, ...splitTags(view.q)];
+    const viewMode = parseViewMode(view.view);
+    if (viewMode !== 'list') parts.unshift(viewModeLabel(viewMode) + (view.by ? `(${view.by})` : ''));
+    return parts.join(' ');
   };
 
   const remove = (viewName: string) => {
@@ -120,9 +140,7 @@ function ViewSelect({ q, tags, onApply }: Props) {
                   >
                     <span className="inline-block w-4 text-blue-700 dark:text-blue-400">{view === current ? '✓' : ''}</span>
                     {view.name}
-                    <span className="text-neutral-400 ml-1 text-xs">
-                      {[...view.tags, ...splitTags(view.q)].join(' ')}
-                    </span>
+                    <span className="text-neutral-400 ml-1 text-xs">{viewMeta(view)}</span>
                   </button>
                   <button
                     type="button"
@@ -138,7 +156,7 @@ function ViewSelect({ q, tags, onApply }: Props) {
           )}
 
           <div className="border-t p-2">
-            {hasFilter ? (
+            {canSave ? (
               <div className="flex gap-1">
                 <input
                   type="text"

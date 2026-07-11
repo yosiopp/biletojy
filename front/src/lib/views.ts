@@ -1,10 +1,14 @@
 import { splitTags } from './tags';
 
-// 保存済み検索（ビュー）。チケット一覧の検索条件（q + tags）に名前を付けてlocalStorageへ保存する
+// 保存済み検索（ビュー）。チケット一覧の検索条件（q + tags）と表示モードに名前を付けてlocalStorageへ保存する
 export type SavedView = {
   name: string;
   q: string;
   tags: string[];
+  // 表示モード（'tree' 等。省略はリスト表示）と表示対象（ツリーのルート階層タグ等）。
+  // ノードの開閉状態は保存しない
+  view?: string;
+  by?: string;
 };
 
 const VIEWS_KEY = 'biletojy.views';
@@ -22,7 +26,9 @@ export function loadViews(): SavedView[] {
         typeof v.name === 'string' &&
         typeof v.q === 'string' &&
         Array.isArray(v.tags) &&
-        v.tags.every((t: unknown) => typeof t === 'string'),
+        v.tags.every((t: unknown) => typeof t === 'string') &&
+        (v.view === undefined || typeof v.view === 'string') &&
+        (v.by === undefined || typeof v.by === 'string'),
     );
   } catch {
     return [];
@@ -45,9 +51,14 @@ export function deleteView(name: string): SavedView[] {
   return views;
 }
 
-// 現在の検索条件がビューと一致するか（タグ・検索ワードとも順不同で比較）
-export function matchesView(view: SavedView, q: string, tags: string[]): boolean {
+// 現在の検索条件・表示モードがビューと一致するか（タグ・検索ワードとも順不同で比較）
+export function matchesView(view: SavedView, q: string, tags: string[], mode: string, by: string): boolean {
   const words = (s: string) => splitTags(s).sort().join(' ');
   const conds = (a: string[]) => [...a].sort().join(',');
-  return words(view.q) === words(q) && conds(view.tags) === conds(tags);
+  return (
+    words(view.q) === words(q) &&
+    conds(view.tags) === conds(tags) &&
+    (view.view ?? 'list') === mode &&
+    (view.by ?? '') === by
+  );
 }
