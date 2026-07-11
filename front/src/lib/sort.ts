@@ -1,8 +1,12 @@
 import type { Ticket } from '../api/client';
-import { splitTags } from './tags';
+import { parseTag, splitTags } from './tags';
 
-// チケット一覧のソート指定。keyは 'id' | 'updated' | 日時・数値タググループ名（例: 'due-date@', 'estimate#'）
+// チケット一覧のソート指定。keyは 'id' | 'updated' | HIERARCHY_SORT_KEY | 日時・数値タググループ名（例: 'due-date@', 'estimate#'）
 export type SortSpec = { key: string; desc: boolean };
+
+// 階層タグ（a/b/c 形式）のパス順ソートを表すキー。階層タグはグループを持たないため固定名にする
+// （グループ名は ':' の左辺なので '/' 入りのタグ名とは衝突しない）
+export const HIERARCHY_SORT_KEY = 'hierarchy';
 
 // 未指定時は従来どおり更新日時の降順
 export const DEFAULT_SORT: SortSpec = { key: 'updated', desc: true };
@@ -38,10 +42,24 @@ function tagSortValue(tags: string, group: string): number | string | null {
   return null;
 }
 
+// 階層タグのソート値。単純な文字列比較だと "a/b-x" < "a/b/c" と順が崩れるため、
+// "/" をどの文字よりも小さい "\x00" に置換し、辞書順比較がセグメント単位の比較になるようにする。
+// 複数の階層タグを持つ場合は最小（先頭）のものを使う
+function hierarchySortValue(tags: string): string | null {
+  let min: string | null = null;
+  for (const tag of splitTags(tags)) {
+    if (!parseTag(tag).isHierarchy) continue;
+    const value = tag.replaceAll('/', '\x00');
+    if (min == null || value < min) min = value;
+  }
+  return min;
+}
+
 // updated_atはRFC3339形式（同一サーバー生成でオフセットが揃う）のため辞書順で比較できる
 function sortValue(ticket: Ticket, key: string): number | string | null {
   if (key === 'id') return ticket.id;
   if (key === 'updated') return ticket.updated_at;
+  if (key === HIERARCHY_SORT_KEY) return hierarchySortValue(ticket.tags);
   return tagSortValue(ticket.tags, key);
 }
 

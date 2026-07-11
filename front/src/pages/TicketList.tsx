@@ -5,7 +5,7 @@ import ExportImport from '../components/ExportImport';
 import TagFilter from '../components/TagFilter';
 import TicketRow from '../components/TicketRow';
 import ViewSelect from '../components/ViewSelect';
-import { buildSort, parseSort, sortTickets, SortSpec } from '../lib/sort';
+import { buildSort, HIERARCHY_SORT_KEY, parseSort, sortTickets, SortSpec } from '../lib/sort';
 import { staleGuard } from '../lib/staleGuard';
 import { groupCatalog } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
@@ -89,6 +89,7 @@ function TicketList() {
           >
             <option value="updated">updated</option>
             <option value="id">id</option>
+            <option value={HIERARCHY_SORT_KEY}>階層タグ</option>
             {sortGroups.map((group) => (
               <option key={group} value={group}>
                 {group.replace(/[@#]$/, '')}
