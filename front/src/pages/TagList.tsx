@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, Tag } from '../api/client';
+import ConfirmDialog from '../components/ConfirmDialog';
 import Dialog from '../components/Dialog';
 import TagItem from '../components/TagItem';
 import { currentUser, parseTag, splitTags } from '../lib/tags';
@@ -14,12 +15,21 @@ type Editing = {
 
 const EMPTY: Editing = { id: null, tag: '', note: '', color: '' };
 
+// 並び替え単位（＝表示セクション）のキー。グループの値タグ（"status:OPEN" など）はグループ名、
+// 値なしのグループエントリ（"due-date@:" など）同士とグループでないタグ同士は、
+// それぞれまとめてひとつの並びとして扱う（一覧の並び順と同じ区分）
+const sectionOf = (tag: Tag): string => {
+  const { group, name } = parseTag(tag.tag);
+  if (group == null) return '';
+  return name.length > 0 ? group : ':';
+};
+
 function TagList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [catalog, setCatalog] = useState<Tag[]>([]);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [confirming, setConfirming] = useState<{ tag: Tag; message: string } | null>(null);
-  const [renaming, setRenaming] = useState<{ oldTag: string; message: string } | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null); // タグ名変更の確認メッセージ
   const [dragId, setDragId] = useState<number | null>(null);
   const [dropId, setDropId] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -75,7 +85,7 @@ function TagList() {
           ? `このタグを使用している ${count} 件のチケットのタグも一括で変更されます。\n`
           : '') +
         '変更しますか？';
-      setRenaming({ oldTag: original.tag, message });
+      setRenaming(message);
       return;
     }
     const data = {
@@ -99,7 +109,7 @@ function TagList() {
 
   // タグ名変更の確認後、カタログと使用中チケットのタグを一括で変更する
   const rename = async () => {
-    if (!renaming || !editing || editing.id == null) return;
+    if (renaming == null || !editing || editing.id == null) return;
     setRenaming(null);
     try {
       await api.renameTag(editing.id, {
@@ -133,15 +143,19 @@ function TagList() {
     setConfirming({ tag, message });
   };
 
-  // 並び替え単位（＝表示セクション）のキー。グループの値タグ（"status:OPEN" など）はグループ名、
-  // 値なしのグループエントリ（"due-date@:" など）同士とグループでないタグ同士は、
-  // それぞれまとめてひとつの並びとして扱う（一覧の並び順と同じ区分）
-  const sectionOf = (tag: Tag): string => {
-    const { group, name } = parseTag(tag.tag);
-    if (group == null) return '';
-    return name.length > 0 ? group : ':';
-  };
-  const sortMembers = (key: string) => catalog.filter((t) => sectionOf(t) === key);
+  // 並び替え単位ごとのタグ一覧。ドラッグ中などの再レンダーのたびに全タグを解析し直さないよう、
+  // カタログの変化時にまとめて構築する
+  const sections = useMemo(() => {
+    const m = new Map<string, Tag[]>();
+    for (const t of catalog) {
+      const key = sectionOf(t);
+      const members = m.get(key);
+      if (members) members.push(t);
+      else m.set(key, [t]);
+    }
+    return m;
+  }, [catalog]);
+  const sortMembers = (key: string) => sections.get(key) ?? [];
   const dragTag = dragId != null ? catalog.find((t) => t.id === dragId) : undefined;
   const dragKey = dragTag ? sectionOf(dragTag) : null;
 
@@ -247,56 +261,25 @@ function TagList() {
   );
 
   // タグ名変更の警告。編集ダイアログの上に重ねて表示する
-  const renameDialog = renaming && (
-    <Dialog label="タグ名の変更" onClose={() => setRenaming(null)}>
-      <div className="w-96 max-w-full">
-        <h2 className="text-lg mb-2">タグ名の変更</h2>
-        <p className="text-sm whitespace-pre-line mb-3">{renaming.message}</p>
-        <div className="text-right">
-          <button
-            type="button"
-            className="border rounded-sm px-4 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-            onClick={() => setRenaming(null)}
-            autoFocus
-          >
-            キャンセル
-          </button>
-          <button
-            type="button"
-            className="bg-blue-600 text-white rounded-sm px-4 py-1 ml-2 hover:bg-blue-700"
-            onClick={rename}
-          >
-            変更する
-          </button>
-        </div>
-      </div>
-    </Dialog>
+  const renameDialog = renaming != null && (
+    <ConfirmDialog
+      title="タグ名の変更"
+      message={renaming}
+      actionLabel="変更する"
+      onConfirm={rename}
+      onClose={() => setRenaming(null)}
+    />
   );
 
   const confirmDialog = confirming && (
-    <Dialog label="タグの削除" onClose={() => setConfirming(null)}>
-      <div className="w-96 max-w-full">
-        <h2 className="text-lg mb-2">タグの削除</h2>
-        <p className="text-sm whitespace-pre-line mb-3">{confirming.message}</p>
-        <div className="text-right">
-          <button
-            type="button"
-            className="border rounded-sm px-4 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-            onClick={() => setConfirming(null)}
-            autoFocus
-          >
-            キャンセル
-          </button>
-          <button
-            type="button"
-            className="bg-red-600 text-white rounded-sm px-4 py-1 ml-2 hover:bg-red-700"
-            onClick={remove}
-          >
-            削除する
-          </button>
-        </div>
-      </div>
-    </Dialog>
+    <ConfirmDialog
+      title="タグの削除"
+      message={confirming.message}
+      actionLabel="削除する"
+      danger
+      onConfirm={remove}
+      onClose={() => setConfirming(null)}
+    />
   );
 
   return (

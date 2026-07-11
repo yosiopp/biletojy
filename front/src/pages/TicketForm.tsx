@@ -1,10 +1,11 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useBlocker, useNavigate, useParams } from 'react-router-dom';
 import { api, Template } from '../api/client';
+import AttachFileButton from '../components/AttachFileButton';
 import Markdown from '../components/Markdown';
 import TagInput from '../components/TagInput';
 import TicketRefTextarea from '../components/TicketRefTextarea';
-import { dropFiles, pasteFiles, selectFiles, useFileDrag } from '../lib/attachFiles';
+import { dropFiles, pasteFiles, useFileDrag } from '../lib/attachFiles';
 import { currentUser, joinTags, splitTags } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
 
@@ -30,7 +31,6 @@ function TicketForm() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateId, setTemplateId] = useState('');
   const titleRef = useRef<HTMLInputElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const fileDrag = useFileDrag((e) => dropFiles(e, setContent, setError));
   const submittedRef = useRef(false);
 
@@ -178,20 +178,7 @@ function TicketForm() {
             プレビュー
           </button>
         </div>
-        <button
-          type="button"
-          className="text-sm text-blue-700 dark:text-blue-400 hover:underline"
-          onClick={() => fileRef.current?.click()}
-        >
-          ファイルを添付
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(e) => selectFiles(e, setContent, setError)}
-        />
+        <AttachFileButton setValue={setContent} onError={setError} />
       </div>
       {preview ? (
         <div className="border rounded-sm p-4 mb-2 min-h-64">
@@ -199,9 +186,7 @@ function TicketForm() {
         </div>
       ) : (
         <TicketRefTextarea
-          className={`border rounded-sm w-full p-2 h-64 mb-2 font-mono text-sm ${
-            fileDrag.dragging ? 'border-blue-500 bg-blue-50 dark:bg-blue-950' : ''
-          }`}
+          className={`border rounded-sm w-full p-2 h-64 mb-2 font-mono text-sm ${fileDrag.dragClass}`}
           placeholder={'本文（markdown / mermaid可、画像・ファイル添付可（ペースト/ドロップ）、#でチケット参照）\n\n```mermaid\ngraph TD; A-->B;\n```'}
           value={content}
           onChange={setContent}

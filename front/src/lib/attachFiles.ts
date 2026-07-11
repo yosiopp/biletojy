@@ -68,11 +68,11 @@ export function dropFiles(e: DragEvent<HTMLTextAreaElement>, setValue: SetValue,
 }
 
 // ドロップ先として有効なことが分かるよう、ファイルのドラッグ中だけ編集エリアをハイライトするためのフック。
-// draggingがtrueの間はドロップ可能の強調クラスを付与し、dragPropsを編集エリアへ渡す
+// ドラッグ中はdragClassが強調クラスになる（編集エリアのclassNameへ連結する）。dragPropsを編集エリアへ渡す
 export function useFileDrag(onDrop: (e: DragEvent<HTMLTextAreaElement>) => void) {
   const [dragging, setDragging] = useState(false);
   return {
-    dragging,
+    dragClass: dragging ? 'border-blue-500 bg-blue-50 dark:bg-blue-950' : '',
     dragProps: {
       // テキスト選択のドラッグでは反応させない（ファイルのドラッグのみハイライト）
       onDragOver: (e: DragEvent<HTMLTextAreaElement>) => setDragging(e.dataTransfer.types.includes('Files')),

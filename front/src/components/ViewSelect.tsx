@@ -1,5 +1,6 @@
-import { KeyboardEvent as ReactKeyboardEvent, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { splitTags } from '../lib/tags';
+import { useMenuKeys } from '../lib/useMenuKeys';
 import { useOutsideClick } from '../lib/useOutsideClick';
 import { deleteView, loadViews, matchesView, SavedView, saveView } from '../lib/views';
 
@@ -39,12 +40,6 @@ function ViewSelect({ q, tags, onApply }: Props) {
     setOpen(true);
   };
 
-  const close = () => {
-    setOpen(false);
-    setActive(-1);
-    buttonRef.current?.focus();
-  };
-
   const apply = (view: SavedView) => {
     onApply(view.q, [...view.tags]);
     setOpen(false);
@@ -65,37 +60,23 @@ function ViewSelect({ q, tags, onApply }: Props) {
     setActive((i) => Math.min(i, next.length - 1));
   };
 
-  const onKeyDown = (e: ReactKeyboardEvent) => {
-    if (e.key === 'Escape') {
-      if (open) {
-        e.stopPropagation();
-        close();
-      }
-      return;
-    }
-    // ビュー名入力欄などにフォーカスがあるときはリスト操作しない
-    if (e.target !== buttonRef.current) return;
-    if (!open) {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        toggle();
-      }
-      return;
-    }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActive((i) => Math.min(i + 1, views.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActive((i) => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
+  const { onKeyDown, close } = useMenuKeys({
+    open,
+    buttonRef,
+    count: views.length,
+    setActive,
+    onOpen: toggle,
+    onClose: () => {
+      setOpen(false);
+      setActive(-1);
+    },
+    onActivate: () => {
       if (active >= 0 && active < views.length) apply(views[active]);
-    } else if (e.key === 'Delete' || e.key === 'Backspace') {
-      e.preventDefault();
+    },
+    onDelete: () => {
       if (active >= 0 && active < views.length) remove(views[active].name);
-    }
-  };
+    },
+  });
 
   return (
     <span ref={rootRef} className="relative inline-block mr-1 mb-1" onKeyDown={onKeyDown}>

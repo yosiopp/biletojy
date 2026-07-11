@@ -1,5 +1,6 @@
-import { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, useRef, useState } from 'react';
+import { ChangeEvent, useRef, useState } from 'react';
 import { api, TicketExport } from '../api/client';
+import { useMenuKeys } from '../lib/useMenuKeys';
 import { useOutsideClick } from '../lib/useOutsideClick';
 
 type Props = {
@@ -23,12 +24,6 @@ function ExportImport({ q, tags, onImported, onError }: Props) {
   const itemRefs = useRef<(HTMLElement | null)[]>([]);
 
   useOutsideClick(rootRef, open ? () => setOpen(false) : undefined);
-
-  const close = () => {
-    setOpen(false);
-    setActive(0);
-    buttonRef.current?.focus();
-  };
 
   // JSONエクスポートファイルを読み取ってインポートし、結果を親へ通知する
   const onFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -64,33 +59,18 @@ function ExportImport({ q, tags, onImported, onError }: Props) {
   ];
   const hasFilter = q.length > 0 || tags.length > 0;
 
-  const onKeyDown = (e: ReactKeyboardEvent) => {
-    if (e.key === 'Escape') {
-      if (open) {
-        e.stopPropagation();
-        close();
-      }
-      return;
-    }
-    if (e.target !== buttonRef.current) return;
-    if (!open) {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        setOpen(true);
-      }
-      return;
-    }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActive((i) => Math.min(i + 1, items.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActive((i) => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      itemRefs.current[active]?.click();
-    }
-  };
+  const { onKeyDown, close } = useMenuKeys({
+    open,
+    buttonRef,
+    count: items.length,
+    setActive,
+    onOpen: () => setOpen(true),
+    onClose: () => {
+      setOpen(false);
+      setActive(0);
+    },
+    onActivate: () => itemRefs.current[active]?.click(),
+  });
 
   const itemClass = (i: number) =>
     `block w-full text-left px-2 py-1 text-sm ${i === active ? 'bg-blue-100 dark:bg-blue-900' : ''} hover:bg-neutral-100 dark:hover:bg-neutral-700`;

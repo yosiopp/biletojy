@@ -1,12 +1,13 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, Comment, Ticket } from '../api/client';
+import AttachFileButton from '../components/AttachFileButton';
 import CommentHistory from '../components/CommentHistory';
 import Markdown from '../components/Markdown';
 import TagItem from '../components/TagItem';
 import TicketRefTextarea from '../components/TicketRefTextarea';
 import { formatDateTime } from '../lib/date';
-import { dropFiles, pasteFiles, selectFiles, useFileDrag } from '../lib/attachFiles';
+import { dropFiles, pasteFiles, useFileDrag } from '../lib/attachFiles';
 import { staleGuard } from '../lib/staleGuard';
 import { currentUser, splitTags, tagColor } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
@@ -23,7 +24,6 @@ function TicketDetail() {
   const [commentError, setCommentError] = useState('');
   // 履歴を開いているコメントのID
   const [openHistories, setOpenHistories] = useState<Record<number, boolean>>({});
-  const fileRef = useRef<HTMLInputElement>(null);
   const fileDrag = useFileDrag((e) => dropFiles(e, setCommentText, setCommentError));
 
   useEffect(() => {
@@ -156,9 +156,7 @@ function TicketDetail() {
 
       <form onSubmit={submitComment} className="mt-4">
         <TicketRefTextarea
-          className={`border rounded-sm w-full p-2 h-24 ${
-            fileDrag.dragging ? 'border-blue-500 bg-blue-50 dark:bg-blue-950' : ''
-          }`}
+          className={`border rounded-sm w-full p-2 h-24 ${fileDrag.dragClass}`}
           placeholder="コメントを追加（markdown可、画像・ファイル添付可（ペースト/ドロップ）、#でチケット参照）"
           value={commentText}
           onChange={setCommentText}
@@ -172,20 +170,7 @@ function TicketDetail() {
         >
           コメント
         </button>
-        <button
-          type="button"
-          className="text-sm text-blue-700 dark:text-blue-400 hover:underline ml-3"
-          onClick={() => fileRef.current?.click()}
-        >
-          ファイルを添付
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(e) => selectFiles(e, setCommentText, setCommentError)}
-        />
+        <AttachFileButton setValue={setCommentText} onError={setCommentError} className="ml-3" />
       </form>
     </>
   );

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, Template } from '../api/client';
+import ConfirmDialog from '../components/ConfirmDialog';
 import Dialog from '../components/Dialog';
 import TagInput from '../components/TagInput';
 import TagItem from '../components/TagItem';
@@ -134,29 +135,14 @@ function TemplateList() {
   );
 
   const confirmDialog = confirming && (
-    <Dialog label="テンプレートの削除" onClose={() => setConfirming(null)}>
-      <div className="w-96 max-w-full">
-        <h2 className="text-lg mb-2">テンプレートの削除</h2>
-        <p className="text-sm mb-3">テンプレート「{confirming.name}」を削除しますか？</p>
-        <div className="text-right">
-          <button
-            type="button"
-            className="border rounded-sm px-4 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-            onClick={() => setConfirming(null)}
-            autoFocus
-          >
-            キャンセル
-          </button>
-          <button
-            type="button"
-            className="bg-red-600 text-white rounded-sm px-4 py-1 ml-2 hover:bg-red-700"
-            onClick={remove}
-          >
-            削除する
-          </button>
-        </div>
-      </div>
-    </Dialog>
+    <ConfirmDialog
+      title="テンプレートの削除"
+      message={`テンプレート「${confirming.name}」を削除しますか？`}
+      actionLabel="削除する"
+      danger
+      onConfirm={remove}
+      onClose={() => setConfirming(null)}
+    />
   );
 
   return (
