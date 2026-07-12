@@ -12,6 +12,7 @@ import {
   tagColor,
 } from '../lib/tags';
 import { useTagColors } from '../lib/useCatalog';
+import { useOutsideClick } from '../lib/useOutsideClick';
 import TagGroupSelect from './TagGroupSelect';
 import TagItem from './TagItem';
 import TagRangeInput from './TagRangeInput';
@@ -37,9 +38,15 @@ function withGroupReplaced(list: string[], group: string, tag: string): string[]
 function TagInput({ value, onChange, catalog, onTextChange }: Props) {
   const [text, setTextState] = useState('');
   const [rangeValue, setRangeValue] = useState('');
+  // 候補プルダウンの開閉と、キーボードでハイライト中の候補（-1はハイライトなし）
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLSpanElement>(null);
   const groups = useMemo(() => groupCatalog(catalog), [catalog]);
   const colors = useTagColors(catalog);
+
+  useOutsideClick(rootRef, open ? () => setOpen(false) : undefined);
 
   // 未確定テキストの変更は常に親へも通知する
   const setText = (next: string) => {
@@ -89,8 +96,33 @@ function TagInput({ value, onChange, catalog, onTextChange }: Props) {
 
   const completions = useMemo(() => completionCandidates(catalog), [catalog]);
 
-  // datalistにはTab補完候補のうち `group:` の途中形を除いたタグ全体を出す
-  const suggestions = useMemo(() => completions.filter((c) => !c.endsWith(':')).sort(), [completions]);
+  // 候補プルダウンに出すタグ（Tab補完候補のうち `group:` の途中形を除いたタグ全体）に
+  // 表示用の色とnoteを添える
+  const displayCandidates = useMemo(() => {
+    const notes = new Map(catalog.map((t) => [t.tag, t.note] as const));
+    return completions
+      .filter((c) => !c.endsWith(':'))
+      .sort()
+      .map((tag) => ({ tag, note: notes.get(tag) ?? null, color: tagColor(colors, tag) }));
+  }, [completions, catalog, colors]);
+
+  // 入力末尾のトークン（空白・"|"区切り、先頭の"-"は除外記法なので外す）に前方一致し、
+  // かつ未追加の候補だけを表示する。値待ち状態のときは候補ではなくピッカーを出すので閉じる
+  const matches = useMemo(() => {
+    const [tail] = text.match(/[^\s|]*$/) ?? [''];
+    const token = text.length === tail.length && tail.startsWith('-') ? tail.slice(1) : tail;
+    return displayCandidates.filter((c) => c.tag.startsWith(token) && !value.includes(c.tag));
+  }, [text, displayCandidates, value]);
+
+  const showList = open && !rangeGroup && matches.length > 0;
+
+  // 候補を確定してタグに追加する。入力欄は空に戻し、続けて入力できるようフォーカスを残す
+  const pickCandidate = (tag: string) => {
+    addTag(tag);
+    setText('');
+    setActive(-1);
+    inputRef.current?.focus();
+  };
 
   // 値待ち状態のグループタグ（rangeGroup）をピッカーの値で確定する。値が未入力なら何もしない
   const submitRange = () => {
@@ -125,36 +157,98 @@ function TagInput({ value, onChange, catalog, onTextChange }: Props) {
         />
       ))}
 
-      <span className="relative mb-1 flex-1 min-w-40">
+      <span ref={rootRef} className="relative mb-1 flex-1 min-w-40">
         <input
           ref={inputRef}
           type="text"
+          role="combobox"
+          aria-expanded={showList}
+          aria-controls="tag-input-listbox"
+          aria-autocomplete="list"
+          aria-activedescendant={showList && active >= 0 ? `tag-opt-${active}` : undefined}
           className="border rounded-sm px-2 py-1 w-full"
           placeholder="タグを追加（Enterで確定）"
-          list="tag-input-suggestions"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setText(e.target.value);
+            setActive(-1);
+            setOpen(true);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
               // 値待ち状態ならピッカーの値で確定する
               if (rangeGroup) {
                 submitRange();
+              } else if (showList && active >= 0 && matches[active]) {
+                // 候補をハイライト中ならそれを確定、そうでなければ入力テキストを確定
+                pickCandidate(matches[active].tag);
               } else {
                 addTag(text.trim());
                 setText('');
+                setActive(-1);
               }
+              return;
+            }
+            if (e.key === 'Escape') {
+              // 候補が開いている間だけEscで閉じ、ダイアログ側へは伝えない
+              if (open) {
+                e.stopPropagation();
+                setOpen(false);
+                setActive(-1);
+              }
+              return;
+            }
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              if (!open) setOpen(true);
+              else if (matches.length > 0) setActive((i) => (i < 0 ? 0 : Math.min(i + 1, matches.length - 1)));
+              return;
+            }
+            if (e.key === 'ArrowUp') {
+              if (open && matches.length > 0) {
+                e.preventDefault();
+                setActive((i) => (i <= 0 ? 0 : i - 1));
+              }
+              return;
             }
             // Tabで前方一致するタグ候補の確定部分まで補完する（一意ならタグ全体まで）
             const completed = completeOnTab(e, text, completions);
-            if (completed != null) setText(completed);
+            if (completed != null) {
+              setText(completed);
+              setActive(-1);
+            }
           }}
         />
-        <datalist id="tag-input-suggestions">
-          {suggestions.map((s) => (
-            <option key={s} value={s} />
-          ))}
-        </datalist>
+
+        {showList && (
+          <div
+            id="tag-input-listbox"
+            role="listbox"
+            aria-label="タグ候補"
+            className="absolute z-10 left-0 top-full mt-1 bg-white dark:bg-neutral-800 border rounded-sm shadow-md min-w-full max-h-64 overflow-auto whitespace-nowrap"
+          >
+            {matches.map((c, i) => (
+              <button
+                key={c.tag}
+                id={`tag-opt-${i}`}
+                type="button"
+                role="option"
+                aria-selected={i === active}
+                className={`flex w-full items-center gap-1 text-left px-2 py-1 text-sm ${
+                  i === active ? 'bg-blue-100 dark:bg-blue-900' : ''
+                } hover:bg-neutral-100 dark:hover:bg-neutral-700`}
+                onMouseEnter={() => setActive(i)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pickCandidate(c.tag)}
+              >
+                <TagItem tag={c.tag} color={c.color} />
+                {c.note && <span className="text-neutral-400">（{c.note}）</span>}
+              </button>
+            ))}
+          </div>
+        )}
 
         {rangeGroup && (
           <TagRangeInput
