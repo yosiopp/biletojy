@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, Comment, Ticket } from '../api/client';
 import AttachFileButton from '../components/AttachFileButton';
@@ -9,7 +9,7 @@ import TicketRefTextarea from '../components/TicketRefTextarea';
 import { formatDateTime } from '../lib/date';
 import { dropFiles, pasteFiles, useFileDrag } from '../lib/attachFiles';
 import { staleGuard } from '../lib/staleGuard';
-import { currentUser, splitTags, tagColor } from '../lib/tags';
+import { buildTagColorMap, currentUser, splitTags, tagColor } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
 
 function TicketDetail() {
@@ -18,6 +18,7 @@ function TicketDetail() {
   const [backlinks, setBacklinks] = useState<Ticket[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const catalog = useCatalog();
+  const colors = useMemo(() => buildTagColorMap(catalog), [catalog]);
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [ticketError, setTicketError] = useState('');
@@ -94,7 +95,7 @@ function TicketDetail() {
       </div>
       <div className="mb-4">
         {splitTags(ticket.tags).map((tag) => (
-          <TagItem key={tag} tag={tag} color={tagColor(catalog, tag)} />
+          <TagItem key={tag} tag={tag} color={tagColor(colors, tag)} />
         ))}
       </div>
 

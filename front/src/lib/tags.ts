@@ -62,14 +62,26 @@ export function joinTags(tags: string[]): string {
   return tags.join(' ');
 }
 
-// カタログからタグの表示色を引く（完全一致 → グループ一致の順）
-export function tagColor(catalog: Tag[], raw: string): string | null {
-  const exact = catalog.find((t) => t.tag === raw);
-  if (exact?.color) return exact.color;
+// タグ名→表示色のMap。カタログの線形探索を避けるため、
+// buildTagColorMapをuseMemoで一度呼んで構築し、tagColorで引く
+export type TagColorMap = ReadonlyMap<string, string>;
+
+export function buildTagColorMap(catalog: Tag[]): TagColorMap {
+  const colors = new Map<string, string>();
+  for (const t of catalog) {
+    if (t.color) colors.set(t.tag, t.color);
+  }
+  return colors;
+}
+
+// タグの表示色を引く（完全一致 → グループ一致の順）
+export function tagColor(colors: TagColorMap, raw: string): string | null {
+  const exact = colors.get(raw);
+  if (exact) return exact;
   const { group } = parseTag(raw);
   if (group) {
-    const groupEntry = catalog.find((t) => t.tag === `${group}:`);
-    if (groupEntry?.color) return groupEntry.color;
+    const groupColor = colors.get(`${group}:`);
+    if (groupColor) return groupColor;
   }
   return null;
 }

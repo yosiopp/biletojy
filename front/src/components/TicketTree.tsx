@@ -1,13 +1,13 @@
 import { KeyboardEvent as ReactKeyboardEvent, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { Tag, Ticket } from '../api/client';
-import { parseTag, splitTags, tagColor } from '../lib/tags';
+import type { Ticket } from '../api/client';
+import { parseTag, splitTags, tagColor, TagColorMap } from '../lib/tags';
 import TagItem from './TagItem';
 
 type Props = {
   // ソート済みの絞り込み結果（ノード内のチケットはこの順で並ぶ）
   tickets: Ticket[];
-  catalog: Tag[];
+  colors: TagColorMap;
   // ルートの階層タグ（例: "docs"。'' は全階層タグが対象）
   by: string;
 };
@@ -108,7 +108,7 @@ function indent(depth: number) {
 // 階層タグのパス構造でチケットを入れ子表示するツリー。
 // キーボード: ↑↓で行移動、→で展開（展開済みなら中へ）、←で折りたたみ（折りたたみ済みなら親へ）、
 // Enterでノードの開閉・チケットの表示
-function TicketTree({ tickets, catalog, by }: Props) {
+function TicketTree({ tickets, colors, by }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [focusIndex, setFocusIndex] = useState(0);
   const rowRefs = useRef<(HTMLElement | null)[]>([]);
@@ -211,7 +211,7 @@ function TicketTree({ tickets, catalog, by }: Props) {
             {row.ticket.title}
             <span className="block sm:inline sm:ml-2 mt-1 sm:mt-0">
               {splitTags(row.ticket.tags).map((tag) => (
-                <TagItem key={tag} tag={tag} color={tagColor(catalog, tag)} />
+                <TagItem key={tag} tag={tag} color={tagColor(colors, tag)} />
               ))}
             </span>
           </Link>

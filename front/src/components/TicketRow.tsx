@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
-import type { Tag, Ticket } from '../api/client';
+import type { Ticket } from '../api/client';
 import { formatDateTime } from '../lib/date';
-import { splitTags, tagColor } from '../lib/tags';
+import { splitTags, tagColor, TagColorMap } from '../lib/tags';
 import TagItem from './TagItem';
 
 // デスクトップではテーブル風の1行、モバイル（sm未満）ではカード型に組み替える
-function TicketRow({ ticket, catalog }: { ticket: Ticket; catalog: Tag[] }) {
+function TicketRow({ ticket, colors }: { ticket: Ticket; colors: TagColorMap }) {
   const { id, title, tags, updated_at } = ticket;
   return (
     <Link
@@ -19,7 +19,7 @@ function TicketRow({ ticket, catalog }: { ticket: Ticket; catalog: Tag[] }) {
       </div>
       <div className="sm:flex-1 sm:py-2 mt-1 sm:mt-0">
         {splitTags(tags).map((tag) => (
-          <TagItem key={tag} tag={tag} color={tagColor(catalog, tag)} />
+          <TagItem key={tag} tag={tag} color={tagColor(colors, tag)} />
         ))}
       </div>
       <div className="sm:flex-none sm:w-40 sm:py-2 sm:pr-4 text-sm text-neutral-500 dark:text-neutral-400">

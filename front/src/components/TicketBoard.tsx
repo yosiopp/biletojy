@@ -1,13 +1,14 @@
 import { DragEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, Tag, Ticket } from '../api/client';
-import { currentUser, groupCatalog, joinTags, parseTag, splitTags, tagColor } from '../lib/tags';
+import { currentUser, groupCatalog, joinTags, parseTag, splitTags, tagColor, TagColorMap } from '../lib/tags';
 import TagItem from './TagItem';
 
 type Props = {
   // ソート済みの絞り込み結果（各列内はこの順で並ぶ）
   tickets: Ticket[];
   catalog: Tag[];
+  colors: TagColorMap;
   // 列の基準にするタググループ（例: "status"）
   by: string;
   // カード移動でタグを付け替えたチケットの反映
@@ -26,7 +27,7 @@ type Column = {
 // カードのドラッグ&ドロップ、またはカードにフォーカスして ←→ で列間を移動でき、
 // 移動するとグループのタグを付け替えて保存する（グループタグは排他なので旧値を外して新値を付ける）。
 // ↑↓は同じ列内のカード間のフォーカス移動、Enterでチケット詳細を開く
-function TicketBoard({ tickets, catalog, by, onUpdated, onError }: Props) {
+function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props) {
   // ドロップ先としてハイライト中の列（tag ?? '' をキーにする）
   const [dropCol, setDropCol] = useState<string | null>(null);
   const cardRefs = useRef(new Map<number, HTMLAnchorElement>());
@@ -155,7 +156,7 @@ function TicketBoard({ tickets, catalog, by, onUpdated, onError }: Props) {
                       {splitTags(ticket.tags)
                         .filter((t) => !t.startsWith(`${by}:`))
                         .map((tag) => (
-                          <TagItem key={tag} tag={tag} color={tagColor(catalog, tag)} />
+                          <TagItem key={tag} tag={tag} color={tagColor(colors, tag)} />
                         ))}
                     </span>
                   )}

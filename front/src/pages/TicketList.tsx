@@ -9,7 +9,7 @@ import TicketTree from '../components/TicketTree';
 import ViewSelect from '../components/ViewSelect';
 import { buildSort, HIERARCHY_SORT_KEY, parseSort, sortTickets, SortSpec } from '../lib/sort';
 import { staleGuard } from '../lib/staleGuard';
-import { groupCatalog, hierarchyOptions } from '../lib/tags';
+import { buildTagColorMap, groupCatalog, hierarchyOptions } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
 import { parseViewMode, VIEW_MODES, ViewMode } from '../lib/viewMode';
 
@@ -18,6 +18,8 @@ function TicketList() {
   // null はロード中（初回フェッチ完了前に空表示を出さないため）
   const [tickets, setTickets] = useState<Ticket[] | null>(null);
   const catalog = useCatalog();
+  // タグ名→色のMap。各行のタグ表示でカタログを線形探索しないよう一度だけ構築する
+  const tagColors = useMemo(() => buildTagColorMap(catalog), [catalog]);
   const [error, setError] = useState('');
   // インポート完了の通知と、完了後に一覧を再取得するためのカウンタ
   const [notice, setNotice] = useState('');
@@ -203,16 +205,17 @@ function TicketList() {
       {tickets == null && !error && <p className="text-neutral-500 dark:text-neutral-400 p-4">読み込み中...</p>}
       {sortedTickets != null && mode === 'list' &&
         sortedTickets.map((ticket) => (
-          <TicketRow key={ticket.id} ticket={ticket} catalog={catalog} />
+          <TicketRow key={ticket.id} ticket={ticket} colors={tagColors} />
         ))}
       {sortedTickets != null && mode === 'tree' && sortedTickets.length > 0 && (
-        <TicketTree tickets={sortedTickets} catalog={catalog} by={by} />
+        <TicketTree tickets={sortedTickets} colors={tagColors} by={by} />
       )}
       {sortedTickets != null && mode === 'board' && sortedTickets.length > 0 && (
         by ? (
           <TicketBoard
             tickets={sortedTickets}
             catalog={catalog}
+            colors={tagColors}
             by={by}
             onUpdated={replaceTicket}
             onError={setError}

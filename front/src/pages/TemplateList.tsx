@@ -1,11 +1,11 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api, Template } from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Dialog from '../components/Dialog';
 import TagInput from '../components/TagInput';
 import TagItem from '../components/TagItem';
 import TicketRefTextarea from '../components/TicketRefTextarea';
-import { joinTags, splitTags, tagColor } from '../lib/tags';
+import { buildTagColorMap, joinTags, splitTags, tagColor } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
 
 type Editing = {
@@ -27,6 +27,7 @@ function TemplateList() {
   const [confirming, setConfirming] = useState<Template | null>(null);
   const [error, setError] = useState('');
   const catalog = useCatalog();
+  const colors = useMemo(() => buildTagColorMap(catalog), [catalog]);
 
   const reload = () =>
     api
@@ -181,7 +182,7 @@ function TemplateList() {
           <div className="sm:w-1/4 sm:py-2 text-sm truncate">{tpl.title}</div>
           <div className="sm:flex-1 sm:py-2 mt-1 sm:mt-0">
             {splitTags(tpl.tags).map((tag) => (
-              <TagItem key={tag} tag={tag} color={tagColor(catalog, tag)} />
+              <TagItem key={tag} tag={tag} color={tagColor(colors, tag)} />
             ))}
           </div>
           <div className="sm:flex-none sm:w-32 sm:py-2 sm:pr-2 sm:text-right mt-1 sm:mt-0 text-sm">

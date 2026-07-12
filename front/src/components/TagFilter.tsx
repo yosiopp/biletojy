@@ -2,6 +2,7 @@ import { ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import type { Tag } from '../api/client';
 import {
   buildCond,
+  buildTagColorMap,
   completeOnTab,
   completionCandidates,
   condGroup,
@@ -73,6 +74,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
   const [editValue, setEditValue] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const groups = useMemo(() => groupCatalog(catalog), [catalog]);
+  const colors = useMemo(() => buildTagColorMap(catalog), [catalog]);
   const hierarchies = useMemo(() => hierarchyOptions(catalog), [catalog]);
 
   // 日時・数値タグの値待ち状態（例: "due-date@:" "-estimate#:>="）なら日付ピッカー・数値入力を出す
@@ -216,7 +218,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
               group={group}
               options={groupOptions(tags)}
               value={groupSelected}
-              color={tagColor(catalog, groupSelected || `${group}:`)}
+              color={tagColor(colors, groupSelected || `${group}:`)}
               onChange={(tag) => replaceGroupTag(group, tag)}
               filter
             />
@@ -251,7 +253,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
           // 単純な条件は通常のタグチップで表示（色・期限表示を活かす）。NOT/OR条件は専用チップにする
           const chip =
             !not && alts.length === 1 ? (
-              <TagItem tag={alts[0]} color={tagColor(catalog, alts[0])} onRemove={remove} onClick={startEdit} />
+              <TagItem tag={alts[0]} color={tagColor(colors, alts[0])} onRemove={remove} onClick={startEdit} />
             ) : (
               <ConditionChip label={not ? '除外' : undefined} onRemove={remove} onClick={startEdit}>
                 {alts.join(' | ')}
