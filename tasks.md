@@ -5,16 +5,6 @@
 - 調査・分析タスクは並列実行して構いません。
 - ファイルを変更するタスクを並列実行する場合は worktree で分離してください。
 
-## 起動設定の環境変数対応（docker-compose / Cloud Run 向け）
-- フラグのデフォルト値を環境変数から与える方式で対応する（優先順位: フラグ > 環境変数 > デフォルト。back/main.go のみの変更）
-  - `-addr` ← `BILETOJY_ADDR`。両方未指定時は `PORT` があれば `:$PORT` にフォールバック（Cloud Run のポート契約に対応）、なければ `:8040`
-  - `-user-header` ← `BILETOJY_USER_HEADER`
-  - `-static` ← `BILETOJY_STATIC`
-- DBパスも環境変数化する: `BILETOJY_DB`（デフォルトは現行の `./biletojy.db`）。`data.NewDao()` がパスを引数で受けるようシグネチャ変更が必要
-- ドキュメント更新
-  - README.md の Docker 節に環境変数一覧と docker-compose 例を追記
-  - Cloud Run はファイルシステムが揮発性のため「ボリュームマウント必須・インスタンス数1推奨」の注意書きを README / docs/development.md に追記
-
 ## タグカタログのエクスポート/インポートとデフォルトタグの復元
 - シードデータのGo構造体化: `_SQL_INIT_TAG_CATALOG`（back/data/const.go）のSQL文字列を `[]Tag` 相当のGoリテラルへ変更し、初回シードと復元機能の単一ソースにする（v6マイグレーションの `status:CLOSE` 参照はSQL側のため影響なし）
 - DAO `ImportTags` を追加: トランザクションで一括登録。`TagNameError` で検証、`is_group` / `is_range` は `TagAttrs` で導出（既存 `saveTag` と同じ流儀）。sort_order 未指定時はセクション末尾（`_SQL_ADD_UNKNOWN_TAG` と同じ `MAX(sort_order) + 1` 方式）

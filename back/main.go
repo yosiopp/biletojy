@@ -11,13 +11,35 @@ import (
 	"github.com/yosiopp/biletojy/webui"
 )
 
+// envOr は環境変数keyがあればその値を、なければfallbackを返す（フラグの既定値算出に使う）
+func envOr(key, fallback string) string {
+	if v, ok := os.LookupEnv(key); ok {
+		return v
+	}
+	return fallback
+}
+
+// defaultAddr は-addr未指定・BILETOJY_ADDR未設定時の待ち受けアドレスを決める。
+// Cloud Runのポート契約に合わせ、PORTがあれば :$PORT へフォールバックする
+func defaultAddr() string {
+	if v, ok := os.LookupEnv("BILETOJY_ADDR"); ok {
+		return v
+	}
+	if port, ok := os.LookupEnv("PORT"); ok && port != "" {
+		return ":" + port
+	}
+	return ":8040"
+}
+
 func main() {
-	addr := flag.String("addr", ":8040", "listen address")
-	staticDir := flag.String("static", "", "frontend build directory overriding the embedded assets (empty to use embedded)")
-	userHeader := flag.String("user-header", "", "trusted request header holding the authenticated user id, e.g. X-Goog-Authenticated-User-Id (empty to disable)")
+	// 各フラグの既定値を環境変数から与える（優先順位: フラグ > 環境変数 > 既定値）
+	addr := flag.String("addr", defaultAddr(), "listen address (env BILETOJY_ADDR, falls back to :$PORT then :8040)")
+	staticDir := flag.String("static", envOr("BILETOJY_STATIC", ""), "frontend build directory overriding the embedded assets (env BILETOJY_STATIC, empty to use embedded)")
+	userHeader := flag.String("user-header", envOr("BILETOJY_USER_HEADER", ""), "trusted request header holding the authenticated user id, e.g. X-Goog-Authenticated-User-Id (env BILETOJY_USER_HEADER, empty to disable)")
+	dbPath := flag.String("db", envOr("BILETOJY_DB", data.DefaultDBPath), "SQLite database file path (env BILETOJY_DB)")
 	flag.Parse()
 
-	dao, err := data.NewDao()
+	dao, err := data.NewDao(*dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}

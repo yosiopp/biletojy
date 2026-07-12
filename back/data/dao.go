@@ -14,10 +14,14 @@ import (
 	sqlite3 "modernc.org/sqlite/lib"
 )
 
-// _time_format=sqlite はmattn/go-sqlite3と互換のタイムスタンプ書式（既存DBを引き続き読み書きできる）。
-// busy_timeoutはmattn/go-sqlite3のデフォルトに合わせて5秒
 const (
-	_DB_FILE = "./biletojy.db?_time_format=sqlite&_pragma=busy_timeout(5000)"
+	// DefaultDBPath はデータベースファイルの既定パス（カレントディレクトリ）。
+	// 環境変数 BILETOJY_DB で上書きできる（解決は back/main.go）
+	DefaultDBPath = "./biletojy.db"
+	// _DB_DSN_PARAMS は接続時にベースパスへ付与するDSNクエリ。
+	// _time_format=sqlite はmattn/go-sqlite3と互換のタイムスタンプ書式（既存DBを引き続き読み書きできる）。
+	// busy_timeoutはmattn/go-sqlite3のデフォルトに合わせて5秒
+	_DB_DSN_PARAMS = "?_time_format=sqlite&_pragma=busy_timeout(5000)"
 )
 
 type Dao struct {
@@ -118,8 +122,10 @@ type Tag struct {
 	SortOrder int64   `json:"sort_order"`
 }
 
-func NewDao() (*Dao, error) {
-	db, err := sql.Open("sqlite", _DB_FILE)
+// NewDao はdbPath（ベースのファイルパス。既定は DefaultDBPath）を開いてDaoを返す。
+// 接続時に現行のDSNクエリ（_DB_DSN_PARAMS）を付与する
+func NewDao(dbPath string) (*Dao, error) {
+	db, err := sql.Open("sqlite", dbPath+_DB_DSN_PARAMS)
 	if err != nil {
 		return nil, err
 	}

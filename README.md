@@ -60,6 +60,42 @@ issue tracking system with tag
 docker run -d --name biletojy -p 8040:8040 -v biletojy-data:/data ghcr.io/yosiopp/biletojy:latest
 ```
 
+#### 環境変数
+フラグ（`-addr` など）を指定しない場合、以下の環境変数で起動設定を与えられる（優先順位: フラグ > 環境変数 > 既定値）。
+
+| 環境変数 | 対応フラグ | 既定値 | 内容 |
+|---|---|---|---|
+| `BILETOJY_ADDR` | `-addr` | `:8040` | 待ち受けアドレス |
+| `PORT` | — | — | `BILETOJY_ADDR`・`-addr` がいずれも未指定のとき `:$PORT` にフォールバックする（Cloud Run 等のポート契約用） |
+| `BILETOJY_USER_HEADER` | `-user-header` | （空） | 認証済みユーザ識別子を持つ信頼ヘッダ名（[IAP連携](docs/development.md#iap連携-user-header)参照） |
+| `BILETOJY_STATIC` | `-static` | （空） | 埋め込みの代わりに配信するフロントのディレクトリ（開発用オーバーライド） |
+| `BILETOJY_DB` | `-db` | `./biletojy.db` | SQLite データベースファイルのパス |
+
+#### docker-compose
+```yaml
+services:
+  biletojy:
+    image: ghcr.io/yosiopp/biletojy:latest
+    ports:
+      - "8040:8040"
+    environment:
+      BILETOJY_DB: /data/biletojy.db
+      # BILETOJY_USER_HEADER: X-Goog-Authenticated-User-Id
+    volumes:
+      - biletojy-data:/data
+    restart: unless-stopped
+
+volumes:
+  biletojy-data:
+```
+
+#### Cloud Run 等のサーバーレス環境での注意
+Cloud Run のファイルシステムはインスタンス終了時に破棄される揮発性（インメモリ）で、複数インスタンスがストレージを共有しない。SQLite に単一ファイルで書き込む本アプリでは以下が必須。
+
+* **永続ボリュームのマウントが必須**（Cloud Run volume mounts で Cloud Storage / ネットワークファイルシステムをマウントし、`BILETOJY_DB` をそのパスに向ける）。マウントしない場合、データはインスタンス終了時に失われる
+* **インスタンス数は1を推奨**（最小・最大インスタンスをともに1に固定）。複数インスタンスが同一SQLiteファイルへ同時書き込みするとロック競合や破損の恐れがある
+* リッスンポートは `PORT` 環境変数（Cloud Run が注入する）に従うため、`BILETOJY_ADDR` を指定しなければ自動で `:$PORT` を待ち受ける
+
 ### ソースからビルド
 [just](https://github.com/casey/just) がインストールされていれば1コマンドでビルド・起動できる。
 

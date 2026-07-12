@@ -27,7 +27,7 @@ func newTestServer(t *testing.T) http.Handler {
 func newTestServerWithUserHeader(t *testing.T, userHeader string) http.Handler {
 	t.Helper()
 	t.Chdir(t.TempDir())
-	dao, err := data.NewDao()
+	dao, err := data.NewDao(data.DefaultDBPath)
 	if err != nil {
 		t.Fatalf("NewDao: %v", err)
 	}
@@ -1139,7 +1139,7 @@ func TestStaticSpaFallback(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(staticDir, "index.html"), []byte("<html>spa-index</html>"), 0644); err != nil {
 		t.Fatalf("write index.html: %v", err)
 	}
-	dao, err := data.NewDao()
+	dao, err := data.NewDao(data.DefaultDBPath)
 	if err != nil {
 		t.Fatalf("NewDao: %v", err)
 	}
@@ -1224,7 +1224,7 @@ func TestContentSecurityPolicy(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(staticDir, "index.html"), []byte(html), 0644); err != nil {
 		t.Fatalf("write index.html: %v", err)
 	}
-	dao, err := data.NewDao()
+	dao, err := data.NewDao(data.DefaultDBPath)
 	if err != nil {
 		t.Fatalf("NewDao: %v", err)
 	}

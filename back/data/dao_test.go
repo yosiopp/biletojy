@@ -13,7 +13,7 @@ import (
 func newTestDao(t *testing.T) *Dao {
 	t.Helper()
 	t.Chdir(t.TempDir())
-	dao, err := NewDao()
+	dao, err := NewDao(DefaultDBPath)
 	if err != nil {
 		t.Fatalf("NewDao: %v", err)
 	}
@@ -549,7 +549,7 @@ func TestCommentsFullText(t *testing.T) {
 // プリセットのstatusタグにはシードと同じ並び順が設定される（status:CLOSEはv6でCLOSEDへ改名される）
 func TestMigrateAddsSortOrderColumn(t *testing.T) {
 	t.Chdir(t.TempDir())
-	db, err := sql.Open("sqlite", _DB_FILE)
+	db, err := sql.Open("sqlite", DefaultDBPath+_DB_DSN_PARAMS)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -575,7 +575,7 @@ func TestMigrateAddsSortOrderColumn(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	dao, err := NewDao()
+	dao, err := NewDao(DefaultDBPath)
 	if err != nil {
 		t.Fatalf("NewDao: %v", err)
 	}
@@ -603,7 +603,7 @@ func TestMigrateAddsSortOrderColumn(t *testing.T) {
 // タグカタログと使用中チケットのタグ表記がstatus:CLOSEDへ書き換えられる
 func TestMigrateRenamesCloseTag(t *testing.T) {
 	t.Chdir(t.TempDir())
-	dao, err := NewDao()
+	dao, err := NewDao(DefaultDBPath)
 	if err != nil {
 		t.Fatalf("NewDao: %v", err)
 	}
@@ -619,7 +619,7 @@ func TestMigrateRenamesCloseTag(t *testing.T) {
 	}
 	dao.Close()
 
-	dao, err = NewDao()
+	dao, err = NewDao(DefaultDBPath)
 	if err != nil {
 		t.Fatalf("NewDao: %v", err)
 	}
@@ -650,7 +650,7 @@ func TestMigrateRenamesCloseTag(t *testing.T) {
 // （v6のrenameCloseTagはv6未満のDBに対してのみ実行される）
 func TestMigrateKeepsRecreatedCloseTag(t *testing.T) {
 	t.Chdir(t.TempDir())
-	dao, err := NewDao()
+	dao, err := NewDao(DefaultDBPath)
 	if err != nil {
 		t.Fatalf("NewDao: %v", err)
 	}
@@ -661,7 +661,7 @@ func TestMigrateKeepsRecreatedCloseTag(t *testing.T) {
 	}
 	dao.Close()
 
-	dao, err = NewDao()
+	dao, err = NewDao(DefaultDBPath)
 	if err != nil {
 		t.Fatalf("NewDao: %v", err)
 	}
@@ -688,7 +688,7 @@ func TestMigrateKeepsRecreatedCloseTag(t *testing.T) {
 // FTSが再構築されてrowid = チケットIDになり、rowidベースの検索・更新が機能する
 func TestMigrateRebuildsFtsRowid(t *testing.T) {
 	t.Chdir(t.TempDir())
-	dao, err := NewDao()
+	dao, err := NewDao(DefaultDBPath)
 	if err != nil {
 		t.Fatalf("NewDao: %v", err)
 	}
@@ -709,7 +709,7 @@ func TestMigrateRebuildsFtsRowid(t *testing.T) {
 	}
 	dao.Close()
 
-	dao, err = NewDao()
+	dao, err = NewDao(DefaultDBPath)
 	if err != nil {
 		t.Fatalf("NewDao: %v", err)
 	}
@@ -1261,7 +1261,7 @@ func TestAddAndGetFile(t *testing.T) {
 
 func TestMigrateImagesToFiles(t *testing.T) {
 	t.Chdir(t.TempDir())
-	db, err := sql.Open("sqlite", _DB_FILE)
+	db, err := sql.Open("sqlite", DefaultDBPath+_DB_DSN_PARAMS)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1284,7 +1284,7 @@ func TestMigrateImagesToFiles(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	dao, err := NewDao()
+	dao, err := NewDao(DefaultDBPath)
 	if err != nil {
 		t.Fatalf("NewDao: %v", err)
 	}

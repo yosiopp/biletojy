@@ -7,7 +7,7 @@
 ## ディレクトリ構成
 ```
 back/            バックエンド（Go / net/http）
-  main.go        エントリポイント（-addr, -static, -user-header フラグ）
+  main.go        エントリポイント（-addr, -static, -user-header, -db フラグ / 環境変数対応）
   server.go      APIルーティング・ハンドラ
   data/          DAO・SQL定義・FTSトークナイズ・日時/数値タグの範囲条件
   webui/         フロントのビルド成果物の埋め込み（go:embed。dist/はビルド時にコピー）
@@ -49,7 +49,25 @@ cd ../dist
 ```
 * フロントは `go:embed`（`back/webui/`）でバイナリに埋め込まれるため、バイナリ単体で配置できる
 * `-addr` で待ち受けアドレスを変更できる。`-static` を指定すると埋め込みの代わりに指定ディレクトリを配信する（開発用オーバーライド）
-* データベース `biletojy.db` はカレントディレクトリに自動作成され、初回にプリセットのタググループが投入される（[テーブル定義書](database.md)参照）
+* データベース `biletojy.db` はカレントディレクトリに自動作成され、初回にプリセットのタググループが投入される（[テーブル定義書](database.md)参照）。`-db` でパスを変更できる
+
+### 起動設定（フラグ / 環境変数）
+コンテナ・サーバーレス環境向けに、各フラグの既定値を環境変数から与えられる（優先順位: **フラグ > 環境変数 > 既定値**）。実装は `back/main.go`（`flag.String` の既定値に `os.LookupEnv` の結果を渡す方式）。
+
+| 環境変数 | フラグ | 既定値 | 内容 |
+|---|---|---|---|
+| `BILETOJY_ADDR` | `-addr` | `:8040` | 待ち受けアドレス |
+| `PORT` | — | — | `BILETOJY_ADDR`・`-addr` がいずれも未指定のとき `:$PORT` にフォールバック（Cloud Run のポート契約用） |
+| `BILETOJY_USER_HEADER` | `-user-header` | （空） | 認証済みユーザ識別子を持つ信頼ヘッダ名（下記[IAP連携](#iap連携-user-header)参照） |
+| `BILETOJY_STATIC` | `-static` | （空） | 埋め込みの代わりに配信するフロントのディレクトリ |
+| `BILETOJY_DB` | `-db` | `./biletojy.db` | SQLite データベースファイルのパス。`NewDao(dbPath)` にベースパスとして渡され、DSNクエリは内部で付与される |
+
+### Cloud Run 等のサーバーレス環境での注意
+Cloud Run のファイルシステムは揮発性（インスタンス終了で破棄）で、インスタンス間でストレージを共有しない。SQLite を単一ファイルで扱う本アプリでは次が必須。
+
+* **永続ボリュームのマウントが必須**: Cloud Run volume mounts で Cloud Storage / ネットワークファイルシステムをマウントし、`BILETOJY_DB` をそのパスへ向ける。マウントしないとデータはインスタンス終了時に失われる
+* **インスタンス数は1を推奨**: 最小・最大インスタンスをともに1に固定する。複数インスタンスが同一SQLiteファイルへ同時書き込みするとロック競合・破損の恐れがある
+* リッスンポートは Cloud Run が注入する `PORT` に従う（`BILETOJY_ADDR` 未指定なら自動で `:$PORT` を待ち受ける）
 
 ## IAP連携（-user-header）
 前段にGoogle Cloud IAPなどの認証プロキシを配置している場合、`-user-header` で認証済みユーザの識別子（sub）が入るリクエストヘッダを指定できる。
