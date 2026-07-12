@@ -35,6 +35,8 @@ type Column = {
 function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props) {
   // ドロップ先としてハイライト中の列（tag ?? '' をキーにする）
   const [dropCol, setDropCol] = useState<string | null>(null);
+  // カードをドラッグ中か（空の「なし」列をドロップ先として一時的に表示するために使う）
+  const [dragging, setDragging] = useState(false);
   const cardRefs = useRef(new Map<number, HTMLAnchorElement>());
   // キーボードで列間移動したカードへ、再描画後にフォーカスを戻す
   const pendingFocus = useRef<number | null>(null);
@@ -129,6 +131,8 @@ function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props
     <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:overflow-x-auto pb-2">
       {columns.map((column, colIndex) => {
         const key = column.tag ?? '';
+        // 「なし」列は空かつ非ドラッグ時は隠す（ドラッグ中のみドロップ先として表示）
+        if (column.tag === null && column.tickets.length === 0 && !dragging) return null;
         return (
           <div
             key={key}
@@ -168,8 +172,12 @@ function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props
                     onDragStart={(e) => {
                       e.dataTransfer.setData(CARD_DRAG_TYPE, String(ticket.id));
                       e.dataTransfer.effectAllowed = 'move';
+                      setDragging(true);
                     }}
-                    onDragEnd={() => setDropCol(null)}
+                    onDragEnd={() => {
+                      setDragging(false);
+                      setDropCol(null);
+                    }}
                     onKeyDown={(e) => onCardKeyDown(e, ticket, colIndex, rowIndex)}
                   >
                     <span className="text-sm text-neutral-500 dark:text-neutral-400 mr-2">#{ticket.id}</span>
