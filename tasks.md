@@ -34,18 +34,6 @@
   - back/server_test.go に pb33f/libopenapi-validator を組み込み、httptest の実レスポンスを openapi.yaml に対して検証してドリフトを防止する（本番コードへの影響ゼロ）
   - CLAUDE.md の「API変更時に更新するdocs」に openapi.yaml を追記する
 
-## ヘッダー改善（「+ 新規チケット」のチケット一覧への移動とモバイルナビのハンバーガーメニュー化）
-UIレビューで判明したモバイル表示の横はみ出し（375px幅で全ページ scrollWidth=550px。原因はヘッダー1行flexの右側要素）の解消と、作成ボタン配置の他画面との統一。
-- 「+ 新規チケット」を Header.tsx からチケット一覧へ移動する
-  - TicketList.tsx に他の一覧ページと同じタイトル行を追加（TagList.tsx の `<h2 className="text-xl flex-1">タグ一覧</h2>` + 右端ボタンと同パターン。`title="ctrl+n"` の Link to `/tickets/new`）
-  - ctrl+n（components/Layout.tsx の SHORTCUTS）はグローバルのまま維持し、どの画面からも作成できる導線はショートカットとして残す
-- モバイル（`sm` 未満）ではグローバルナビ（tickets / tags / templates / files）をヘッダーのハンバーガーボタンで開くポップアップメニューへ移動する。デスクトップ（`sm` 以上）は現状の横並びのまま（`hidden sm:flex` で出し分け）
-  - drawerではなく ExportImport.tsx / ViewSelect.tsx と同型のメニューにする（`useMenuKeys` + `useOutsideClick` の流儀で、↑↓移動・Enter実行・Escapeで閉じる。`aria-haspopup` / `aria-label` 付与）。リンク選択で閉じる
-  - エクスポート/インポート（ExportImport.tsx）は検索条件（q + tags）に依存するためチケット一覧に残す（ボタンのハンバーガーアイコン化は「アイコンボタン化」タスク側で行う）
-  - テーマ選択・ユーザ名はナビ除去後なら375pxに収まる見込み（実測: ボタン除去で約126px、ナビで約264px削減）だが、収まらなければメニュー側へ移す
-  - ハンバーガー開閉のアイコンは「アイコンボタン化」タスクの `menu` / `close` を使う（着手順によってはテキスト「≡」で仮置きし、アイコンタスク側で差し替え）
-- 検証: `tools/capture-screens.mjs` でモバイル各ルートを再キャプチャし、`document.documentElement.scrollWidth === 375` になることを確認する。ハンバーガーメニューを開いた状態のキャプチャもスクリプトに追加する
-
 ## UIレビューの小粒改善（フロントのみ、コミットは項目ごと）
 2026-07-12 のUIレビュー（`tools/capture-screens.mjs` で再現可能）での指摘。各項目は独立しており個別にコミットする。
 - ヘルプ「?」ボタン（Layout.tsx の `fixed bottom-4 right-4`）が一覧最下部の行の「削除」等の操作リンクに重なる。main側に `pb-16` 程度の余白を足すか、ヘルプの配置を見直す

@@ -103,6 +103,17 @@ function TicketList() {
 
   return (
     <>
+      <div className="flex items-center gap-2 mb-2">
+        <h2 className="text-xl flex-1">チケット一覧</h2>
+        <Link
+          to="/tickets/new"
+          className="bg-blue-600 text-white rounded-sm px-3 py-1 text-sm hover:bg-blue-700 whitespace-nowrap"
+          title="ctrl+n"
+        >
+          + 新規チケット
+        </Link>
+      </div>
+
       <TagFilter
         selected={tags}
         onChange={(next) => updateParams(q, next)}
