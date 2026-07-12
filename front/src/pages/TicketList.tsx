@@ -27,7 +27,8 @@ function TicketList() {
 
   const q = searchParams.get('q') ?? '';
   const tagsParam = searchParams.get('tags') ?? '';
-  const tags = tagsParam.split(',').filter((t) => t.length > 0);
+  // 取得エフェクトの依存にも使うため、tagsParamが変わらない限り同じ参照を保つ
+  const tags = useMemo(() => tagsParam.split(',').filter((t) => t.length > 0), [tagsParam]);
   const hasFilter = q.length > 0 || tags.length > 0;
   const sort = parseSort(searchParams.get('sort'));
   // 表示モード（リスト / ツリー / カンバン）と表示対象（ツリーのルート階層タグ、カンバンの基準タググループ）
@@ -47,11 +48,11 @@ function TicketList() {
     // （ソートはクライアント側で行うため再取得しない）
     const { fresh, cancel } = staleGuard();
     api
-      .listTickets(q, tagsParam.split(',').filter((t) => t.length > 0))
+      .listTickets(q, tags)
       .then(fresh(setTickets))
       .catch(fresh((e: Error) => setError(e.message)));
     return cancel;
-  }, [q, tagsParam, reload]);
+  }, [q, tags, reload]);
 
   // 表示対象の選択肢。ツリーはルートに選べる階層タグ（中間階層含む）、カンバンは基準に選べる
   // タググループ（日時・数値グループは値が離散でないため対象外）。
