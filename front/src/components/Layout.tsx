@@ -16,6 +16,14 @@ const SHORTCUTS: [string, string][] = [
   ['?', 'このヘルプを表示'],
 ];
 
+// チケット一覧の検索欄で使える構文（記法と意味）
+const SEARCH_SYNTAX: [string, string][] = [
+  ['-タグ', 'そのタグを除外（NOT）'],
+  ['タグ|タグ', 'いずれかに一致（OR）'],
+  ['日時@:>=…', '日時タグを比較演算子で範囲指定'],
+  ['数値#:>=…', '数値タグを比較演算子で範囲指定'],
+];
+
 // 入力欄にフォーカスがある間はショートカットを無効にする
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -124,6 +132,20 @@ function Layout() {
                   <tr key={key}>
                     <td className="py-1 pr-3 whitespace-nowrap">
                       <kbd className="border rounded-sm px-1.5 py-0.5 bg-neutral-50 dark:bg-neutral-700 font-mono text-xs">{key}</kbd>
+                    </td>
+                    <td className="py-1">{desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <h3 className="text-sm text-neutral-500 dark:text-neutral-400 mt-4 mb-1">検索構文</h3>
+            <table className="w-full text-sm">
+              <tbody>
+                {SEARCH_SYNTAX.map(([syntax, desc]) => (
+                  <tr key={syntax}>
+                    <td className="py-1 pr-3 whitespace-nowrap">
+                      <code className="border rounded-sm px-1.5 py-0.5 bg-neutral-50 dark:bg-neutral-700 font-mono text-xs">{syntax}</code>
                     </td>
                     <td className="py-1">{desc}</td>
                   </tr>

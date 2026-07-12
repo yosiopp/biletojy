@@ -163,7 +163,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
           ref={searchRef}
           type="search"
           className="border rounded-sm px-2 py-1 w-full"
-          placeholder="タグまたは全文検索（タイトル・本文・コメント / -タグで除外、タグ|タグでOR / Enterで確定）"
+          placeholder="タグまたは全文検索"
           list="tag-filter-suggestions"
           value={text}
           onChange={(e) => setText(e.target.value)}
