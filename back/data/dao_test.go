@@ -307,17 +307,17 @@ func TestQueryTicketsNotOr(t *testing.T) {
 		want []int64
 	}{
 		{[]string{"-status:CLOSED"}, []int64{t4.Id, t2.Id, t1.Id}},                 // NOT
-		{[]string{"-docs"}, []int64{t4.Id, t3.Id, t1.Id}},                         // 階層の前方一致のNOT
-		{[]string{"status:OPEN|status:WIP"}, []int64{t4.Id, t2.Id, t1.Id}},        // OR
-		{[]string{"status:OPEN|docs/design"}, []int64{t2.Id, t1.Id}},              // グループを跨ぐOR
-		{[]string{"-status:OPEN|status:WIP"}, []int64{t3.Id}},                     // NOTはOR全体に掛かる
+		{[]string{"-docs"}, []int64{t4.Id, t3.Id, t1.Id}},                          // 階層の前方一致のNOT
+		{[]string{"status:OPEN|status:WIP"}, []int64{t4.Id, t2.Id, t1.Id}},         // OR
+		{[]string{"status:OPEN|docs/design"}, []int64{t2.Id, t1.Id}},               // グループを跨ぐOR
+		{[]string{"-status:OPEN|status:WIP"}, []int64{t3.Id}},                      // NOTはOR全体に掛かる
 		{[]string{"type:BUG", "-status:CLOSED"}, []int64{t1.Id}},                   // ANDとの組み合わせ
 		{[]string{"-status:CLOSED", "-status:WIP"}, []int64{t1.Id}},                // NOT同士のAND
 		{[]string{"status:OPEN|status:CLOSED", "type:BUG"}, []int64{t3.Id, t1.Id}}, // ORとANDの組み合わせ
-		{[]string{"due-date@:>=2026-01-01|status:OPEN"}, []int64{t4.Id, t1.Id}},   // 範囲条件を含むOR
-		{[]string{"-due-date@:>=2026-01-01"}, []int64{t3.Id, t2.Id, t1.Id}},       // 範囲条件のNOT（タグなしも含む）
-		{[]string{"-"}, []int64{t4.Id, t3.Id, t2.Id, t1.Id}},                      // 空の条件は無視
-		{[]string{"status:OPEN|"}, []int64{t1.Id}},                                // 空の択は無視
+		{[]string{"due-date@:>=2026-01-01|status:OPEN"}, []int64{t4.Id, t1.Id}},    // 範囲条件を含むOR
+		{[]string{"-due-date@:>=2026-01-01"}, []int64{t3.Id, t2.Id, t1.Id}},        // 範囲条件のNOT（タグなしも含む）
+		{[]string{"-"}, []int64{t4.Id, t3.Id, t2.Id, t1.Id}},                       // 空の条件は無視
+		{[]string{"status:OPEN|"}, []int64{t1.Id}},                                 // 空の択は無視
 	}
 	for _, tt := range tests {
 		if got := queryTicketIds(t, dao, "", tt.tags); !slices.Equal(got, tt.want) {
@@ -419,9 +419,9 @@ func TestQueryTicketsTagPrefilter(t *testing.T) {
 		tags []string
 		want []int64
 	}{
-		{[]string{"rate:100%"}, []int64{t1.Id}}, // LIKEのワイルドカードを含むタグの完全一致
-		{[]string{"rate:10_0"}, []int64{}},      // "_" は任意の1文字ではなくリテラルとして判定される
-		{[]string{"foo"}, []int64{}},            // "food" のような部分文字列には一致しない
+		{[]string{"rate:100%"}, []int64{t1.Id}},          // LIKEのワイルドカードを含むタグの完全一致
+		{[]string{"rate:10_0"}, []int64{}},               // "_" は任意の1文字ではなくリテラルとして判定される
+		{[]string{"foo"}, []int64{}},                     // "food" のような部分文字列には一致しない
 		{[]string{"rate:100%", "-food"}, []int64{t1.Id}}, // 肯定条件とNOT条件の併用
 	}
 	for _, tt := range tests {
