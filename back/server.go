@@ -583,6 +583,24 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		writeJson(w, http.StatusOK, saved)
 	})
 
+	// タグを使用しているチケット数。削除・タグ名変更の確認用（チケット本体を取得せず件数だけ返す）
+	mux.HandleFunc("GET /api/tags/{id}/usage", func(w http.ResponseWriter, r *http.Request) {
+		id, ok := pathId(w, r)
+		if !ok {
+			return
+		}
+		tag, ok := fetchOr404(w, dao.GetTag, id, "tag")
+		if !ok {
+			return
+		}
+		count, err := dao.CountTagUsage(tag.Tag)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJson(w, http.StatusOK, map[string]int{"count": count})
+	})
+
 	mux.HandleFunc("DELETE /api/tags/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id, ok := pathId(w, r)
 		if !ok {

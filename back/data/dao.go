@@ -1070,6 +1070,39 @@ func (dao *Dao) RenameTag(tag *Tag, updatedBy, updatedSub string) (int, error) {
 	return updated, tx.Commit()
 }
 
+// タグを使用しているチケット数を返す（削除・タグ名変更の確認用）。
+// rewriteTicketTagsと同じ2段構えで、LIKEで候補を絞った上でトークン単位の厳密判定はGo側で行う。
+// 値なしのグループエントリ（"due-date@:" など末尾 ":"）は、そのグループの値を持つチケットを前方一致で数える。
+// 階層タグの子孫（"docs" に対する "docs/design" など）は別タグのため数えない
+func (dao *Dao) CountTagUsage(name string) (int, error) {
+	rows, err := dao.db.Query(_SQL_QUERY_TICKET_TAGS_BY_TAG, "%"+name+"%")
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	count := 0
+	for rows.Next() {
+		var tags string
+		if err := rows.Scan(&tags); err != nil {
+			return 0, err
+		}
+		if tagUsed(tags, name) {
+			count++
+		}
+	}
+	return count, rows.Err()
+}
+
+// タグ文字列（スペース区切り）がnameのタグを使用しているか（replaceTagTokensと同じトークン単位の判定）
+func tagUsed(tags, name string) bool {
+	for _, token := range strings.Fields(tags) {
+		if token == name || (strings.HasSuffix(name, ":") && strings.HasPrefix(token, name)) {
+			return true
+		}
+	}
+	return false
+}
+
 // タグ文字列中のoldNameをnewNameへ置き換えたタグ文字列と、置き換えの有無を返す。
 // 値なしのグループエントリ（"due-date@:" など末尾 ":"）は前方一致でグループ名部分を置き換える。
 // 階層タグの子孫（"docs" に対する "docs/design" など）は別タグのため置き換えない。

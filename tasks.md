@@ -5,7 +5,4 @@
 - 調査・分析タスクは並列実行して構いません。
 - ファイルを変更するタスクを並列実行する場合は worktree で分離してください。
 
-## 効率性
-
-### タグ使用数の件数専用エンドポイントを追加する
-`front/src/pages/TagList.tsx:58-67` の `countUsage` が、削除・改名の確認のためだけに本文込みの全チケットJSONを取得している。`GET /api/tags/{id}/usage` のような件数専用API（サーバー側は `rewriteTicketTags` と同様のLIKE＋トークン判定でCOUNT）を追加してフロントを置き換える。docs/api.md の更新も。
+現在タスクなし。

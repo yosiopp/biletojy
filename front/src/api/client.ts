@@ -161,6 +161,8 @@ export const api = {
   renameTag: (id: number, data: Pick<Tag, 'tag' | 'note' | 'color'> & { updated_by: string }) =>
     request<Tag>(`/api/tags/${id}/rename`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTag: (id: number) => request<void>(`/api/tags/${id}`, { method: 'DELETE' }),
+  // タグを使用しているチケット数（削除・タグ名変更の確認用）
+  countTagUsage: (id: number) => request<{ count: number }>(`/api/tags/${id}/usage`),
   reorderTags: (ids: number[]) =>
     request<void>('/api/tags/order', { method: 'PUT', body: JSON.stringify({ ids }) }),
 };

@@ -4,7 +4,7 @@ import { api, Tag } from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Dialog from '../components/Dialog';
 import TagItem from '../components/TagItem';
-import { currentUser, parseTag, splitTags } from '../lib/tags';
+import { currentUser, parseTag } from '../lib/tags';
 import { invalidateCatalog } from '../lib/useCatalog';
 
 type Editing = {
@@ -57,21 +57,9 @@ function TagList() {
     }
   }, [searchParams, setSearchParams]);
 
-  // タグを使用しているチケット数を数える（削除・タグ名変更の確認ダイアログ用）。
-  // 検索APIは前方一致や日時の範囲解釈をするため、件数は取得結果から文字列一致で数える。
-  // グループエントリ（"status:" 等）はそのグループの値を持つチケットを数える。
-  // 単純なタグならタグ検索は完全一致の上位集合を返すため、事前絞り込みで取得量を減らせる
-  // （過去に作られたタグは , | 空白 などの検索メタ文字を含み得るため、その場合は全件取得する）
-  const countUsage = async (tagName: string): Promise<number> => {
-    const canPrefilter =
-      !tagName.endsWith(':') && !tagName.startsWith('-') && !/[,|\s]/.test(tagName);
-    const all = await api.listTickets('', canPrefilter ? [tagName] : []);
-    return all.filter((ticket) => {
-      const tags = splitTags(ticket.tags);
-      if (tagName.endsWith(':')) return tags.some((t) => t.startsWith(tagName));
-      return tags.includes(tagName);
-    }).length;
-  };
+  // タグを使用しているチケット数を件数専用APIで取得する（削除・タグ名変更の確認ダイアログ用）。
+  // 判定はサーバー側で行われる（完全一致。グループエントリ "status:" 等はそのグループの値を持つチケットを数える）
+  const countUsage = async (tag: Tag): Promise<number> => (await api.countTagUsage(tag.id)).count;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -82,7 +70,7 @@ function TagList() {
     if (original && original.tag !== name) {
       let count = 0;
       try {
-        count = await countUsage(original.tag);
+        count = await countUsage(original);
       } catch {
         // 件数の取得に失敗した場合は件数なしの確認にフォールバック
       }
@@ -137,7 +125,7 @@ function TagList() {
   const confirmRemove = async (tag: Tag) => {
     let message = `タグ「${tag.tag}」を削除しますか？`;
     try {
-      const used = await countUsage(tag.tag);
+      const used = await countUsage(tag);
       if (used > 0) {
         message =
           `タグ「${tag.tag}」は ${used} 件のチケットで使用されています。\n` +

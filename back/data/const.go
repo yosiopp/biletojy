@@ -123,6 +123,8 @@ const (
 	// タグ名変更時の書き換え候補の絞り込み（LIKEは % _ を含むタグ名でも上位集合を返すため、
 	// 実際の書き換え対象はGo側でトークン単位に判定する）
 	_SQL_QUERY_TICKETS_BY_TAG = `SELECT id, title, content, COALESCE(tags, ''), created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM tickets WHERE tags LIKE ?`
+	// タグ使用数の集計候補の絞り込み（同上、tagsカラムのみ。厳密な判定はGo側でトークン単位に行う）
+	_SQL_QUERY_TICKET_TAGS_BY_TAG = `SELECT COALESCE(tags, '') FROM tickets WHERE tags LIKE ?`
 	// チケット保存時のカタログ未定義タグの自動登録（定義済みなら何もしない）。
 	// 一覧でセクション末尾に並ぶよう、?4（Go側で導出したセクション区分）と同一セクションの
 	// 最大sort_order + 1を設定する

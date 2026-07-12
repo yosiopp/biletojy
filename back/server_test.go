@@ -728,6 +728,58 @@ func TestTagUpdateResponseFromDb(t *testing.T) {
 	}
 }
 
+func TestTagUsage(t *testing.T) {
+	handler := newTestServer(t)
+
+	// feature:SEARCH2 はLIKEでは feature:SEARCH の候補になるが、トークン単位の判定で数えない。
+	// docs/design は docs の子孫だが別タグのため数えない
+	createTicket(t, handler, data.Ticket{Title: "t1", Tags: "feature:SEARCH status:OPEN due-date@:2026-01-01"})
+	createTicket(t, handler, data.Ticket{Title: "t2", Tags: "status:OPEN feature:SEARCH2"})
+	createTicket(t, handler, data.Ticket{Title: "t3", Tags: "docs/design"})
+	createTicket(t, handler, data.Ticket{Title: "t4", Tags: "docs"})
+
+	// 自動登録されたタグのIDを名前から引く
+	tagIds := map[string]int64{}
+	for _, tag := range decodeBody[[]data.Tag](t, request(t, handler, "GET", "/api/tags", nil)) {
+		tagIds[tag.Tag] = tag.Id
+	}
+
+	usage := func(name string) int {
+		t.Helper()
+		w := request(t, handler, "GET", fmt.Sprintf("/api/tags/%d/usage", tagIds[name]), nil)
+		assertStatus(t, w, http.StatusOK)
+		return decodeBody[map[string]int](t, w)["count"]
+	}
+
+	if got := usage("feature:SEARCH"); got != 1 {
+		t.Errorf("usage(feature:SEARCH) = %d, want 1 (must not count feature:SEARCH2)", got)
+	}
+	if got := usage("status:OPEN"); got != 2 {
+		t.Errorf("usage(status:OPEN) = %d, want 2", got)
+	}
+	// 値なしのグループエントリは、そのグループの値を持つチケットを前方一致で数える
+	if got := usage("due-date@:"); got != 1 {
+		t.Errorf("usage(due-date@:) = %d, want 1", got)
+	}
+	// 階層タグの子孫は別タグのため数えない
+	if got := usage("docs"); got != 1 {
+		t.Errorf("usage(docs) = %d, want 1 (must not count docs/design)", got)
+	}
+	// 使用チケットのないタグは0
+	w := request(t, handler, "POST", "/api/tags", data.Tag{Tag: "unused"})
+	assertStatus(t, w, http.StatusCreated)
+	unused := decodeBody[data.Tag](t, w)
+	w = request(t, handler, "GET", fmt.Sprintf("/api/tags/%d/usage", unused.Id), nil)
+	assertStatus(t, w, http.StatusOK)
+	if got := decodeBody[map[string]int](t, w)["count"]; got != 0 {
+		t.Errorf("usage(unused) = %d, want 0", got)
+	}
+
+	// 存在しないタグは404、不正IDは400
+	assertErrorResponse(t, request(t, handler, "GET", "/api/tags/9999/usage", nil), http.StatusNotFound)
+	assertErrorResponse(t, request(t, handler, "GET", "/api/tags/abc/usage", nil), http.StatusBadRequest)
+}
+
 func TestTagDuplicateConflict(t *testing.T) {
 	handler := newTestServer(t)
 
