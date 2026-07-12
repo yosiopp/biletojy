@@ -74,10 +74,10 @@ function FileList() {
       title="ファイルの削除"
       message={
         confirming.referenced || confirming.history_referenced
-          ? `ファイル「${confirming.name || `#${confirming.id}`}」は` +
+          ? `ファイル「${confirming.name || `id:${confirming.id}`}」は` +
             `チケット・コメント${confirming.referenced ? '' : 'の履歴'}から参照されています。\n` +
             '削除するとチケットからの参照（リンク・画像）が切れます。\n削除しますか？'
-          : `ファイル「${confirming.name || `#${confirming.id}`}」を削除しますか？`
+          : `ファイル「${confirming.name || `id:${confirming.id}`}」を削除しますか？`
       }
       actionLabel="削除する"
       danger
@@ -119,39 +119,29 @@ function FileList() {
       {files.map((file) => (
         <div
           key={file.id}
-          className="block sm:flex sm:items-center border-b hover:bg-neutral-100 dark:hover:bg-neutral-800 px-2 py-2 sm:px-0 sm:py-0"
+          className="sm:flex sm:items-center border-b hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
-          <div className="sm:w-14 sm:py-2 sm:pl-2 text-sm">
-            <a
-              href={api.fileUrl(file.id)}
-              target="_blank"
-              rel="noreferrer"
-              className="text-blue-700 dark:text-blue-400 hover:underline"
-            >
-              #{file.id}
-            </a>
-          </div>
-          <div className="sm:flex-1 sm:py-2 truncate">
-            {file.name ? (
-              <a
-                href={api.fileUrl(file.id)}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-700 dark:text-blue-400 hover:underline"
-              >
-                {file.name}
-              </a>
-            ) : (
-              <span className="text-neutral-400">(名前なし)</span>
-            )}
-          </div>
-          <div className="sm:w-44 sm:py-2 text-sm text-neutral-500 dark:text-neutral-400 truncate">{file.mime}</div>
-          <div className="sm:w-24 sm:py-2 sm:text-right text-sm">{formatSize(file.size)}</div>
-          <div className="sm:w-40 sm:py-2 sm:pl-4 text-sm text-neutral-500 dark:text-neutral-400">
-            {formatDateTime(file.created_at)}
-          </div>
-          <div className="sm:w-20 sm:py-2 text-sm text-neutral-500 dark:text-neutral-400">{refLabel(file)}</div>
-          <div className="sm:flex-none sm:w-16 sm:py-2 sm:pr-2 sm:text-right mt-1 sm:mt-0 text-sm">
+          <a
+            href={api.fileUrl(file.id)}
+            target="_blank"
+            rel="noreferrer"
+            className="block sm:flex sm:items-center sm:flex-1 sm:min-w-0 px-2 pt-2 sm:px-0 sm:pt-0"
+          >
+            <div className="hidden sm:block sm:w-14 sm:py-2 sm:pl-2 text-sm text-neutral-500 dark:text-neutral-400">
+              {file.id}
+            </div>
+            <div className="sm:flex-1 sm:py-2 truncate">
+              <span className="sm:hidden text-neutral-500 dark:text-neutral-400 mr-2">{file.id}</span>
+              {file.name || <span className="text-neutral-400">(名前なし)</span>}
+            </div>
+            <div className="sm:w-44 sm:py-2 text-sm text-neutral-500 dark:text-neutral-400 truncate">{file.mime}</div>
+            <div className="sm:w-24 sm:py-2 sm:text-right text-sm">{formatSize(file.size)}</div>
+            <div className="sm:w-40 sm:py-2 sm:pl-4 text-sm text-neutral-500 dark:text-neutral-400">
+              {formatDateTime(file.created_at)}
+            </div>
+            <div className="sm:w-20 sm:py-2 text-sm text-neutral-500 dark:text-neutral-400">{refLabel(file)}</div>
+          </a>
+          <div className="sm:flex-none sm:w-16 sm:py-2 sm:pr-2 sm:text-right px-2 pb-2 sm:px-0 sm:pb-0 mt-1 sm:mt-0 text-sm">
             <button
               type="button"
               className="text-red-600 dark:text-red-400 hover:underline"
