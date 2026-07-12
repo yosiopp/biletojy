@@ -512,7 +512,12 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		}) {
 			return
 		}
-		writeJson(w, http.StatusOK, tag)
+		// ボディで省略された項目（sort_order等）もDB上の実値で返すため読み直す
+		saved, ok := fetchOr404(w, dao.GetTag, id, "tag")
+		if !ok {
+			return
+		}
+		writeJson(w, http.StatusOK, saved)
 	})
 
 	// タグ名の変更。カタログの更新に加え、そのタグを使用している全チケットのタグ表記も一括で書き換える
@@ -542,7 +547,12 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		}) {
 			return
 		}
-		writeJson(w, http.StatusOK, req.Tag)
+		// ボディで省略された項目（sort_order等）もDB上の実値で返すため読み直す
+		saved, ok := fetchOr404(w, dao.GetTag, id, "tag")
+		if !ok {
+			return
+		}
+		writeJson(w, http.StatusOK, saved)
 	})
 
 	mux.HandleFunc("DELETE /api/tags/{id}", func(w http.ResponseWriter, r *http.Request) {

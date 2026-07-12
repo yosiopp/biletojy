@@ -699,6 +699,35 @@ func TestTagRename(t *testing.T) {
 	assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d/rename", tagId), map[string]any{"tag": "status:OPEN"}), http.StatusConflict)
 }
 
+// タグ編集・改名のレスポンスは、ボディで省略した項目（sort_order等）もDB上の実値で返す
+func TestTagUpdateResponseFromDb(t *testing.T) {
+	handler := newTestServer(t)
+
+	w := request(t, handler, "POST", "/api/tags", data.Tag{Tag: "priority:HIGH"})
+	assertStatus(t, w, http.StatusCreated)
+	created := decodeBody[data.Tag](t, w)
+
+	// 並び替えでsort_orderを設定しておく
+	w = request(t, handler, "PUT", "/api/tags/order", map[string][]int64{"ids": {created.Id}})
+	assertStatus(t, w, http.StatusNoContent)
+
+	// 編集: sort_orderをボディで省略してもDBの実値（1）が返る
+	w = request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d", created.Id), data.Tag{Tag: "priority:URGENT"})
+	assertStatus(t, w, http.StatusOK)
+	updated := decodeBody[data.Tag](t, w)
+	if updated.Tag != "priority:URGENT" || updated.SortOrder != 1 {
+		t.Errorf("updated = %+v, want tag=priority:URGENT sort_order=1", updated)
+	}
+
+	// 改名も同様
+	w = request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d/rename", created.Id), map[string]any{"tag": "priority:TOP"})
+	assertStatus(t, w, http.StatusOK)
+	renamed := decodeBody[data.Tag](t, w)
+	if renamed.Tag != "priority:TOP" || renamed.SortOrder != 1 {
+		t.Errorf("renamed = %+v, want tag=priority:TOP sort_order=1", renamed)
+	}
+}
+
 func TestTagDuplicateConflict(t *testing.T) {
 	handler := newTestServer(t)
 
