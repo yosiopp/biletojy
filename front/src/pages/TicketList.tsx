@@ -29,6 +29,8 @@ function TicketList() {
   // 取得エフェクトの依存にも使うため、tagsParamが変わらない限り同じ参照を保つ
   const tags = useMemo(() => tagsParam.split(',').filter((t) => t.length > 0), [tagsParam]);
   const hasFilter = q.length > 0 || tags.length > 0;
+  // モバイル（sm未満）では絞り込み・表示設定を折りたたむ。初期は条件があるときだけ開く（sm以上は常に表示）
+  const [filtersOpen, setFiltersOpen] = useState(() => hasFilter);
   const sort = parseSort(searchParams.get('sort'));
   // 表示モード（リスト / ツリー / カンバン）と表示対象（ツリーのルート階層タグ、カンバンの基準タググループ）
   const mode = parseViewMode(searchParams.get('view'));
@@ -114,17 +116,31 @@ function TicketList() {
         </Link>
       </div>
 
-      <TagFilter
-        selected={tags}
-        onChange={(next) => updateParams(q, next)}
-        query={q}
-        onQueryChange={(next) => updateParams(next, tags)}
-        catalog={catalog}
-      />
+      <button
+        type="button"
+        className="sm:hidden flex items-center w-full border rounded-sm px-2 py-1 mb-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        aria-expanded={filtersOpen}
+        aria-controls="ticket-filters ticket-controls"
+        onClick={() => setFiltersOpen((v) => !v)}
+      >
+        <span className="flex-1 text-left">絞り込み・表示設定{hasFilter && '（適用中）'}</span>
+        <span className="text-xs text-neutral-400">{filtersOpen ? '▾' : '▸'}</span>
+      </button>
+
+      <div id="ticket-filters" className={filtersOpen ? '' : 'hidden sm:block'}>
+        <TagFilter
+          selected={tags}
+          onChange={(next) => updateParams(q, next)}
+          query={q}
+          onQueryChange={(next) => updateParams(next, tags)}
+          catalog={catalog}
+        />
+      </div>
 
       {error && <p className="text-red-600 dark:text-red-400 mb-2">{error}</p>}
       {notice && <p className="text-blue-700 dark:text-blue-400 mb-2">{notice}</p>}
 
+      <div id="ticket-controls" className={filtersOpen ? '' : 'hidden sm:block'}>
       <div className="flex flex-wrap items-start justify-between mb-2">
         <div className="flex flex-wrap items-center">
           <ViewSelect q={q} tags={tags} mode={mode} by={by} onApply={applyView} />
@@ -203,6 +219,7 @@ function TicketList() {
             }}
           />
         </div>
+      </div>
       </div>
 
       {mode === 'list' && (
