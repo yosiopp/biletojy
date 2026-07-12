@@ -224,23 +224,10 @@ func renameCloseTag(db *sql.DB) error {
 func rewriteTicketTags(tx *sql.Tx, oldName, newName string, update func(t Ticket, tags string) error) (int, error) {
 	// LIKEは上位集合を返す（oldNameを含むだけのタグにもマッチする）が、
 	// replaceTagTokensのトークン単位の判定で実際の書き換え対象が決まる
-	rows, err := tx.Query(_SQL_QUERY_TICKETS_BY_TAG, "%"+oldName+"%")
+	tickets, err := queryTicketsByTagPattern(tx, "%"+oldName+"%")
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
-	tickets := []Ticket{}
-	for rows.Next() {
-		t, err := scanTicket(rows)
-		if err != nil {
-			return 0, err
-		}
-		tickets = append(tickets, t)
-	}
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-	rows.Close()
 
 	updated := 0
 	for _, t := range tickets {
@@ -259,6 +246,42 @@ func rewriteTicketTags(tx *sql.Tx, oldName, newName string, update func(t Ticket
 	return updated, nil
 }
 
+// タグのLIKEパターンに一致するチケットを返す（rewriteTicketTagsの候補取得用）
+func queryTicketsByTagPattern(tx *sql.Tx, pattern string) ([]Ticket, error) {
+	rows, err := tx.Query(_SQL_QUERY_TICKETS_BY_TAG, pattern)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tickets := []Ticket{}
+	for rows.Next() {
+		t, err := scanTicket(rows)
+		if err != nil {
+			return nil, err
+		}
+		tickets = append(tickets, t)
+	}
+	return tickets, rows.Err()
+}
+
+// FTSの再構築対象（全チケットのid, title, content, tags）を返す
+func queryTicketsForFts(tx *sql.Tx) ([]Ticket, error) {
+	rows, err := tx.Query(_SQL_QUERY_TICKETS_FOR_FTS)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tickets := []Ticket{}
+	for rows.Next() {
+		var t Ticket
+		if err := rows.Scan(&t.Id, &t.Title, &t.Content, &t.Tags); err != nil {
+			return nil, err
+		}
+		tickets = append(tickets, t)
+	}
+	return tickets, rows.Err()
+}
+
 // FTSテーブルを全チケットから再構築する
 func rebuildFts(db *sql.DB) error {
 	tx, err := db.Begin()
@@ -270,23 +293,10 @@ func rebuildFts(db *sql.DB) error {
 	if _, err := tx.Exec(_SQL_DELETE_ALL_TICKET_FTS); err != nil {
 		return err
 	}
-	rows, err := tx.Query(_SQL_QUERY_TICKETS_FOR_FTS)
+	tickets, err := queryTicketsForFts(tx)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	tickets := []Ticket{}
-	for rows.Next() {
-		var t Ticket
-		if err := rows.Scan(&t.Id, &t.Title, &t.Content, &t.Tags); err != nil {
-			return err
-		}
-		tickets = append(tickets, t)
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	rows.Close()
 	for _, t := range tickets {
 		title, content, tags := ftsValues(&t)
 		if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, t.Id, title, content, tags, ""); err != nil {
@@ -700,30 +710,33 @@ func (dao *Dao) queryCommentsByTickets(ids []int64) (map[int64][]Comment, error)
 	byTicket := map[int64][]Comment{}
 	// SQLiteのバインド変数上限を超えないようINのプレースホルダをチャンク単位で展開する
 	for chunk := range slices.Chunk(ids, 500) {
-		query := fmt.Sprintf(_SQL_QUERY_COMMENTS_BY_TICKETS, strings.TrimSuffix(strings.Repeat("?,", len(chunk)), ","))
-		args := make([]any, len(chunk))
-		for i, id := range chunk {
-			args[i] = id
-		}
-		rows, err := dao.db.Query(query, args...)
-		if err != nil {
+		if err := dao.queryCommentsChunk(chunk, byTicket); err != nil {
 			return nil, err
 		}
-		for rows.Next() {
-			c, err := scanComment(rows)
-			if err != nil {
-				rows.Close()
-				return nil, err
-			}
-			byTicket[c.TicketId] = append(byTicket[c.TicketId], c)
-		}
-		if err := rows.Err(); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		rows.Close()
 	}
 	return byTicket, nil
+}
+
+// 1チャンク分のコメントを取得してbyTicketへ格納する
+func (dao *Dao) queryCommentsChunk(chunk []int64, byTicket map[int64][]Comment) error {
+	query := fmt.Sprintf(_SQL_QUERY_COMMENTS_BY_TICKETS, strings.TrimSuffix(strings.Repeat("?,", len(chunk)), ","))
+	args := make([]any, len(chunk))
+	for i, id := range chunk {
+		args[i] = id
+	}
+	rows, err := dao.db.Query(query, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		c, err := scanComment(rows)
+		if err != nil {
+			return err
+		}
+		byTicket[c.TicketId] = append(byTicket[c.TicketId], c)
+	}
+	return rows.Err()
 }
 
 // エクスポートデータのチケット（コメント込み）をひとつのトランザクションで登録する。
