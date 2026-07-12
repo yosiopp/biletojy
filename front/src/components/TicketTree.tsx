@@ -86,7 +86,8 @@ function buildTree(tickets: Ticket[], by: string): TreeNode[] {
 
 type Row =
   | { key: string; type: 'node'; node: TreeNode; depth: number; expanded: boolean }
-  | { key: string; type: 'ticket'; ticket: Ticket; depth: number };
+  // path はこのチケットが属するノードの階層タグ（グルーピングに使った分は行のチップから省く）
+  | { key: string; type: 'ticket'; ticket: Ticket; depth: number; path: string };
 
 function flatten(nodes: TreeNode[], collapsed: Set<string>, depth: number, rows: Row[]) {
   for (const node of nodes) {
@@ -94,7 +95,7 @@ function flatten(nodes: TreeNode[], collapsed: Set<string>, depth: number, rows:
     rows.push({ key: `n:${node.path}`, type: 'node', node, depth, expanded });
     if (!expanded) continue;
     for (const ticket of node.tickets) {
-      rows.push({ key: `t:${node.path}:${ticket.id}`, type: 'ticket', ticket, depth: depth + 1 });
+      rows.push({ key: `t:${node.path}:${ticket.id}`, type: 'ticket', ticket, depth: depth + 1, path: node.path });
     }
     flatten(node.children, collapsed, depth + 1, rows);
   }
@@ -210,9 +211,11 @@ function TicketTree({ tickets, colors, by }: Props) {
             <span className="text-neutral-500 dark:text-neutral-400 mr-2">#{row.ticket.id}</span>
             {row.ticket.title}
             <span className="block sm:inline sm:ml-2 mt-1 sm:mt-0">
-              {splitTags(row.ticket.tags).map((tag) => (
-                <TagItem key={tag} tag={tag} color={tagColor(colors, tag)} />
-              ))}
+              {splitTags(row.ticket.tags)
+                .filter((tag) => tag !== row.path)
+                .map((tag) => (
+                  <TagItem key={tag} tag={tag} color={tagColor(colors, tag)} />
+                ))}
             </span>
           </Link>
         ),
