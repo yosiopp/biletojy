@@ -107,7 +107,7 @@ export function hierarchyOptions(catalog: Tag[]): string[] {
 export const RANGE_OP_CHARS = ['>', '<', '='];
 const RANGE_OPS = '>=|<=|>|<|=';
 const NUMBER_RANGE_VALUE = new RegExp(`^(?:${RANGE_OPS})-?\\d+(?:\\.\\d+)?$`);
-const DATE_RANGE_VALUE = new RegExp(`^(?:${RANGE_OPS})?\\d{4}-\\d{2}-\\d{2}`);
+const DATE_RANGE_VALUE = new RegExp(`^(?:${RANGE_OPS})?\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2})?$`);
 const RANGE_OP_PREFIX = new RegExp(`^(?:${RANGE_OPS})?`);
 // 値待ちの入力テキスト（"due-date@:" 等）。cond形は先頭の -（除外）と比較演算子付きも許す
 const PENDING_RANGE = /^(.+[@#]):$/;
@@ -204,7 +204,7 @@ export function completeOnTab(
 
 // 日時タグの期限状態。日付のみの場合はその日の終わりを期限とみなす
 export function dueState(name: string): 'overdue' | 'soon' | null {
-  const m = name.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  const m = name.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/);
   if (!m) return null;
   const due = m[4] != null
     ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5])
