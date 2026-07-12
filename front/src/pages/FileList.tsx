@@ -141,7 +141,7 @@ function FileList() {
             </div>
             <div className="sm:w-20 sm:py-2 text-sm text-neutral-500 dark:text-neutral-400">{refLabel(file)}</div>
           </a>
-          <div className="sm:flex-none sm:w-16 sm:py-2 sm:pr-2 sm:text-right px-2 pb-2 sm:px-0 sm:pb-0 mt-1 sm:mt-0 text-sm">
+          <div className="sm:flex-none sm:w-16 sm:pt-2 sm:pl-0 sm:pr-2 sm:text-right px-2 pb-2 mt-1 sm:mt-0 text-sm">
             <button
               type="button"
               className="text-red-600 dark:text-red-400 hover:underline"
