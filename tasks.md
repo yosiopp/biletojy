@@ -37,9 +37,6 @@
 ### タグ検索の事前絞り込みとSQL LIMIT
 `QueryTickets`（`back/data/dao.go:329-366`）はタグ条件を全てGo側で判定するため、`status:OPEN` だけの絞り込みでも本文込みの全件をスキャンする。改善：(1) 肯定条件（NOTでない条件）が1つでもあれば `tags LIKE '%…%'` またはFTSの `tags` カラムMATCHで候補を事前に絞り、厳密判定は従来通りGo側で行う2段構えにする（`rewriteTicketTags` と同じ発想）。(2) `limit > 0` かつタグ条件なしの場合はSQLに `LIMIT ?` を付けて `tickets_updated_idx` での早期打ち切りを確実にする。
 
-### TicketList のソートをメモ化する
-`front/src/pages/TicketList.tsx:197,201,206` で `sortTickets(tickets, sort)` をJSX内で直接呼んでおり、再レンダーのたびに全件ソート＋新配列生成が走る。毎回新しい参照になるため TicketTree（`buildTree`/`flatten`）と TicketBoard（`columns`）の useMemo も無効化されている。`useMemo` で一度ソートし、3表示モードへ同じ参照を渡す。
-
 ### tagColor のカタログ探索をMap化する
 `front/src/lib/tags.ts:66-75` の `tagColor` がタグ1個ごとに `catalog.find` を最大2回実行し、一覧レンダーが O(行数×タグ数×カタログ数) になる。タグ名→色の `Map` を `useMemo` で一度構築して引く形に変更（呼び出し側: TicketRow / TicketTree / TicketBoard など）。
 

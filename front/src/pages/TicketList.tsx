@@ -83,6 +83,14 @@ function TicketList() {
   const replaceTicket = (updated: Ticket) =>
     setTickets((prev) => prev && prev.map((t) => (t.id === updated.id ? updated : t)));
 
+  // ソート結果をメモ化し、3表示モードへ同じ参照を渡す（TicketTree / TicketBoard 内の useMemo を保つ）
+  const sortedTickets = useMemo(
+    () => (tickets == null ? null : sortTickets(tickets, sort)),
+    // sort は毎レンダー新しいオブジェクトになるため、中身のプリミティブで比較する
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tickets, sort.key, sort.desc],
+  );
+
   const updateSort = (next: SortSpec) => {
     const params = new URLSearchParams(searchParams);
     const value = buildSort(next);
@@ -193,17 +201,17 @@ function TicketList() {
         </div>
       )}
       {tickets == null && !error && <p className="text-neutral-500 dark:text-neutral-400 p-4">読み込み中...</p>}
-      {tickets != null && mode === 'list' &&
-        sortTickets(tickets, sort).map((ticket) => (
+      {sortedTickets != null && mode === 'list' &&
+        sortedTickets.map((ticket) => (
           <TicketRow key={ticket.id} ticket={ticket} catalog={catalog} />
         ))}
-      {tickets != null && mode === 'tree' && tickets.length > 0 && (
-        <TicketTree tickets={sortTickets(tickets, sort)} catalog={catalog} by={by} />
+      {sortedTickets != null && mode === 'tree' && sortedTickets.length > 0 && (
+        <TicketTree tickets={sortedTickets} catalog={catalog} by={by} />
       )}
-      {tickets != null && mode === 'board' && tickets.length > 0 && (
+      {sortedTickets != null && mode === 'board' && sortedTickets.length > 0 && (
         by ? (
           <TicketBoard
-            tickets={sortTickets(tickets, sort)}
+            tickets={sortedTickets}
             catalog={catalog}
             by={by}
             onUpdated={replaceTicket}
