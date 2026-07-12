@@ -66,6 +66,24 @@ cd ../dist
   ネットワーク層（ファイアウォール・VPCの内部ロードバランサ等）で必ず遮断すること。**
   遮断しない場合、クライアントが任意のヘッダを送って他人のsubを詐称できる
 
+## セキュリティ対策
+APIの直接リクエスト（curl・スクリプト・サーバー間連携）は許可しつつ、悪意あるWebページが訪問者のブラウザを踏み台にして
+書き込みAPIを叩くクロスサイト攻撃（CSRF）を防ぐため、`back/server.go` で以下を実装している。
+
+* **クロスサイト書き込みの拒否**: `GET` / `HEAD` / `OPTIONS` 以外のメソッドで `Sec-Fetch-Site: cross-site` の
+  リクエストを `403` で拒否する（`withCrossSiteBlock`）。このヘッダはブラウザだけが自動付与しページ側から偽装できないため、
+  ヘッダを送らないブラウザ外の直接リクエストはそのまま通過する。読み取り系はCORS未設定により他オリジンのJSから
+  レスポンスを読めないため検査せず、他サイトからのリンク遷移も妨げない
+* **Content-Typeの必須化**: JSONボディを受けるAPIは `Content-Type: application/json` 以外を `415` で拒否する（`readJsonLimit`）。
+  HTMLのform要素からは `application/json` を送れないため、formベースのクロスサイト送信を排除する
+* **CSP**: SPA配信（静的ファイルとindex.htmlフォールバック）に `Content-Security-Policy` を付与する（`contentSecurityPolicy`）。
+  リソースの読み込み元を同一オリジンに制限し、index.htmlのテーマ初期化インラインスクリプトは起動時に計算した
+  ハッシュで許可する。`style-src 'unsafe-inline'` はmermaidが生成するSVGのインラインスタイル用、
+  `img-src` の `data:` / `https:` はmermaidの埋め込み画像とmarkdown本文の外部画像参照用。APIレスポンスには付与しない
+
+CORSヘッダ（`Access-Control-*`）は意図的に設定していない。ブラウザの同一オリジンポリシーにより
+他オリジンのJSからAPIレスポンスを読めない状態を維持する。
+
 ## 開発時
 ```sh
 # ターミナル1: バックエンド（:8040）

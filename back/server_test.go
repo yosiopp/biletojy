@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -55,6 +57,10 @@ func requestWithHeader(t *testing.T, handler http.Handler, method, path string, 
 		reader = bytes.NewReader(b)
 	}
 	req := httptest.NewRequest(method, path, reader)
+	// JSONを受けるAPIはContent-Typeが必須のため既定で付与する（headerでの上書き可）
+	if reader != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	if header != "" {
 		req.Header.Set(header, value)
 	}
@@ -978,4 +984,72 @@ func TestRequestBodyTooLarge(t *testing.T) {
 	// 1MiBを超えるリクエストボディは413
 	body := fmt.Sprintf(`{"title":"large","content":"%s"}`, strings.Repeat("a", 1<<20))
 	assertErrorResponse(t, request(t, handler, "POST", "/api/tickets", body), http.StatusRequestEntityTooLarge)
+}
+
+func TestRequireJsonContentType(t *testing.T) {
+	handler := newTestServer(t)
+	body := `{"title":"test"}`
+
+	// JSONを受けるAPIはContent-Type: application/json以外を415で拒否する
+	// （formベースのクロスサイト送信はtext/plain等になるため受け付けない）
+	assertErrorResponse(t, requestWithHeader(t, handler, "POST", "/api/tickets", body, "Content-Type", "text/plain"), http.StatusUnsupportedMediaType)
+	assertErrorResponse(t, requestWithHeader(t, handler, "POST", "/api/tickets", body, "Content-Type", ""), http.StatusUnsupportedMediaType)
+
+	// charset付きは許可する
+	assertStatus(t, requestWithHeader(t, handler, "POST", "/api/tickets", body, "Content-Type", "application/json; charset=utf-8"), http.StatusCreated)
+
+	// ファイルアップロードはJSONではないため対象外（任意のContent-Typeを受ける）
+	assertStatus(t, uploadFile(t, handler, "/api/files", "text/plain", []byte("data")), http.StatusCreated)
+}
+
+func TestCrossSiteBlock(t *testing.T) {
+	handler := newTestServer(t)
+	body := map[string]string{"title": "test"}
+
+	// ブラウザからのクロスサイトの書き込みは403で拒否する
+	assertErrorResponse(t, requestWithHeader(t, handler, "POST", "/api/tickets", body, "Sec-Fetch-Site", "cross-site"), http.StatusForbidden)
+
+	// 同一オリジンからの書き込みと、ヘッダを送らないブラウザ外の直接リクエストは通過する
+	assertStatus(t, requestWithHeader(t, handler, "POST", "/api/tickets", body, "Sec-Fetch-Site", "same-origin"), http.StatusCreated)
+	assertStatus(t, request(t, handler, "POST", "/api/tickets", body), http.StatusCreated)
+
+	// 読み取りは検査しない（他サイトからのリンク遷移を妨げない）
+	assertStatus(t, requestWithHeader(t, handler, "GET", "/api/tickets", nil, "Sec-Fetch-Site", "cross-site"), http.StatusOK)
+}
+
+func TestContentSecurityPolicy(t *testing.T) {
+	t.Chdir(t.TempDir())
+	staticDir := t.TempDir()
+	html := "<html><head><script>var mode = 'dark';</script></head><body>spa-index</body></html>"
+	if err := os.WriteFile(filepath.Join(staticDir, "index.html"), []byte(html), 0644); err != nil {
+		t.Fatalf("write index.html: %v", err)
+	}
+	dao, err := data.NewDao()
+	if err != nil {
+		t.Fatalf("NewDao: %v", err)
+	}
+	t.Cleanup(dao.Close)
+	handler := newServer(dao, os.DirFS(staticDir), "")
+
+	// SPA配信にはCSPが付与され、index.htmlのインラインスクリプトはハッシュで許可される
+	sum := sha256.Sum256([]byte("var mode = 'dark';"))
+	hash := "'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
+	for _, path := range []string{"/", "/unknown-page"} {
+		w := request(t, handler, "GET", path, nil)
+		assertStatus(t, w, http.StatusOK)
+		csp := w.Header().Get("Content-Security-Policy")
+		if !strings.Contains(csp, "default-src 'self'") {
+			t.Errorf("CSP for %s = %q, want default-src 'self'", path, csp)
+		}
+		if !strings.Contains(csp, hash) {
+			t.Errorf("CSP for %s = %q, want inline script hash %s", path, csp, hash)
+		}
+	}
+
+	// APIレスポンスには付与しない
+	w := request(t, handler, "GET", "/api/tags", nil)
+	assertStatus(t, w, http.StatusOK)
+	if csp := w.Header().Get("Content-Security-Policy"); csp != "" {
+		t.Errorf("CSP for /api/tags = %q, want empty", csp)
+	}
 }

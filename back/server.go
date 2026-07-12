@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	"mime"
 	"net/http"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -546,7 +549,9 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 	// （SPAのためパスが無ければindex.htmlへフォールバック）
 	if static != nil {
 		fileServer := http.FileServerFS(static)
+		csp := contentSecurityPolicy(static)
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Security-Policy", csp)
 			name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 			if info, err := fs.Stat(static, name); err != nil || info.IsDir() {
 				if r.URL.Path != "/" {
@@ -558,7 +563,44 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		})
 	}
 
-	return withUserSub(mux, userHeader)
+	return withCrossSiteBlock(withUserSub(mux, userHeader))
+}
+
+// index.html内の属性なし<script>（テーマ初期化のインラインスクリプト）を抜き出すパターン
+var inlineScriptPattern = regexp.MustCompile(`(?s)<script>(.*?)</script>`)
+
+// SPA配信に付与するCSPを組み立てる。リソースの読み込み元を同一オリジンに制限しつつ、
+// index.htmlのインラインスクリプトは起動時に計算したハッシュで許可する。
+// style-srcの'unsafe-inline'はmermaidが生成するSVGのインラインスタイル用、
+// img-srcのdata:とhttps:はmermaidの埋め込み画像とmarkdown本文の外部画像参照用
+func contentSecurityPolicy(static fs.FS) string {
+	scriptSrc := "'self'"
+	if b, err := fs.ReadFile(static, "index.html"); err == nil {
+		for _, m := range inlineScriptPattern.FindAllSubmatch(b, -1) {
+			sum := sha256.Sum256(m[1])
+			scriptSrc += " 'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
+		}
+	}
+	return "default-src 'self'; script-src " + scriptSrc +
+		"; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; object-src 'none'; base-uri 'self'"
+}
+
+// ブラウザからのクロスサイトの書き込みリクエストを拒否する（CSRF対策）。
+// Sec-Fetch-Siteはブラウザだけが自動付与しページ側のJSやformから偽装できないヘッダで、
+// curl等のブラウザ外クライアントは送らないため直接リクエストはそのまま通過する。
+// 読み取り系はCORS未設定により他オリジンのJSから読めず、他サイトからのリンク遷移を妨げないよう検査しない
+func withCrossSiteBlock(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+		default:
+			if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+				writeErrorMessage(w, http.StatusForbidden, "cross-site request rejected")
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // contextへ保持した認証済みユーザ識別子(sub)のキー
@@ -670,6 +712,11 @@ func readJson(w http.ResponseWriter, r *http.Request, v any) bool {
 
 // 上限サイズを指定してリクエストボディのJSONをデコードする（インポートなど大きなボディを受けるAPI用）
 func readJsonLimit(w http.ResponseWriter, r *http.Request, v any, limit int64) bool {
+	// formベースのクロスサイト送信（text/plain等）を受け付けないよう、JSONボディはContent-Typeを必須にする
+	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
+		writeErrorMessage(w, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
+		return false
+	}
 	body := http.MaxBytesReader(w, r.Body, limit)
 	if err := json.NewDecoder(body).Decode(v); err != nil {
 		var maxBytesErr *http.MaxBytesError

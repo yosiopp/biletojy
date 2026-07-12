@@ -4,6 +4,12 @@
 認証/認可は持たない。`created_by` / `updated_by` はクライアント申告値で、空の場合は `anonymous` が設定される。
 リクエストボディは1MiBまで（添付ファイルのアップロードとインポートは10MiBまで）で、超えた場合は `413 Request Entity Too Large` を返す。
 
+CSRF対策として、書き込み系リクエストには以下の制約がある（[開発ガイド](development.md)参照）:
+* JSONボディを受けるAPIは `Content-Type: application/json` が必須（`application/json; charset=utf-8` のようなパラメータ付きは可）。
+  それ以外は `415 Unsupported Media Type` を返す。ファイルアップロード（`POST /api/files`）はJSONではないため対象外
+* `GET` / `HEAD` / `OPTIONS` 以外のメソッドで、ブラウザが自動付与する `Sec-Fetch-Site` ヘッダが `cross-site` の場合は
+  `403 Forbidden` を返す。curl等のブラウザ外クライアントはこのヘッダを送らないため、直接リクエストは影響を受けない
+
 起動フラグ `-user-header` で認証プロキシ（IAP）由来のヘッダを指定すると、認証済みユーザの識別子（sub）を
 チケット・コメントの `created_sub` / `updated_sub` へ補足情報として記録する（[開発ガイド](development.md)参照）。
 subはサーバー側でヘッダ値から設定され、リクエストボディでの指定は無視される。未指定時は空文字が記録される。
