@@ -29,6 +29,8 @@ Playwrightブラウザは `~/Library/Caches/ms-playwright/chromium-*/chrome-mac-
 
 主要ルート: `/tickets`（一覧+絞り込み）、`/tickets/new`・`/tickets/:id/edit`（TagInput）、`/tickets/:id`（詳細）、`/tags`（タグ管理）。
 
+主要画面の一括スクリーンキャプチャは `tools/capture-screens.mjs` を使う（デスクトップ・モバイル・ダーク・各状態を `ui-review/` へ出力。`cd tools && npm install && node capture-screens.mjs --seed`）。初回のユーザ名設定ダイアログは localStorage `biletojy.user` の事前設定で抑止できる（スクリプト内で対応済み）。
+
 ## 後片付け
 
 起動したサーバープロセスをkillする。

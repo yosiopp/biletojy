@@ -1,0 +1,9 @@
+{
+  "name": "biletojy-tools",
+  "private": true,
+  "type": "module",
+  "description": "開発補助スクリプト（UIレビュー用スクリーンキャプチャなど）",
+  "dependencies": {
+    "playwright-core": "^1.49.0"
+  }
+}

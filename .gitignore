@@ -2,6 +2,11 @@ dist/
 .goreleaser-dist/
 biletojy.db
 
+# UIレビュー用キャプチャ（tools/capture-screens.mjs の出力）
+ui-review/
+tools/node_modules/
+tools/package-lock.json
+
 # go:embed用のコピー先はプレースホルダのみ登録する
 !back/webui/dist/
 back/webui/dist/*
