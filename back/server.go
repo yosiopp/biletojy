@@ -104,7 +104,9 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 			writeErrorMessage(w, http.StatusBadRequest, "title is required")
 			return
 		}
-		if msg := data.TagsError(ticket.Tags); msg != "" {
+		// 検証導入前に保存されたタグを持つチケットも編集・履歴復元・カンバン移動できるよう、
+		// 既存のタグは維持を許し、新たに追加されるタグだけを検証する
+		if msg := data.AddedTagsError(ticket.Tags, current.Tags); msg != "" {
 			writeErrorMessage(w, http.StatusBadRequest, msg)
 			return
 		}
@@ -301,10 +303,8 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 				writeErrorMessage(w, http.StatusBadRequest, fmt.Sprintf("tickets[%d]: title is required", i))
 				return
 			}
-			if msg := data.TagsError(ticket.Tags); msg != "" {
-				writeErrorMessage(w, http.StatusBadRequest, fmt.Sprintf("tickets[%d]: %s", i, msg))
-				return
-			}
+			// バックアップの復元用のため、タグ検証は行わない（検証導入前のDBからのエクスポートも
+			// そのまま取り込める。TagNameErrorに通らないタグはカタログへ自動登録されない）
 			if ticket.CreatedBy == "" {
 				ticket.CreatedBy = "anonymous"
 			}
@@ -652,7 +652,8 @@ var inlineScriptPattern = regexp.MustCompile(`(?s)<script>(.*?)</script>`)
 // SPA配信に付与するCSPを組み立てる。リソースの読み込み元を同一オリジンに制限しつつ、
 // index.htmlのインラインスクリプトは起動時に計算したハッシュで許可する。
 // style-srcの'unsafe-inline'はmermaidが生成するSVGのインラインスタイル用、
-// img-srcのdata:とhttps:はmermaidの埋め込み画像とmarkdown本文の外部画像参照用
+// img-srcのdata:とhttp:/https:はmermaidの埋め込み画像とmarkdown本文の外部画像参照用
+// （本アプリ自体が平文HTTPのイントラネットで配信されるため、http:の画像も許可する）
 func contentSecurityPolicy(static fs.FS) string {
 	scriptSrc := "'self'"
 	if b, err := fs.ReadFile(static, "index.html"); err == nil {
@@ -662,7 +663,7 @@ func contentSecurityPolicy(static fs.FS) string {
 		}
 	}
 	return "default-src 'self'; script-src " + scriptSrc +
-		"; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; object-src 'none'; base-uri 'self'"
+		"; style-src 'self' 'unsafe-inline'; img-src 'self' data: http: https:; object-src 'none'; base-uri 'self'"
 }
 
 // ブラウザからのクロスサイトの書き込みリクエストを拒否する（CSRF対策）。

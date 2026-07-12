@@ -646,6 +646,44 @@ func TestMigrateRenamesCloseTag(t *testing.T) {
 	}
 }
 
+// v6以降のDBでユーザーが再作成したstatus:CLOSEタグは、v7移行（FTS再構築）で改名されない
+// （v6のrenameCloseTagはv6未満のDBに対してのみ実行される）
+func TestMigrateKeepsRecreatedCloseTag(t *testing.T) {
+	t.Chdir(t.TempDir())
+	dao, err := NewDao()
+	if err != nil {
+		t.Fatalf("NewDao: %v", err)
+	}
+	// v6の改名後にユーザーがstatus:CLOSEを再作成して使用している状態を作り、v6へ巻き戻す
+	ticket := addTestTicket(t, dao, "独自タグ", "内容", "status:CLOSE")
+	if _, err := dao.db.Exec(`PRAGMA user_version = 6`); err != nil {
+		t.Fatalf("exec: %v", err)
+	}
+	dao.Close()
+
+	dao, err = NewDao()
+	if err != nil {
+		t.Fatalf("NewDao: %v", err)
+	}
+	t.Cleanup(dao.Close)
+
+	// チケットのタグもカタログのstatus:CLOSEも維持される
+	got, err := dao.GetTicket(ticket.Id)
+	if err != nil {
+		t.Fatalf("GetTicket: %v", err)
+	}
+	if got.Tags != "status:CLOSE" {
+		t.Errorf("ticket tags after v7 migration = %q, want %q", got.Tags, "status:CLOSE")
+	}
+	tags, err := dao.QueryTags()
+	if err != nil {
+		t.Fatalf("QueryTags: %v", err)
+	}
+	if findTag(tags, "status:CLOSE") == nil {
+		t.Errorf("recreated status:CLOSE should remain in catalog: %+v", tags)
+	}
+}
+
 // v6時点のDB（FTSのrowidがチケットIDと未対応）からの移行。
 // FTSが再構築されてrowid = チケットIDになり、rowidベースの検索・更新が機能する
 func TestMigrateRebuildsFtsRowid(t *testing.T) {

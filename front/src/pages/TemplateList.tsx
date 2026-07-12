@@ -7,6 +7,7 @@ import TagItem from '../components/TagItem';
 import TicketRefTextarea from '../components/TicketRefTextarea';
 import { buildTagColorMap, joinTags, splitTags, tagColor } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
+import { usePendingTagGuard } from '../lib/usePendingTagGuard';
 
 type Editing = {
   id: number | null; // nullは新規作成
@@ -28,6 +29,8 @@ function TemplateList() {
   const [error, setError] = useState('');
   const catalog = useCatalog();
   const colors = useMemo(() => buildTagColorMap(catalog), [catalog]);
+  // タグ入力欄の未確定テキストが残ったまま保存すると失われるため、保存前に確認する
+  const tagGuard = usePendingTagGuard();
 
   const reload = () =>
     api
@@ -42,9 +45,18 @@ function TemplateList() {
     reload();
   }, []);
 
-  const submit = async (e: FormEvent) => {
+  const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!editing || !editing.name.trim()) return;
+    // タグ入力欄に未確定のテキストが残っている場合は、失われることを確認してから保存する
+    if (tagGuard.guard(() => void save())) {
+      return;
+    }
+    void save();
+  };
+
+  const save = async () => {
+    if (!editing) return;
     const data = {
       name: editing.name.trim(),
       title: editing.title,
@@ -117,7 +129,12 @@ function TemplateList() {
         </label>
         <div className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
           タグ
-          <TagInput value={editing.tags} onChange={(tags) => setEditing({ ...editing, tags })} catalog={catalog} />
+          <TagInput
+            value={editing.tags}
+            onChange={(tags) => setEditing({ ...editing, tags })}
+            catalog={catalog}
+            onTextChange={tagGuard.onTextChange}
+          />
         </div>
         <div className="text-right">
           <button
@@ -164,6 +181,7 @@ function TemplateList() {
       {error && !editing && <p className="text-red-600 dark:text-red-400 mb-2">{error}</p>}
       {editDialog}
       {confirmDialog}
+      {tagGuard.dialog}
 
       <div className="hidden sm:flex text-neutral-500 dark:text-neutral-400 border-b">
         <div className="w-1/4 py-1 pl-2">テンプレート名</div>

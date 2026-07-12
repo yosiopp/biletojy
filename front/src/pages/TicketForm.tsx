@@ -9,7 +9,8 @@ import TicketRefTextarea from '../components/TicketRefTextarea';
 import { dropFiles, pasteFiles, useFileDrag } from '../lib/attachFiles';
 import { staleGuard } from '../lib/staleGuard';
 import { currentUser, joinTags, splitTags } from '../lib/tags';
-import { useCatalog } from '../lib/useCatalog';
+import { invalidateCatalog, useCatalog } from '../lib/useCatalog';
+import { usePendingTagGuard } from '../lib/usePendingTagGuard';
 
 type Draft = { title: string; content: string; tags: string };
 
@@ -34,9 +35,8 @@ function TicketForm() {
   const [templateId, setTemplateId] = useState('');
   // 入力済みの内容がある状態でテンプレートを選んだときの確認対象
   const [pendingTemplate, setPendingTemplate] = useState<Template | null>(null);
-  // タグ入力欄の未確定テキスト。残ったまま保存すると失われるため、保存前に確認する
-  const [pendingTagText, setPendingTagText] = useState('');
-  const [confirmPendingTag, setConfirmPendingTag] = useState(false);
+  // タグ入力欄の未確定テキストが残ったまま保存すると失われるため、保存前に確認する
+  const tagGuard = usePendingTagGuard();
   const titleRef = useRef<HTMLInputElement>(null);
   const fileDrag = useFileDrag((e) => dropFiles(e, setContent, setError));
   const submittedRef = useRef(false);
@@ -116,8 +116,7 @@ function TicketForm() {
       return;
     }
     // タグ入力欄に未確定のテキストが残っている場合は、失われることを確認してから保存する
-    if (pendingTagText.trim()) {
-      setConfirmPendingTag(true);
+    if (tagGuard.guard(() => void save())) {
       return;
     }
     void save();
@@ -131,6 +130,8 @@ function TicketForm() {
       const ticket = isEdit
         ? await api.updateTicket(id, { ...data, updated_by: currentUser() })
         : await api.createTicket({ ...data, created_by: currentUser() });
+      // 未定義タグはサーバー側でカタログへ自動登録されるため、共有キャッシュを取得し直させる
+      invalidateCatalog();
       submittedRef.current = true;
       navigate(`/tickets/${ticket.id}`);
     } catch (err) {
@@ -214,7 +215,7 @@ function TicketForm() {
 
       <div className="border rounded-sm p-2 mb-2">
         <div className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">タグ</div>
-        <TagInput value={tags} onChange={setTags} catalog={catalog} onTextChange={setPendingTagText} />
+        <TagInput value={tags} onChange={setTags} catalog={catalog} onTextChange={tagGuard.onTextChange} />
       </div>
 
       <button
@@ -244,18 +245,7 @@ function TicketForm() {
           onClose={() => setPendingTemplate(null)}
         />
       )}
-      {confirmPendingTag && (
-        <ConfirmDialog
-          title="未確定のタグ入力があります"
-          message={`タグ入力欄の「${pendingTagText.trim()}」はまだタグとして確定されておらず、保存すると失われます。このまま保存しますか？`}
-          actionLabel="このまま保存"
-          onConfirm={() => {
-            setConfirmPendingTag(false);
-            void save();
-          }}
-          onClose={() => setConfirmPendingTag(false)}
-        />
-      )}
+      {tagGuard.dialog}
       {blocker.state === 'blocked' && (
         <ConfirmDialog
           title="ページ離脱の確認"

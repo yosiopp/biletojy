@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Tag } from '../api/client';
 import {
   buildTagColorMap,
@@ -46,6 +46,13 @@ function TagInput({ value, onChange, catalog, onTextChange }: Props) {
     setTextState(next);
     onTextChange?.(next);
   };
+
+  // アンマウント（ダイアログを閉じた場合など）で未確定テキストは破棄されるため、親の保持値もクリアする
+  const onTextChangeRef = useRef(onTextChange);
+  useEffect(() => {
+    onTextChangeRef.current = onTextChange;
+  });
+  useEffect(() => () => onTextChangeRef.current?.(''), []);
 
   const rangeGroup = useMemo(() => pendingRangeGroup(text), [text]);
 

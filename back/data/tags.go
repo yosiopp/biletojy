@@ -33,7 +33,20 @@ func TagNameError(name string) string {
 // チケット等のタグ文字列（スペース区切り）を検証し、問題があればエラーメッセージを返す。
 // 各タグへタグカタログAPIと同じ検証（TagNameError）をかける。空文字（タグなし）は許容する
 func TagsError(tags string) string {
+	return AddedTagsError(tags, "")
+}
+
+// チケット編集時のタグ検証。検証導入前に保存されたメタ文字入りのタグを持つチケットも
+// 編集・履歴復元できるよう、currentに既にあるタグは検証せず、新たに追加されるタグだけを検証する
+func AddedTagsError(tags, current string) string {
+	existing := map[string]bool{}
+	for _, tag := range strings.Fields(current) {
+		existing[tag] = true
+	}
 	for _, tag := range strings.Fields(tags) {
+		if existing[tag] {
+			continue
+		}
 		if msg := TagNameError(tag); msg != "" {
 			return fmt.Sprintf("tag %q: %s", tag, msg)
 		}

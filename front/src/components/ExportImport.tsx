@@ -1,5 +1,6 @@
 import { ChangeEvent, useRef, useState } from 'react';
 import { api, TicketExport } from '../api/client';
+import { invalidateCatalog } from '../lib/useCatalog';
 import { useMenuKeys } from '../lib/useMenuKeys';
 import { useOutsideClick } from '../lib/useOutsideClick';
 
@@ -40,6 +41,8 @@ function ExportImport({ q, tags, onImported, onError }: Props) {
         throw new Error('エクスポートしたJSONファイルを選択してください');
       }
       const res = await api.importTickets(tickets as TicketExport[]);
+      // 未定義タグはサーバー側でカタログへ自動登録されるため、共有キャッシュを取得し直させる
+      invalidateCatalog();
       onImported(res.imported);
     } catch (err) {
       if (err instanceof SyntaxError) {

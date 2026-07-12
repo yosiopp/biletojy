@@ -2,7 +2,12 @@ import { DragEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, use
 import { Link } from 'react-router-dom';
 import { api, Tag, Ticket } from '../api/client';
 import { currentUser, groupCatalog, joinTags, parseTag, splitTags, tagColor, TagColorMap } from '../lib/tags';
+import { invalidateCatalog } from '../lib/useCatalog';
 import TagItem from './TagItem';
+
+// カードのドラッグを示す独自MIMEタイプ。テキスト選択など無関係なドラッグを
+// ドロップとして受け付けない（数字のテキストをドロップしてもチケットを動かさない）ための目印
+const CARD_DRAG_TYPE = 'application/x-biletojy-ticket';
 
 type Props = {
   // ソート済みの絞り込み結果（各列内はこの順で並ぶ）
@@ -83,7 +88,11 @@ function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props
         tags: nextTags,
         updated_by: currentUser(),
       })
-      .then(onUpdated)
+      .then((updated) => {
+        // カタログ外の値の列へ移すと未定義タグがサーバー側で自動登録されるため、共有キャッシュを取得し直させる
+        invalidateCatalog();
+        onUpdated(updated);
+      })
       .catch((e: Error) => onError(e.message));
   };
 
@@ -102,9 +111,10 @@ function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props
   };
 
   const onDrop = (e: DragEvent, column: Column) => {
+    if (!e.dataTransfer.types.includes(CARD_DRAG_TYPE)) return;
     e.preventDefault();
     setDropCol(null);
-    const id = Number(e.dataTransfer.getData('text/plain'));
+    const id = Number(e.dataTransfer.getData(CARD_DRAG_TYPE));
     const ticket = tickets.find((t) => t.id === id);
     if (ticket) move(ticket, column.tag);
   };
@@ -120,6 +130,8 @@ function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props
               dropCol === key ? 'bg-blue-50 dark:bg-blue-950' : ''
             }`}
             onDragOver={(e) => {
+              // カードのドラッグ以外（テキスト選択など）はドロップ先として反応しない
+              if (!e.dataTransfer.types.includes(CARD_DRAG_TYPE)) return;
               e.preventDefault();
               e.dataTransfer.dropEffect = 'move';
               setDropCol(key);
@@ -145,7 +157,7 @@ function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props
                   draggable
                   className="block border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   onDragStart={(e) => {
-                    e.dataTransfer.setData('text/plain', String(ticket.id));
+                    e.dataTransfer.setData(CARD_DRAG_TYPE, String(ticket.id));
                     e.dataTransfer.effectAllowed = 'move';
                   }}
                   onDragEnd={() => setDropCol(null)}

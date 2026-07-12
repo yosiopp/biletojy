@@ -137,10 +137,6 @@ func TestTicketTagsValidation(t *testing.T) {
 		assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", created.Id), data.Ticket{Title: "x", Tags: tags}), http.StatusBadRequest)
 	}
 
-	// インポートも同じ検証を受ける（不正なタグを含むチケットがあれば全体が400）
-	assertErrorResponse(t, request(t, handler, "POST", "/api/import",
-		map[string]any{"tickets": []map[string]any{{"title": "t", "tags": "a|b"}}}), http.StatusBadRequest)
-
 	// 通常のタグ（グループ・階層・日時・数値・複数指定）は通る
 	valid := createTicket(t, handler, data.Ticket{Title: "有効なタグ", Tags: "status:OPEN docs/design due-date@:2026-01-01 estimate#:3"})
 	if valid.Id <= 0 {
@@ -148,6 +144,40 @@ func TestTicketTagsValidation(t *testing.T) {
 	}
 	// タグなしも通る
 	assertStatus(t, request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", created.Id), data.Ticket{Title: "タグなし", Tags: ""}), http.StatusOK)
+}
+
+// 検証導入前に保存されたメタ文字入りのタグを持つチケットの編集・インポート。
+// インポートはバックアップの復元用のためタグ検証を行わず、編集は既存タグの維持を許す
+func TestTicketLegacyTagsRemainEditable(t *testing.T) {
+	handler := newTestServer(t)
+
+	// 検証導入前のDBからのエクスポート相当（メタ文字入りのタグ）もインポートで取り込める
+	w := request(t, handler, "POST", "/api/import",
+		map[string]any{"tickets": []map[string]any{{"title": "旧データ", "tags": "a,b status:OPEN"}}})
+	assertStatus(t, w, http.StatusCreated)
+
+	list := decodeBody[[]data.Ticket](t, request(t, handler, "GET", "/api/tickets", nil))
+	if len(list) != 1 || list[0].Tags != "a,b status:OPEN" {
+		t.Fatalf("imported tickets = %+v, want tags kept as-is", list)
+	}
+	legacy := list[0]
+
+	// メタ文字入りのタグはカタログへは自動登録されない
+	for _, tag := range decodeBody[[]data.Tag](t, request(t, handler, "GET", "/api/tags", nil)) {
+		if tag.Tag == "a,b" {
+			t.Errorf("legacy tag should not be registered to catalog: %+v", tag)
+		}
+	}
+
+	// 既存タグを維持したままの編集（タイトルのみ変更・タグ追加）は通る
+	assertStatus(t, request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", legacy.Id),
+		data.Ticket{Title: "タイトル変更", Tags: "a,b status:OPEN"}), http.StatusOK)
+	assertStatus(t, request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", legacy.Id),
+		data.Ticket{Title: "タグ追加", Tags: "a,b status:OPEN type:BUG"}), http.StatusOK)
+
+	// 新たに追加するタグは通常どおり検証される
+	assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", legacy.Id),
+		data.Ticket{Title: "不正な追加", Tags: "a,b c|d"}), http.StatusBadRequest)
 }
 
 func TestTicketGet(t *testing.T) {
@@ -1213,6 +1243,10 @@ func TestContentSecurityPolicy(t *testing.T) {
 		}
 		if !strings.Contains(csp, hash) {
 			t.Errorf("CSP for %s = %q, want inline script hash %s", path, csp, hash)
+		}
+		// 平文HTTP配信のイントラネットでmarkdown本文のhttp:外部画像も表示できる
+		if !strings.Contains(csp, "img-src 'self' data: http: https:") {
+			t.Errorf("CSP for %s = %q, want img-src with http: and https:", path, csp)
 		}
 	}
 

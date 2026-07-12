@@ -201,8 +201,12 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 	}
-	if err := renameCloseTag(db); err != nil {
-		return err
+	// v6の改名はカラムの有無で判定できないため、バージョンで再実行を防ぐ
+	// （v6以降のDBでユーザーが再作成したstatus:CLOSEタグを巻き込まない）
+	if version < 6 {
+		if err := renameCloseTag(db); err != nil {
+			return err
+		}
 	}
 	_, err := db.Exec(fmt.Sprintf("PRAGMA user_version = %d", _SCHEMA_VERSION))
 	return err
