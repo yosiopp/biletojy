@@ -32,7 +32,7 @@ cd front && npm run build                # tsc -b && vite build
 ## アーキテクチャ
 
 ### タグが中核のドメイン概念
-タグ名の記法に意味があり、バックエンド（検索条件の解釈）とフロントエンド（`front/src/lib/tags.ts`、TagInput/TagFilter のUI挙動）の両方に実装が跨る。タグ仕様を変更する場合は両側の修正が必要。
+タグ名の記法に意味があり、バックエンド（検索条件の解釈）とフロントエンド（`front/src/lib/tags.ts`：解析・コロン抜け補正・Tab補完などの入力支援、TagInput/TagFilter のUI挙動）の両方に実装が跨る。タグ仕様を変更する場合は両側の修正が必要。
 
 * `group:value` — `:` の左辺はタググループ（ステータス等の排他的属性。UIではプルダウン風）
 * `a/b/c` — `/` は階層構造。検索時は前方一致で子孫にもマッチ
@@ -48,10 +48,12 @@ cd front && npm run build                # tsc -b && vite build
 SQLiteドライバは `modernc.org/sqlite`（pure Go、cgo不要、FTS5標準対応）。全文検索はSQLite FTS5 + Go側でのbi-gramトークナイズ。FTSテーブルへは登録・検索の両方でトークナイズ済みテキストを渡す。コメント編集時は `refreshCommentsFts` でチケット単位に再構築される。チケット・コメントの編集は毎回履歴テーブル（`ticket_histories` / `comment_histories`）へ保存される。
 
 ### フロントエンド（front/src/）
-* ルーティングは `App.tsx`（react-router）。ページは `pages/`（TicketList / TicketDetail / TicketForm / TicketHistory / TagList）
+* ルーティングは `App.tsx`（react-router）。ページは `pages/`（TicketList / TicketDetail / TicketForm / TicketHistory / TagList / TemplateList）
+* チケット一覧はリスト / ツリー（階層タグで入れ子表示）/ カンバン（タググループ基準）の3表示モード（`lib/viewMode.ts`、`components/TicketTree.tsx` / `TicketBoard.tsx`）。並び替え・表示モードはクライアント側で処理し、URLクエリ（`sort` / `view` / `by`）で保持する
+* 検索条件＋表示モードは「保存済みビュー」として localStorage に保存できる（`lib/views.ts`、`components/ViewSelect.tsx`）
 * APIクライアントは `api/client.ts` に集約
-* 本文・コメントは markdown + mermaid（`components/Markdown.tsx`）
-* ショートカットキー対応が要件（ctrl+n 作成、ctrl+e 編集、ctrl+l 一覧、ctrl+t タグ一覧 等）。キーボードだけで操作が完結すること
+* 本文・コメントは markdown + mermaid（`components/Markdown.tsx`）。エクスポート/インポートUI（`components/ExportImport.tsx`）とファイル添付（`components/AttachFileButton.tsx`）あり
+* ショートカットキー対応が要件（ctrl+n 作成、ctrl+shift+n タグ作成、ctrl+e 編集、ctrl+h 履歴、ctrl+l 一覧、ctrl+t タグ一覧、ctrl+m テンプレート一覧、? ヘルプ。`components/Layout.tsx` の `SHORTCUTS` が正）。キーボードだけで操作が完結すること
 
 ## UIデザインシステム
 

@@ -12,7 +12,7 @@ back/            バックエンド（Go / net/http）
   data/          DAO・SQL定義・FTSトークナイズ・日時/数値タグの範囲条件
   webui/         フロントのビルド成果物の埋め込み（go:embed。dist/はビルド時にコピー）
 front/           フロントエンド（React + TypeScript + Vite + Tailwind CSS）
-  src/pages/     画面（チケット一覧/詳細/作成編集/履歴、タグ一覧）
+  src/pages/     画面（チケット一覧/詳細/作成編集/履歴、タグ一覧、テンプレート一覧）
   src/components/ 共通コンポーネント
   src/lib/       タグ・日付などのユーティリティ
   src/api/       APIクライアント
@@ -76,6 +76,15 @@ go run .
 cd front
 npm run dev
 ```
+
+## クライアント側の保存データ（localStorage）
+サーバーに保存されないユーザ単位の設定は、ブラウザの localStorage に以下のキーで保存される。
+
+| キー | 内容 | 実装 |
+|---|---|---|
+| `biletojy.theme` | テーマ設定（`light` / `dark`。未設定時はOS設定に追従） | `front/index.html`, `front/src/lib/theme.ts` |
+| `biletojy.user` | ユーザ名（チケット・コメントの `created_by` / `updated_by` に使う申告値） | `front/src/lib/tags.ts` |
+| `biletojy.views` | 保存済みビュー（チケット一覧の検索条件 q + tags と表示モードに名前を付けたもの） | `front/src/lib/views.ts` |
 
 ## リリース
 `v` から始まるタグ（例: `v1.0.0`）をpushすると、GitHub Actions（`.github/workflows/release.yml`）がGoReleaser（`.goreleaser.yaml`）を実行し、
