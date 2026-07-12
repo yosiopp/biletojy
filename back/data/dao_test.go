@@ -408,6 +408,56 @@ func TestQueryTicketsLimit(t *testing.T) {
 	}
 }
 
+// 肯定条件のLIKEによる事前絞り込みが、厳密なタグ一致の結果を変えないこと
+func TestQueryTicketsTagPrefilter(t *testing.T) {
+	dao := newTestDao(t)
+
+	t1 := addTestTicket(t, dao, "記号タグ", "内容1", "rate:100%")
+	addTestTicket(t, dao, "部分文字列", "内容2", "rate:10x0 food")
+
+	tests := []struct {
+		tags []string
+		want []int64
+	}{
+		{[]string{"rate:100%"}, []int64{t1.Id}}, // LIKEのワイルドカードを含むタグの完全一致
+		{[]string{"rate:10_0"}, []int64{}},      // "_" は任意の1文字ではなくリテラルとして判定される
+		{[]string{"foo"}, []int64{}},            // "food" のような部分文字列には一致しない
+		{[]string{"rate:100%", "-food"}, []int64{t1.Id}}, // 肯定条件とNOT条件の併用
+	}
+	for _, tt := range tests {
+		if got := queryTicketIds(t, dao, "", tt.tags); !slices.Equal(got, tt.want) {
+			t.Errorf("QueryTickets(tags=%v) = %v, want %v", tt.tags, got, tt.want)
+		}
+	}
+}
+
+// タグ条件なしの場合はSQLのLIMITで打ち切られる（結果は従来と同じ）
+func TestQueryTicketsSqlLimit(t *testing.T) {
+	dao := newTestDao(t)
+
+	addTestTicket(t, dao, "対象1", "共通ワード", "")
+	t2 := addTestTicket(t, dao, "対象2", "共通ワード", "")
+	t3 := addTestTicket(t, dao, "対象3", "共通ワード", "")
+
+	// 条件なし
+	tickets, err := dao.QueryTickets("", nil, 2)
+	if err != nil {
+		t.Fatalf("QueryTickets(limit=2): %v", err)
+	}
+	if len(tickets) != 2 || tickets[0].Id != t3.Id || tickets[1].Id != t2.Id {
+		t.Errorf("QueryTickets(limit=2) = %+v, want [%d %d]", tickets, t3.Id, t2.Id)
+	}
+
+	// 全文検索と組み合わせ
+	tickets, err = dao.QueryTickets("共通ワード", nil, 2)
+	if err != nil {
+		t.Fatalf("QueryTickets(q, limit=2): %v", err)
+	}
+	if len(tickets) != 2 || tickets[0].Id != t3.Id || tickets[1].Id != t2.Id {
+		t.Errorf("QueryTickets(q, limit=2) = %+v, want [%d %d]", tickets, t3.Id, t2.Id)
+	}
+}
+
 func TestCommentsAndHistory(t *testing.T) {
 	dao := newTestDao(t)
 	ticket := addTestTicket(t, dao, "チケット", "本文", "")

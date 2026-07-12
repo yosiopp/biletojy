@@ -324,24 +324,43 @@ func ftsValues(t *Ticket) (title, content, tags string) {
 // チケット検索。qはbi-gram全文検索、tagsはタグ条件のAND絞り込み。
 // 各条件は完全一致または階層の前方一致で、先頭 "-" で除外（NOT）、"|" 区切りでOR指定できる。
 // 日時タグ・数値タグは "due-date@:>=2026-01-01" "estimate#:>=2" のように比較演算子（>, <, >=, <=, =）付きで範囲指定できる。
-// NOT/ORを含むタグ条件はSQLに落とし込みにくいため、タグの絞り込みはGo側で行う
+// NOT/ORを含むタグ条件はSQLに落とし込みにくいため、タグの厳密な判定はGo側で行う
+// （肯定条件はLIKEで候補を事前に絞り、全件の本文込みスキャンを避ける）。
 // 検索条件（q, tags）に一致するチケットをupdated_at降順で返す。
-// タグ条件はGo側で判定するためSQLのLIMITは使えず、limit > 0 のとき一致した先頭limit件で打ち切る（0で全件）
+// limit > 0 のとき一致した先頭limit件で打ち切る（0で全件）。タグ条件がある場合は
+// Go側の判定後に数えるためSQLのLIMITは使えず、タグ条件がない場合のみSQLで打ち切る
 func (dao *Dao) QueryTickets(q string, tags []string, limit int) ([]Ticket, error) {
-	query := _SQL_QUERY_TICKETS_BASE
-	args := []any{}
-	// 空白のみ・記号のみの検索語は空のMATCH式（構文エラー）になるため、変換後に判定する
-	if match := BigramQuery(q); match != "" {
-		query += _SQL_QUERY_TICKETS_FTS + ` WHERE tickets_fts MATCH ?`
-		args = append(args, match)
-	}
-	query += ` ORDER BY t.updated_at DESC`
-
 	conds := []*tagCond{}
 	for _, tag := range tags {
 		if c := parseTagCond(tag); c != nil {
 			conds = append(conds, c)
 		}
+	}
+
+	query := _SQL_QUERY_TICKETS_BASE
+	args := []any{}
+	where := []string{}
+	// 空白のみ・記号のみの検索語は空のMATCH式（構文エラー）になるため、変換後に判定する
+	if match := BigramQuery(q); match != "" {
+		query += _SQL_QUERY_TICKETS_FTS
+		where = append(where, `tickets_fts MATCH ?`)
+		args = append(args, match)
+	}
+	// 肯定条件はLIKEで候補を事前に絞る（rewriteTicketTagsと同じ2段構え。
+	// LIKEは上位集合を返すため、厳密な一致判定は従来通り下のループで行う）
+	for _, c := range conds {
+		if cond, condArgs := c.likeCond(); cond != "" {
+			where = append(where, cond)
+			args = append(args, condArgs...)
+		}
+	}
+	if len(where) > 0 {
+		query += ` WHERE ` + strings.Join(where, ` AND `)
+	}
+	query += ` ORDER BY t.updated_at DESC`
+	if limit > 0 && len(conds) == 0 {
+		query += ` LIMIT ?`
+		args = append(args, limit)
 	}
 
 	rows, err := dao.db.Query(query, args...)
