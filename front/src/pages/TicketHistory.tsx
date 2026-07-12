@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, Ticket, TicketHistory as TicketHistoryEntry } from '../api/client';
+import ConfirmDialog from '../components/ConfirmDialog';
 import DiffView from '../components/DiffView';
 import { formatDateTime } from '../lib/date';
 import { diffLines, hasDiff } from '../lib/diff';
@@ -18,6 +19,8 @@ function TicketHistory() {
   const [newIdx, setNewIdx] = useState(0);
   const [error, setError] = useState('');
   const [restoring, setRestoring] = useState(false);
+  // 「この版に戻す」の確認対象（版番号は表示用）
+  const [confirming, setConfirming] = useState<{ history: TicketHistoryEntry; version: number } | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -44,9 +47,8 @@ function TicketHistory() {
     return cancel;
   }, [id]);
 
-  const restore = async (history: TicketHistoryEntry, version: number) => {
+  const restore = async (history: TicketHistoryEntry) => {
     if (!id || restoring) return;
-    if (!window.confirm(`v${version} の内容に戻しますか？（新しい版として保存されます）`)) return;
     setRestoring(true);
     try {
       await api.updateTicket(id, {
@@ -133,7 +135,7 @@ function TicketHistory() {
                     type="button"
                     className="text-blue-700 dark:text-blue-400 hover:underline text-sm disabled:opacity-50"
                     disabled={restoring}
-                    onClick={() => restore(history, idx + 1)}
+                    onClick={() => setConfirming({ history, version: idx + 1 })}
                   >
                     この版に戻す
                   </button>
@@ -153,6 +155,19 @@ function TicketHistory() {
           <DiffView lines={section.lines} />
         </div>
       ))}
+      {confirming && (
+        <ConfirmDialog
+          title="チケットを過去の版に戻す"
+          message={`v${confirming.version} の内容に戻しますか？（新しい版として保存されます）`}
+          actionLabel="戻す"
+          onConfirm={() => {
+            const { history } = confirming;
+            setConfirming(null);
+            restore(history);
+          }}
+          onClose={() => setConfirming(null)}
+        />
+      )}
     </>
   );
 }

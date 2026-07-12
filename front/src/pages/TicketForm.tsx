@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useBlocker, useNavigate, useParams } from 'react-router-dom';
 import { api, Template } from '../api/client';
 import AttachFileButton from '../components/AttachFileButton';
+import ConfirmDialog from '../components/ConfirmDialog';
 import Markdown from '../components/Markdown';
 import TagInput from '../components/TagInput';
 import TicketRefTextarea from '../components/TicketRefTextarea';
@@ -31,6 +32,8 @@ function TicketForm() {
   // 新規作成時に選択できるテンプレート
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateId, setTemplateId] = useState('');
+  // 入力済みの内容がある状態でテンプレートを選んだときの確認対象
+  const [pendingTemplate, setPendingTemplate] = useState<Template | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const fileDrag = useFileDrag((e) => dropFiles(e, setContent, setError));
   const submittedRef = useRef(false);
@@ -61,35 +64,34 @@ function TicketForm() {
   const dirty =
     title !== initial.title || content !== initial.content || joinTags(tags) !== initial.tags;
 
-  // 選択したテンプレートのタイトル・本文・タグをフォームへ適用する（入力済みの内容は確認の上で置き換える）
-  const applyTemplate = (value: string) => {
-    const template = templates.find((t) => t.id === Number(value));
-    if (!template) {
-      setTemplateId('');
-      return;
-    }
-    if (dirty && !confirm('入力中の内容をテンプレートの内容で置き換えます。よろしいですか？')) {
-      return;
-    }
-    setTemplateId(value);
+  // 選択したテンプレートのタイトル・本文・タグをフォームへ適用する
+  const applyTemplate = (template: Template) => {
+    setTemplateId(String(template.id));
     setTitle(template.title);
     setContent(template.content);
     setTags(splitTags(template.tags));
     if (template.title.trim()) setTitleError(false);
   };
 
-  // ルーター内の遷移（キャンセル・ブラウザバック・ショートカット遷移）を確認付きにする
+  // テンプレート選択時の入口。入力済みの内容がある場合は確認の上で置き換える
+  const selectTemplate = (value: string) => {
+    const template = templates.find((t) => t.id === Number(value));
+    if (!template) {
+      setTemplateId('');
+      return;
+    }
+    if (dirty) {
+      setPendingTemplate(template);
+      return;
+    }
+    applyTemplate(template);
+  };
+
+  // ルーター内の遷移（キャンセル・ブラウザバック・ショートカット遷移）を確認付きにする。
+  // blocked の間 ConfirmDialog を表示し、確定で proceed・キャンセルで reset する
   const blocker = useBlocker(
     useCallback(() => dirty && !submittedRef.current, [dirty]),
   );
-  useEffect(() => {
-    if (blocker.state !== 'blocked') return;
-    if (confirm('編集中の内容は保存されていません。このページを離れますか？')) {
-      blocker.proceed();
-    } else {
-      blocker.reset();
-    }
-  }, [blocker]);
 
   // リロード・タブを閉じる操作にも警告を出す
   useEffect(() => {
@@ -135,7 +137,7 @@ function TicketForm() {
             <select
               className="border rounded-sm px-2 py-1 ml-1"
               value={templateId}
-              onChange={(e) => applyTemplate(e.target.value)}
+              onChange={(e) => selectTemplate(e.target.value)}
             >
               <option value="">選択なし</option>
               {templates.map((t) => (
@@ -217,6 +219,28 @@ function TicketForm() {
       >
         キャンセル
       </button>
+
+      {pendingTemplate && (
+        <ConfirmDialog
+          title="テンプレートの適用"
+          message={`入力中の内容をテンプレート「${pendingTemplate.name}」の内容で置き換えます。よろしいですか？`}
+          actionLabel="置き換える"
+          onConfirm={() => {
+            applyTemplate(pendingTemplate);
+            setPendingTemplate(null);
+          }}
+          onClose={() => setPendingTemplate(null)}
+        />
+      )}
+      {blocker.state === 'blocked' && (
+        <ConfirmDialog
+          title="ページ離脱の確認"
+          message="編集中の内容は保存されていません。このページを離れますか？"
+          actionLabel="離れる"
+          onConfirm={() => blocker.proceed()}
+          onClose={() => blocker.reset()}
+        />
+      )}
     </form>
   );
 }

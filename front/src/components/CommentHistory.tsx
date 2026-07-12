@@ -4,6 +4,7 @@ import { formatDateTime } from '../lib/date';
 import { diffLines } from '../lib/diff';
 import { staleGuard } from '../lib/staleGuard';
 import { currentUser } from '../lib/tags';
+import ConfirmDialog from './ConfirmDialog';
 import DiffView from './DiffView';
 
 // コメントの履歴一覧。新しい版から順に、1つ前の版との差分で表示する
@@ -11,6 +12,8 @@ function CommentHistory({ comment, onRestored }: { comment: Comment; onRestored:
   const [histories, setHistories] = useState<CommentHistoryEntry[] | null>(null);
   const [error, setError] = useState('');
   const [restoring, setRestoring] = useState(false);
+  // 「この版に戻す」の確認対象（版番号は表示用）
+  const [confirming, setConfirming] = useState<{ history: CommentHistoryEntry; version: number } | null>(null);
 
   useEffect(() => {
     const { fresh, cancel } = staleGuard();
@@ -19,9 +22,8 @@ function CommentHistory({ comment, onRestored }: { comment: Comment; onRestored:
     // 復元でupdated_atが変わったら履歴を取得し直す
   }, [comment.id, comment.updated_at]);
 
-  const restore = async (history: CommentHistoryEntry, version: number) => {
+  const restore = async (history: CommentHistoryEntry) => {
     if (restoring) return;
-    if (!window.confirm(`v${version} の内容に戻しますか？（新しい版として保存されます）`)) return;
     setRestoring(true);
     try {
       const updated = await api.updateComment(comment.id, {
@@ -58,7 +60,7 @@ function CommentHistory({ comment, onRestored }: { comment: Comment; onRestored:
                   type="button"
                   className="text-blue-700 dark:text-blue-400 hover:underline disabled:opacity-50"
                   disabled={restoring}
-                  onClick={() => restore(history, idx + 1)}
+                  onClick={() => setConfirming({ history, version: idx + 1 })}
                 >
                   この版に戻す
                 </button>
@@ -74,6 +76,19 @@ function CommentHistory({ comment, onRestored }: { comment: Comment; onRestored:
             />
           </div>
         ))}
+      {confirming && (
+        <ConfirmDialog
+          title="コメントを過去の版に戻す"
+          message={`v${confirming.version} の内容に戻しますか？（新しい版として保存されます）`}
+          actionLabel="戻す"
+          onConfirm={() => {
+            const { history } = confirming;
+            setConfirming(null);
+            restore(history);
+          }}
+          onClose={() => setConfirming(null)}
+        />
+      )}
     </div>
   );
 }

@@ -13,16 +13,6 @@
 ### タグ入力欄に未確定テキストがある状態での保存に警告する
 チケット編集画面のタグ入力欄は Enter/Tab 等で確定するまでタグにならないが、未確定テキスト（`front/src/components/TagInput.tsx:35` の内部 state `text`。日時/数値タグ入力中の `rangeValue` も同様）が残ったまま保存ボタンを押すと、入力途中のタグが黙って失われる。TagInput から未確定テキストの有無を親へ伝えられるようにし（例: `onTextChange` を追加、または ref 経由で公開）、`front/src/pages/TicketForm.tsx:101` の `submit` で未確定テキストがある場合は `ConfirmDialog`（`front/src/components/ConfirmDialog.tsx`）で警告ダイアログを表示して、キャンセル時は保存を中断する。JSの `confirm` は使わない（下記「`window.confirm` を dialog 要素ベースの ConfirmDialog に統一する」参照）。
 
-### `window.confirm` を dialog 要素ベースの ConfirmDialog に統一する
-確認ダイアログの実装が2系統ある。TagList / TemplateList は dialog 要素ベースの `ConfirmDialog`（`front/src/components/ConfirmDialog.tsx`、`Dialog.tsx` 経由で `showModal`）を使うが、以下4箇所はJSネイティブの `confirm` を使っており、見た目・フォーカス挙動・ダークモード対応が不統一。
-
-- `front/src/components/CommentHistory.tsx:24` — コメントを過去版に戻す確認
-- `front/src/pages/TicketHistory.tsx:49` — チケットを過去版に戻す確認
-- `front/src/pages/TicketForm.tsx:68` — テンプレート適用時の入力内容置き換え確認
-- `front/src/pages/TicketForm.tsx:84` — `useBlocker` によるページ離脱確認
-
-TagList / TemplateList と同じパターン（確認対象を state に保持 → `ConfirmDialog` を条件レンダー → onConfirm で実行）へ置き換える。同期的な `confirm` の戻り値に依存した制御フロー（テンプレート適用・`useBlocker` の proceed/reset）は state ベースに組み替える必要がある。`useBlocker` は確認中 `blocked` 状態を維持するため、`blocker.state === 'blocked'` の間 ConfirmDialog を表示し、確定で `proceed()`・キャンセル（onClose）で `reset()` を呼べばよい。なお `beforeunload`（`front/src/pages/TicketForm.tsx:92-99`）のリロード/タブ閉じ警告はブラウザネイティブ以外で代替不可能なため対象外。`alert` / `prompt` の使用箇所はない。
-
 ## 機能追加
 
 ### ファイル一覧画面を追加する
