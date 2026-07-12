@@ -45,12 +45,6 @@
 
 ## 要判断（修正 or 仕様として明記）
 
-### design-system 逸脱2件の解消
-- `front/src/components/Header.tsx:7` — アクティブなナビリンクに `font-bold`（規定では太字はmarkdown表示内のみ）
-- `front/src/components/ViewSelect.tsx:108` — 保存済みビューのチップに `rounded-lg`（規定ではタグチップ限定）
-
-コードを規定に合わせるか、docs/design-system.md に例外として明記するかを決めて対応する。
-
 ### 階層前方一致の適用範囲のフロント/バック差を解消
 バックエンド（`back/data/tagcond.go:58`）は前方一致を全タグに適用（`status:OPEN` が `status:OPEN/x` にもマッチ）するが、フロントの階層概念（`front/src/lib/tags.ts:26` の `isHierarchy`）はグループなしタグ限定。URL直指定でのみ顕在化する。どちらを正とするか決め、実装を揃えるか docs/api.md に仕様として明記する。
 

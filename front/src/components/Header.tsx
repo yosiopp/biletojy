@@ -4,7 +4,7 @@ import { currentUser, hasCurrentUser, USER_CHANGED_EVENT } from '../lib/tags';
 import { loadThemeMode, setThemeMode, ThemeMode } from '../lib/theme';
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
-  `mx-2 text-blue-700 dark:text-blue-400 hover:underline ${isActive ? 'font-bold underline' : ''}`;
+  `mx-2 text-blue-700 dark:text-blue-400 hover:underline ${isActive ? 'underline' : ''}`;
 
 function Header({ onUserClick }: { onUserClick: () => void }) {
   // 現在のユーザ名（未設定ならnull）。設定ダイアログでの保存を即時反映する

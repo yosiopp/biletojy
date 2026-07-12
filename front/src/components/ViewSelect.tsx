@@ -105,7 +105,7 @@ function ViewSelect({ q, tags, mode, by, onApply }: Props) {
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`inline-flex items-center rounded-lg border py-0.5 px-2 whitespace-nowrap ${
+        className={`inline-flex items-center rounded-sm border py-0.5 px-2 whitespace-nowrap ${
           current
             ? 'bg-neutral-100 dark:bg-neutral-700 border-transparent'
             : 'bg-white dark:bg-neutral-900 border-dashed border-neutral-300 dark:border-neutral-600 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'
