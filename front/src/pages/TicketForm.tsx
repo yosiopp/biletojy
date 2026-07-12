@@ -6,6 +6,7 @@ import Markdown from '../components/Markdown';
 import TagInput from '../components/TagInput';
 import TicketRefTextarea from '../components/TicketRefTextarea';
 import { dropFiles, pasteFiles, useFileDrag } from '../lib/attachFiles';
+import { staleGuard } from '../lib/staleGuard';
 import { currentUser, joinTags, splitTags } from '../lib/tags';
 import { useCatalog } from '../lib/useCatalog';
 
@@ -42,17 +43,19 @@ function TicketForm() {
   }, [isEdit]);
 
   useEffect(() => {
-    if (isEdit) {
-      api
-        .getTicket(id)
-        .then((ticket) => {
-          setTitle(ticket.title);
-          setContent(ticket.content);
-          setTags(splitTags(ticket.tags));
-          setInitial({ title: ticket.title, content: ticket.content, tags: ticket.tags });
-        })
-        .catch((e: Error) => setError(e.message));
-    }
+    if (!isEdit) return;
+    // 編集画面間を素早く遷移したときに古いレスポンスでフォームを上書きしないようにする
+    const { fresh, cancel } = staleGuard();
+    api
+      .getTicket(id)
+      .then(fresh((ticket) => {
+        setTitle(ticket.title);
+        setContent(ticket.content);
+        setTags(splitTags(ticket.tags));
+        setInitial({ title: ticket.title, content: ticket.content, tags: ticket.tags });
+      }))
+      .catch(fresh((e: Error) => setError(e.message)));
+    return cancel;
   }, [id, isEdit]);
 
   const dirty =
