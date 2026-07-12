@@ -37,6 +37,8 @@ function TagList() {
   const [error, setError] = useState('');
   // エクスポート/インポート・デフォルト復元の完了通知
   const [notice, setNotice] = useState('');
+  // タグ名・説明での絞り込みワード
+  const [filter, setFilter] = useState('');
 
   const reload = () => api.listTags().then(setCatalog).catch((e: Error) => setError(e.message));
 
@@ -157,6 +159,13 @@ function TagList() {
   const sortMembers = (key: string) => sections.get(key) ?? [];
   const dragTag = dragId != null ? catalog.find((t) => t.id === dragId) : undefined;
   const dragKey = dragTag ? sectionOf(dragTag) : null;
+
+  // タグ名・説明の部分一致（大文字小文字を無視）で表示を絞り込む
+  const visible = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return catalog;
+    return catalog.filter((t) => t.tag.toLowerCase().includes(q) || (t.note ?? '').toLowerCase().includes(q));
+  }, [catalog, filter]);
 
   // 同じ並び替え単位内でfromの位置のタグをtoの位置へ移動した並びを保存する
   const moveTo = async (key: string, from: number, to: number) => {
@@ -314,16 +323,26 @@ function TagList() {
       {renameDialog}
       {confirmDialog}
 
+      <input
+        type="search"
+        className="border rounded-sm px-2 py-1 w-full sm:w-64 mb-2"
+        placeholder="タグ名・説明で絞り込み"
+        aria-label="タグ名・説明で絞り込み"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+      />
+
       <div className="hidden sm:flex text-neutral-500 dark:text-neutral-400 border-b">
         <div className="w-1/3 py-1 pl-2">tag</div>
         <div className="w-1/4 py-1">説明</div>
         <div className="flex-1 py-1">属性</div>
         <div className="flex-none w-32 py-1"></div>
       </div>
-      {catalog.map((tag, i) => {
+      {visible.map((tag, i) => {
         const key = sectionOf(tag);
-        const sortable = sortMembers(key).length > 1;
-        const next = catalog[i + 1];
+        // 絞り込み中は並びが部分的になるためドラッグ・キー操作での並び替えは無効化する
+        const sortable = filter === '' && sortMembers(key).length > 1;
+        const next = visible[i + 1];
         const sectionEnd = next == null || sectionOf(next) !== sectionOf(tag);
         return (
         <div
@@ -400,6 +419,9 @@ function TagList() {
         </div>
         );
       })}
+      {visible.length === 0 && (
+        <p className="text-neutral-500 dark:text-neutral-400 p-4">一致するタグがありません</p>
+      )}
     </>
   );
 }
