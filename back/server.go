@@ -131,7 +131,7 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		if !ok {
 			return
 		}
-		if _, ok := fetchOr404(w, dao.GetTicket, id, "ticket"); !ok {
+		if !existsOr404(w, dao.TicketExists, id, "ticket") {
 			return
 		}
 		comments, err := dao.QueryComments(id)
@@ -147,7 +147,7 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		if !ok {
 			return
 		}
-		if _, ok := fetchOr404(w, dao.GetTicket, id, "ticket"); !ok {
+		if !existsOr404(w, dao.TicketExists, id, "ticket") {
 			return
 		}
 		histories, err := dao.QueryTicketHistories(id)
@@ -163,7 +163,7 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		if !ok {
 			return
 		}
-		if _, ok := fetchOr404(w, dao.GetComment, id, "comment"); !ok {
+		if !existsOr404(w, dao.CommentExists, id, "comment") {
 			return
 		}
 		histories, err := dao.QueryCommentHistories(id)
@@ -179,7 +179,7 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		if !ok {
 			return
 		}
-		if _, ok := fetchOr404(w, dao.GetTicket, id, "ticket"); !ok {
+		if !existsOr404(w, dao.TicketExists, id, "ticket") {
 			return
 		}
 		tickets, err := dao.QueryBacklinks(id)
@@ -195,7 +195,7 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		if !ok {
 			return
 		}
-		if _, ok := fetchOr404(w, dao.GetTicket, id, "ticket"); !ok {
+		if !existsOr404(w, dao.TicketExists, id, "ticket") {
 			return
 		}
 		var comment data.Comment
@@ -540,12 +540,7 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		}) {
 			return
 		}
-		// ボディで省略された項目（sort_order等）もDB上の実値で返すため読み直す
-		saved, ok := fetchOr404(w, dao.GetTag, id, "tag")
-		if !ok {
-			return
-		}
-		writeJson(w, http.StatusOK, saved)
+		writeSavedTag(w, dao, id)
 	})
 
 	// タグ名の変更。カタログの更新に加え、そのタグを使用している全チケットのタグ表記も一括で書き換える
@@ -575,12 +570,7 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		}) {
 			return
 		}
-		// ボディで省略された項目（sort_order等）もDB上の実値で返すため読み直す
-		saved, ok := fetchOr404(w, dao.GetTag, id, "tag")
-		if !ok {
-			return
-		}
-		writeJson(w, http.StatusOK, saved)
+		writeSavedTag(w, dao, id)
 	})
 
 	// タグを使用しているチケット数。削除・タグ名変更の確認用（チケット本体を取得せず件数だけ返す）
@@ -731,6 +721,31 @@ func fetchOr404[T any](w http.ResponseWriter, get func(int64) (*T, error), id in
 		return nil, false
 	}
 	return v, true
+}
+
+// エンティティの存在だけを確認する（サブリソースの404判定用。fetchOr404と違い行全体を取得しない）。
+// エラーなら500、存在しなければ404（"<name> not found"）を書き込みfalseを返す
+func existsOr404(w http.ResponseWriter, exists func(int64) (bool, error), id int64, name string) bool {
+	ok, err := exists(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return false
+	}
+	if !ok {
+		writeErrorMessage(w, http.StatusNotFound, name+" not found")
+		return false
+	}
+	return true
+}
+
+// タグ保存系（編集・改名）のレスポンス。ボディで省略された項目（sort_order等）も
+// DB上の実値で返すため読み直す
+func writeSavedTag(w http.ResponseWriter, dao *data.Dao, id int64) {
+	saved, ok := fetchOr404(w, dao.GetTag, id, "tag")
+	if !ok {
+		return
+	}
+	writeJson(w, http.StatusOK, saved)
 }
 
 // タグの保存処理（検証 → 属性導出 → 保存。重複は409）。エラー応答を書き込んだ場合はfalseを返す

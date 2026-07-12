@@ -85,10 +85,15 @@ export function useFileDrag(onDrop: (e: DragEvent<HTMLTextAreaElement>) => void)
   };
 }
 
+// input[type=file] の選択ファイルを取り出す。
+// 同じファイルを続けて選択してもchangeが発火するように入力をリセットする
+export function readFileInput(e: ChangeEvent<HTMLInputElement>): File[] {
+  const files = Array.from(e.currentTarget.files ?? []);
+  e.currentTarget.value = '';
+  return files;
+}
+
 // ファイル選択（input[type=file]）でのアップロードを処理し、本文の末尾へリンクを追記する
 export function selectFiles(e: ChangeEvent<HTMLInputElement>, setValue: SetValue, onError: OnError) {
-  const files = Array.from(e.currentTarget.files ?? []);
-  // 同じファイルを続けて選択してもchangeが発火するようにリセットする
-  e.currentTarget.value = '';
-  uploadFiles(files, null, setValue, onError);
+  uploadFiles(readFileInput(e), null, setValue, onError);
 }

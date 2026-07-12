@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Tag } from '../api/client';
 import {
-  buildTagColorMap,
   completeOnTab,
   completionCandidates,
   groupCatalog,
@@ -12,6 +11,7 @@ import {
   splitTags,
   tagColor,
 } from '../lib/tags';
+import { useTagColors } from '../lib/useCatalog';
 import TagGroupSelect from './TagGroupSelect';
 import TagItem from './TagItem';
 import TagRangeInput from './TagRangeInput';
@@ -39,7 +39,7 @@ function TagInput({ value, onChange, catalog, onTextChange }: Props) {
   const [rangeValue, setRangeValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const groups = useMemo(() => groupCatalog(catalog), [catalog]);
-  const colors = useMemo(() => buildTagColorMap(catalog), [catalog]);
+  const colors = useTagColors(catalog);
 
   // 未確定テキストの変更は常に親へも通知する
   const setText = (next: string) => {

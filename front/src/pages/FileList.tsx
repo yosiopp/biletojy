@@ -1,6 +1,7 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { api, FileInfo } from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { readFileInput } from '../lib/attachFiles';
 import { formatDateTime } from '../lib/date';
 
 // サイズはバイト数を1024区切りの単位（B / KB / MB）で表示する
@@ -42,9 +43,7 @@ function FileList() {
 
   // ファイル選択でアップロードし、完了後に一覧を取得し直す（本文への添付と同じアップロードAPI）
   const upload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.currentTarget.files ?? []);
-    // 同じファイルを続けて選択してもchangeが発火するようにリセットする
-    e.currentTarget.value = '';
+    const selected = readFileInput(e);
     if (selected.length === 0) return;
     try {
       for (const file of selected) {

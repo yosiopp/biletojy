@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, Comment, Ticket } from '../api/client';
 import AttachFileButton from '../components/AttachFileButton';
@@ -9,8 +9,8 @@ import TicketRefTextarea from '../components/TicketRefTextarea';
 import { formatDateTime } from '../lib/date';
 import { dropFiles, pasteFiles, useFileDrag } from '../lib/attachFiles';
 import { staleGuard } from '../lib/staleGuard';
-import { buildTagColorMap, currentUser, splitTags, tagColor } from '../lib/tags';
-import { useCatalog } from '../lib/useCatalog';
+import { currentUser, splitTags, tagColor } from '../lib/tags';
+import { useCatalog, useTagColors } from '../lib/useCatalog';
 
 function TicketDetail() {
   const { id } = useParams();
@@ -18,7 +18,7 @@ function TicketDetail() {
   const [backlinks, setBacklinks] = useState<Ticket[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const catalog = useCatalog();
-  const colors = useMemo(() => buildTagColorMap(catalog), [catalog]);
+  const colors = useTagColors(catalog);
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [ticketError, setTicketError] = useState('');

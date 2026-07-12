@@ -73,12 +73,18 @@ function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props
   // グループのタグを付け替えて保存する。元のタグがあった位置に新しい値を入れ、他のタグの並びは保つ
   const move = (ticket: Ticket, targetTag: string | null) => {
     const prefix = `${by}:`;
-    const tags = splitTags(ticket.tags);
-    const first = tags.findIndex((t) => t.startsWith(prefix));
-    const next = tags.filter((t) => !t.startsWith(prefix));
-    // 挿入位置はfilter後のnext配列基準で数える（元のタグより前に残るタグの数）
-    const index = first >= 0 ? tags.slice(0, first).filter((t) => !t.startsWith(prefix)).length : next.length;
-    if (targetTag != null) next.splice(index, 0, targetTag);
+    let replaced = false;
+    const next: string[] = [];
+    for (const tag of splitTags(ticket.tags)) {
+      if (!tag.startsWith(prefix)) {
+        next.push(tag);
+      } else if (targetTag != null && !replaced) {
+        next.push(targetTag);
+        replaced = true;
+      }
+      // 2つ目以降の同グループタグと、「なし」列への移動（targetTag == null）は取り除くだけ
+    }
+    if (targetTag != null && !replaced) next.push(targetTag);
     const nextTags = joinTags(next);
     if (nextTags === ticket.tags) return;
     api
@@ -146,36 +152,38 @@ function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props
               <span className="ml-2">{column.tickets.length}</span>
             </div>
             <div className="p-2 flex flex-col gap-2 min-h-16">
-              {column.tickets.map((ticket, rowIndex) => (
-                <Link
-                  key={ticket.id}
-                  ref={(el) => {
-                    if (el) cardRefs.current.set(ticket.id, el);
-                    else cardRefs.current.delete(ticket.id);
-                  }}
-                  to={`/tickets/${ticket.id}`}
-                  draggable
-                  className="block border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData(CARD_DRAG_TYPE, String(ticket.id));
-                    e.dataTransfer.effectAllowed = 'move';
-                  }}
-                  onDragEnd={() => setDropCol(null)}
-                  onKeyDown={(e) => onCardKeyDown(e, ticket, colIndex, rowIndex)}
-                >
-                  <span className="text-sm text-neutral-500 dark:text-neutral-400 mr-2">#{ticket.id}</span>
-                  {ticket.title}
-                  {splitTags(ticket.tags).some((t) => !t.startsWith(`${by}:`)) && (
-                    <span className="block mt-1 -mb-1">
-                      {splitTags(ticket.tags)
-                        .filter((t) => !t.startsWith(`${by}:`))
-                        .map((tag) => (
+              {column.tickets.map((ticket, rowIndex) => {
+                // 列の基準になっているグループのタグはカードに重複表示しない
+                const otherTags = splitTags(ticket.tags).filter((t) => !t.startsWith(`${by}:`));
+                return (
+                  <Link
+                    key={ticket.id}
+                    ref={(el) => {
+                      if (el) cardRefs.current.set(ticket.id, el);
+                      else cardRefs.current.delete(ticket.id);
+                    }}
+                    to={`/tickets/${ticket.id}`}
+                    draggable
+                    className="block border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(CARD_DRAG_TYPE, String(ticket.id));
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragEnd={() => setDropCol(null)}
+                    onKeyDown={(e) => onCardKeyDown(e, ticket, colIndex, rowIndex)}
+                  >
+                    <span className="text-sm text-neutral-500 dark:text-neutral-400 mr-2">#{ticket.id}</span>
+                    {ticket.title}
+                    {otherTags.length > 0 && (
+                      <span className="block mt-1 -mb-1">
+                        {otherTags.map((tag) => (
                           <TagItem key={tag} tag={tag} color={tagColor(colors, tag)} />
                         ))}
-                    </span>
-                  )}
-                </Link>
-              ))}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         );

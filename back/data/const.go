@@ -135,6 +135,9 @@ const (
 
 	// チケット取得
 	_SQL_GET_TICKET = `SELECT id, title, content, COALESCE(tags, ''), created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM tickets WHERE id = ?`
+	// サブリソースの404判定用の存在確認（本文込みの行全体は取得しない）
+	_SQL_TICKET_EXISTS  = `SELECT 1 FROM tickets WHERE id = ?`
+	_SQL_COMMENT_EXISTS = `SELECT 1 FROM comments WHERE id = ?`
 
 	// チケット追加。FTSはticket_idカラムがUNINDEXEDで絞り込みに使えないため、
 	// rowidへチケットIDを入れて更新・JOINはrowidベース（FTS5が最適化できる形）で行う

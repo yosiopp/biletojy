@@ -2,7 +2,6 @@ import { ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import type { Tag } from '../api/client';
 import {
   buildCond,
-  buildTagColorMap,
   completeOnTab,
   completionCandidates,
   condGroup,
@@ -18,6 +17,7 @@ import {
   splitTags,
   tagColor,
 } from '../lib/tags';
+import { useTagColors } from '../lib/useCatalog';
 import TagGroupSelect from './TagGroupSelect';
 import TagItem from './TagItem';
 import TagRangeInput from './TagRangeInput';
@@ -74,7 +74,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
   const [editValue, setEditValue] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const groups = useMemo(() => groupCatalog(catalog), [catalog]);
-  const colors = useMemo(() => buildTagColorMap(catalog), [catalog]);
+  const colors = useTagColors(catalog);
   const hierarchies = useMemo(() => hierarchyOptions(catalog), [catalog]);
 
   // 日時・数値タグの値待ち状態（例: "due-date@:" "-estimate#:>="）なら日付ピッカー・数値入力を出す

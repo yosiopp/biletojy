@@ -458,20 +458,35 @@ func (dao *Dao) GetTicket(id int64) (*Ticket, error) {
 	return &t, nil
 }
 
+// チケットの存在確認（サブリソースの404判定用。本文込みの行全体は取得しない）
+func (dao *Dao) TicketExists(id int64) (bool, error) {
+	return dao.exists(_SQL_TICKET_EXISTS, id)
+}
+
+// コメントの存在確認（同上）
+func (dao *Dao) CommentExists(id int64) (bool, error) {
+	return dao.exists(_SQL_COMMENT_EXISTS, id)
+}
+
+func (dao *Dao) exists(query string, id int64) (bool, error) {
+	var one int
+	err := dao.db.QueryRow(query, id).Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // チケットに付与されたタグのうちタグカタログ未定義のものを自動登録する。
-// 既存タグ名を1回のSELECTで取得し、未定義の差分だけINSERTする（タグごとの集計付きINSERTを避ける）。
+// knownは既存タグ名の集合（queryTagNames）で、登録したタグを加えながら未定義の差分だけINSERTする
+// （同一トランザクション内で複数チケットを登録するインポートでも全件SELECTは1回で済む）。
 // 日時・数値タグ（グループ名末尾 @/#）は値ごとではなくグループ（例: "due-date@:"）として登録する。
 // タグAPIの検証（TagNameError）に通らない名前はカタログに登録できないため除外する
-func registerUnknownTags(tx *sql.Tx, tags string) error {
-	fields := strings.Fields(tags)
-	if len(fields) == 0 {
-		return nil
-	}
-	known, err := queryTagNames(tx)
-	if err != nil {
-		return err
-	}
-	for _, tag := range fields {
+func registerUnknownTags(tx *sql.Tx, tags string, known map[string]bool) error {
+	for _, tag := range strings.Fields(tags) {
 		sep := strings.Index(tag, ":")
 		isGroup, isRange := TagAttrs(tag)
 		if isRange {
@@ -527,15 +542,19 @@ func (dao *Dao) AddTicket(ticket *Ticket) error {
 	now := time.Now()
 	ticket.CreatedAt = now
 	ticket.UpdatedAt = now
-	if err := insertTicket(tx, ticket); err != nil {
+	known, err := queryTagNames(tx)
+	if err != nil {
+		return err
+	}
+	if err := insertTicket(tx, ticket, known); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-// チケットの登録本体（タイムスタンプは設定済みであること）。
+// チケットの登録本体（タイムスタンプは設定済みであること）。knownは既存タグ名の集合（queryTagNames）。
 // 履歴の追加・FTSへの登録・カタログ未定義タグの自動登録もここで行う（インポートと共用）
-func insertTicket(tx *sql.Tx, ticket *Ticket) error {
+func insertTicket(tx *sql.Tx, ticket *Ticket, known map[string]bool) error {
 	res, err := tx.Exec(_SQL_ADD_TICKET, ticket.Title, ticket.Content, ticket.Tags, ticket.CreatedBy, ticket.CreatedSub, ticket.UpdatedBy, ticket.UpdatedSub, ticket.CreatedAt, ticket.UpdatedAt)
 	if err != nil {
 		return err
@@ -548,7 +567,7 @@ func insertTicket(tx *sql.Tx, ticket *Ticket) error {
 	if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, ticket.Id, title, content, tags, ""); err != nil {
 		return err
 	}
-	return registerUnknownTags(tx, ticket.Tags)
+	return registerUnknownTags(tx, ticket.Tags, known)
 }
 
 func (dao *Dao) EditTicket(ticket *Ticket) error {
@@ -571,7 +590,11 @@ func (dao *Dao) EditTicket(ticket *Ticket) error {
 	if _, err := tx.Exec(_SQL_EDIT_TICKET_FTS, title, content, tags, ticket.Id); err != nil {
 		return err
 	}
-	if err := registerUnknownTags(tx, ticket.Tags); err != nil {
+	known, err := queryTagNames(tx)
+	if err != nil {
+		return err
+	}
+	if err := registerUnknownTags(tx, ticket.Tags, known); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -794,6 +817,11 @@ func (dao *Dao) ImportTickets(tickets []TicketExport) error {
 	defer tx.Rollback()
 
 	now := time.Now()
+	// 既存タグ名の集合はトランザクション内で共有し、チケットごとに全件SELECTしない
+	known, err := queryTagNames(tx)
+	if err != nil {
+		return err
+	}
 	for i := range tickets {
 		t := &tickets[i]
 		t.Id = 0
@@ -803,7 +831,7 @@ func (dao *Dao) ImportTickets(tickets []TicketExport) error {
 		if t.UpdatedAt.IsZero() {
 			t.UpdatedAt = t.CreatedAt
 		}
-		if err := insertTicket(tx, &t.Ticket); err != nil {
+		if err := insertTicket(tx, &t.Ticket, known); err != nil {
 			return err
 		}
 		for j := range t.Comments {
@@ -851,10 +879,14 @@ func (dao *Dao) GetFile(id int64) (*File, error) {
 	return &f, nil
 }
 
+// 本文中のファイル参照（/api/files/{id} のmarkdownリンク）からIDを抜き出すパターン。
+// \d+ の最長一致により /api/files/12 が id=1 の参照に誤マッチすることはない
+var fileRefPattern = regexp.MustCompile(`/api/files/(\d+)`)
+
 // 添付ファイルの一覧を新しい順に返す。BLOB本体は含めず、サイズと本文中のmarkdownリンク
 // （/api/files/{id}）による参照の有無を「現役（チケット・コメント）」「履歴」に分けて返す。
-// 参照の判定はrewriteTicketTagsと同じ2段構えで、LIKEで '/api/files/' を含む本文だけに候補を絞り、
-// IDの直後が数字でないこと（id=1 が /api/files/12 に誤マッチしないこと）はGo側で確認する
+// 参照の判定はLIKEで '/api/files/' を含む本文だけに候補を絞った上で、
+// 本文から抽出した参照ID集合との突き合わせで行う
 func (dao *Dao) QueryFiles() ([]FileInfo, error) {
 	rows, err := dao.db.Query(_SQL_QUERY_FILE_INFOS)
 	if err != nil {
@@ -875,56 +907,57 @@ func (dao *Dao) QueryFiles() ([]FileInfo, error) {
 	if len(files) == 0 {
 		return files, nil
 	}
-	active, err := dao.queryFileRefContents(_SQL_QUERY_TICKET_FILE_REFS, _SQL_QUERY_COMMENT_FILE_REFS)
+	active, err := dao.queryFileRefIds(_SQL_QUERY_TICKET_FILE_REFS, _SQL_QUERY_COMMENT_FILE_REFS)
 	if err != nil {
 		return nil, err
 	}
-	history, err := dao.queryFileRefContents(_SQL_QUERY_TICKET_HISTORY_FILE_REFS, _SQL_QUERY_COMMENT_HISTORY_FILE_REFS)
+	history, err := dao.queryFileRefIds(_SQL_QUERY_TICKET_HISTORY_FILE_REFS, _SQL_QUERY_COMMENT_HISTORY_FILE_REFS)
 	if err != nil {
 		return nil, err
 	}
 	for i := range files {
-		ref := regexp.MustCompile(`/api/files/` + strconv.FormatInt(files[i].Id, 10) + `(\D|$)`)
-		files[i].Referenced = ref.MatchString(active)
-		files[i].HistoryReferenced = ref.MatchString(history)
+		files[i].Referenced = active[files[i].Id]
+		files[i].HistoryReferenced = history[files[i].Id]
 	}
 	return files, nil
 }
 
-// 指定クエリ群の本文のうち '/api/files/' を含むものを集めて結合して返す（ファイル参照判定の候補）
-func (dao *Dao) queryFileRefContents(queries ...string) (string, error) {
-	contents := []string{}
+// 指定クエリ群の本文から参照されているファイルIDの集合を返す
+func (dao *Dao) queryFileRefIds(queries ...string) (map[int64]bool, error) {
+	ids := map[int64]bool{}
 	for _, query := range queries {
-		part, err := dao.queryFileRefChunk(query)
-		if err != nil {
-			return "", err
+		if err := dao.collectFileRefIds(query, ids); err != nil {
+			return nil, err
 		}
-		contents = append(contents, part...)
 	}
-	return strings.Join(contents, "\n"), nil
+	return ids, nil
 }
 
-// 1テーブル分のファイル参照候補の本文を返す
-func (dao *Dao) queryFileRefChunk(query string) ([]string, error) {
+// 1テーブル分のファイル参照候補の本文からIDを抽出してidsへ加える
+func (dao *Dao) collectFileRefIds(query string, ids map[int64]bool) error {
 	rows, err := dao.db.Query(query, "%/api/files/%")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer rows.Close()
-	contents := []string{}
 	for rows.Next() {
 		var content string
 		if err := rows.Scan(&content); err != nil {
-			return nil, err
+			return err
 		}
-		contents = append(contents, content)
+		for _, m := range fileRefPattern.FindAllStringSubmatch(content, -1) {
+			// 実在しない桁あふれのIDはどのファイルにも一致しないため無視する
+			if id, err := strconv.ParseInt(m[1], 10, 64); err == nil {
+				ids[id] = true
+			}
+		}
 	}
-	return contents, rows.Err()
+	return rows.Err()
 }
 
-// 添付ファイルを削除する。該当行がなければfalseを返す
-func (dao *Dao) DeleteFile(id int64) (bool, error) {
-	res, err := dao.db.Exec(_SQL_DELETE_FILE, id)
+// idの行を削除する。該当行がなければfalseを返す（ファイル・テンプレート・タグの削除で共用）
+func (dao *Dao) deleteById(query string, id int64) (bool, error) {
+	res, err := dao.db.Exec(query, id)
 	if err != nil {
 		return false, err
 	}
@@ -933,6 +966,11 @@ func (dao *Dao) DeleteFile(id int64) (bool, error) {
 		return false, err
 	}
 	return n > 0, nil
+}
+
+// 添付ファイルを削除する。該当行がなければfalseを返す
+func (dao *Dao) DeleteFile(id int64) (bool, error) {
+	return dao.deleteById(_SQL_DELETE_FILE, id)
 }
 
 // テンプレートを名前順（同名は登録順）に返す
@@ -985,15 +1023,7 @@ func (dao *Dao) EditTemplate(tpl *Template) error {
 
 // テンプレートを削除する。該当行がなければfalseを返す
 func (dao *Dao) DeleteTemplate(id int64) (bool, error) {
-	res, err := dao.db.Exec(_SQL_DELETE_TEMPLATE, id)
-	if err != nil {
-		return false, err
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-	return n > 0, nil
+	return dao.deleteById(_SQL_DELETE_TEMPLATE, id)
 }
 
 func (dao *Dao) QueryTags() ([]Tag, error) {
@@ -1097,10 +1127,17 @@ func (dao *Dao) CountTagUsage(name string) (int, error) {
 	return count, rows.Err()
 }
 
-// タグ文字列（スペース区切り）がnameのタグを使用しているか（replaceTagTokensと同じトークン単位の判定）
+// タグのトークンがnameのタグに一致するか。値なしのグループエントリ（"due-date@:" など末尾 ":"）は
+// そのグループの値を持つトークンに前方一致する。使用数の集計（tagUsed）と
+// タグ名変更の書き換え（replaceTagTokens）で同じ判定を共有する
+func tokenMatches(token, name string) bool {
+	return token == name || (strings.HasSuffix(name, ":") && strings.HasPrefix(token, name))
+}
+
+// タグ文字列（スペース区切り）がnameのタグを使用しているか
 func tagUsed(tags, name string) bool {
 	for _, token := range strings.Fields(tags) {
-		if token == name || (strings.HasSuffix(name, ":") && strings.HasPrefix(token, name)) {
+		if tokenMatches(token, name) {
 			return true
 		}
 	}
@@ -1116,11 +1153,8 @@ func replaceTagTokens(tags, oldName, newName string) (string, bool) {
 	seen := map[string]bool{}
 	result := []string{}
 	for _, token := range strings.Fields(tags) {
-		switch {
-		case token == oldName:
-			token = newName
-			changed = true
-		case strings.HasSuffix(oldName, ":") && strings.HasPrefix(token, oldName):
+		if tokenMatches(token, oldName) {
+			// 完全一致では接尾辞が空になり、newNameそのものへの置き換えになる
 			token = newName + token[len(oldName):]
 			changed = true
 		}
@@ -1153,13 +1187,5 @@ func (dao *Dao) ReorderTags(ids []int64) error {
 
 // タグを削除する。該当行がなければfalseを返す
 func (dao *Dao) DeleteTag(id int64) (bool, error) {
-	res, err := dao.db.Exec(_SQL_DELETE_TAG, id)
-	if err != nil {
-		return false, err
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-	return n > 0, nil
+	return dao.deleteById(_SQL_DELETE_TAG, id)
 }

@@ -9,8 +9,8 @@ import TicketTree from '../components/TicketTree';
 import ViewSelect from '../components/ViewSelect';
 import { buildSort, HIERARCHY_SORT_KEY, parseSort, sortTickets, SortSpec } from '../lib/sort';
 import { staleGuard } from '../lib/staleGuard';
-import { buildTagColorMap, groupCatalog, hierarchyOptions } from '../lib/tags';
-import { useCatalog } from '../lib/useCatalog';
+import { groupCatalog, hierarchyOptions } from '../lib/tags';
+import { useCatalog, useTagColors } from '../lib/useCatalog';
 import { parseViewMode, VIEW_MODES, ViewMode } from '../lib/viewMode';
 
 function TicketList() {
@@ -18,8 +18,7 @@ function TicketList() {
   // null はロード中（初回フェッチ完了前に空表示を出さないため）
   const [tickets, setTickets] = useState<Ticket[] | null>(null);
   const catalog = useCatalog();
-  // タグ名→色のMap。各行のタグ表示でカタログを線形探索しないよう一度だけ構築する
-  const tagColors = useMemo(() => buildTagColorMap(catalog), [catalog]);
+  const tagColors = useTagColors(catalog);
   const [error, setError] = useState('');
   // インポート完了の通知と、完了後に一覧を再取得するためのカウンタ
   const [notice, setNotice] = useState('');
@@ -61,7 +60,7 @@ function TicketList() {
     const options =
       mode === 'board'
         ? [...groupCatalog(catalog).keys()].filter((g) => !/[@#]$/.test(g))
-        : hierarchyOptions(catalog).sort();
+        : hierarchyOptions(catalog);
     if (by && !options.includes(by)) options.push(by);
     return options;
   }, [catalog, by, mode]);

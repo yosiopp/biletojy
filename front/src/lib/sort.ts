@@ -65,9 +65,11 @@ function sortValue(ticket: Ticket, key: string): number | string | null {
 
 export function sortTickets(tickets: Ticket[], spec: SortSpec): Ticket[] {
   const dir = spec.desc ? -1 : 1;
+  // 比較のたびにタグを解析し直さないよう、ソートキーはチケットごとに1回だけ計算する
+  const values = new Map(tickets.map((t) => [t.id, sortValue(t, spec.key)]));
   return [...tickets].sort((a, b) => {
-    const va = sortValue(a, spec.key);
-    const vb = sortValue(b, spec.key);
+    const va = values.get(a.id);
+    const vb = values.get(b.id);
     // ソート対象のタグを持たないチケットは昇順・降順に関わらず末尾に置く
     if (va == null || vb == null) {
       return (va == null ? 1 : 0) - (vb == null ? 1 : 0);

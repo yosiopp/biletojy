@@ -1,12 +1,12 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { api, Template } from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Dialog from '../components/Dialog';
 import TagInput from '../components/TagInput';
 import TagItem from '../components/TagItem';
 import TicketRefTextarea from '../components/TicketRefTextarea';
-import { buildTagColorMap, joinTags, splitTags, tagColor } from '../lib/tags';
-import { useCatalog } from '../lib/useCatalog';
+import { joinTags, splitTags, tagColor } from '../lib/tags';
+import { useCatalog, useTagColors } from '../lib/useCatalog';
 import { usePendingTagGuard } from '../lib/usePendingTagGuard';
 
 type Editing = {
@@ -28,7 +28,7 @@ function TemplateList() {
   const [confirming, setConfirming] = useState<Template | null>(null);
   const [error, setError] = useState('');
   const catalog = useCatalog();
-  const colors = useMemo(() => buildTagColorMap(catalog), [catalog]);
+  const colors = useTagColors(catalog);
   // タグ入力欄の未確定テキストが残ったまま保存すると失われるため、保存前に確認する
   const tagGuard = usePendingTagGuard();
 

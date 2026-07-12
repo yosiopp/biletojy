@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, Tag } from '../api/client';
+import { buildTagColorMap, TagColorMap } from './tags';
 
 // 画面遷移（一覧→詳細→編集など）のたびに /api/tags を取り直さないよう、
 // 初回フェッチのPromiseをモジュールレベルで共有する
@@ -19,6 +20,12 @@ function fetchCatalog(): Promise<Tag[]> {
 // タグ編集（TagList）などでカタログが変わったときに呼ぶ。次のマウントで取得し直す
 export function invalidateCatalog() {
   cache = null;
+}
+
+// タグ名→表示色のMap。各タグ表示でカタログを線形探索しないよう、カタログが変わったときだけ構築する
+// （カタログをpropsで受け取るコンポーネントでも使えるよう引数で渡す）
+export function useTagColors(catalog: Tag[]): TagColorMap {
+  return useMemo(() => buildTagColorMap(catalog), [catalog]);
 }
 
 // タグカタログを取得する（共有キャッシュ付き）
