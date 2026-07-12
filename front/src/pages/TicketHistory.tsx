@@ -89,6 +89,10 @@ function TicketHistory() {
 
       {error && <p className="text-red-600 dark:text-red-400 mb-2">{error}</p>}
 
+      {histories.length === 1 ? (
+        <p className="text-neutral-500 dark:text-neutral-400">変更履歴はまだありません</p>
+      ) : (
+        <>
       <div className="mb-6">
         <div className="hidden sm:flex text-sm text-neutral-500 dark:text-neutral-400 border-b py-1 gap-x-2">
           <span className="w-8 text-center">旧</span>
@@ -155,6 +159,8 @@ function TicketHistory() {
           <DiffView lines={section.lines} />
         </div>
       ))}
+        </>
+      )}
       {confirming && (
         <ConfirmDialog
           title="チケットを過去の版に戻す"
