@@ -374,7 +374,8 @@ func (dao *Dao) QueryTickets(q string, tags []string, limit int) ([]Ticket, erro
 		if err != nil {
 			return nil, err
 		}
-		if !matchAllTagConds(conds, t.Tags) {
+		// タグの分割は条件・択ごとに繰り返さず、チケットごとに1回だけ行う
+		if len(conds) > 0 && !matchAllTagConds(conds, strings.Fields(t.Tags)) {
 			continue
 		}
 		tickets = append(tickets, t)
@@ -385,7 +386,8 @@ func (dao *Dao) QueryTickets(q string, tags []string, limit int) ([]Ticket, erro
 	return tickets, rows.Err()
 }
 
-func matchAllTagConds(conds []*tagCond, tags string) bool {
+// 分割済みのタグ群がすべてのタグ条件を満たすか
+func matchAllTagConds(conds []*tagCond, tags []string) bool {
 	for _, c := range conds {
 		if !c.match(tags) {
 			return false

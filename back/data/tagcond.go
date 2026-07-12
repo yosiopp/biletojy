@@ -60,8 +60,8 @@ func (c *tagCond) likeCond() (string, []any) {
 	return "(" + strings.Join(likes, " OR ") + ")", args
 }
 
-// チケットのタグ文字列が条件を満たすか（いずれかの択にマッチ。NOTなら反転）
-func (c *tagCond) match(tags string) bool {
+// チケットの分割済みタグ群が条件を満たすか（いずれかの択にマッチ。NOTなら反転）
+func (c *tagCond) match(tags []string) bool {
 	for _, alt := range c.alts {
 		if alt.match(tags) {
 			return !c.not
@@ -70,11 +70,11 @@ func (c *tagCond) match(tags string) bool {
 	return c.not
 }
 
-func (a tagAlt) match(tags string) bool {
+func (a tagAlt) match(tags []string) bool {
 	if a.rng != nil {
 		return a.rng.match(tags)
 	}
-	for _, tag := range strings.Fields(tags) {
+	for _, tag := range tags {
 		if tag == a.tag || strings.HasPrefix(tag, a.tag+"/") {
 			return true
 		}

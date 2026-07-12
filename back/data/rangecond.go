@@ -41,10 +41,10 @@ func parseRangeCond(tag string) *rangeCond {
 	return &rangeCond{group: m[1], op: op, value: m[3], numeric: numeric}
 }
 
-// チケットのタグ文字列に条件を満たす日時・数値タグが含まれるか。
+// チケットの分割済みタグ群に条件を満たす日時・数値タグが含まれるか。
 // 比較できない値（例: "due-date@:TBD", "estimate#:未定"）は比較の対象にしない
-func (c *rangeCond) match(tags string) bool {
-	for _, tag := range strings.Fields(tags) {
+func (c *rangeCond) match(tags []string) bool {
+	for _, tag := range tags {
 		v, ok := strings.CutPrefix(tag, c.group)
 		if !ok {
 			continue
