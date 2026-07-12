@@ -48,12 +48,12 @@ cd front && npm run build                # tsc -b && vite build
 SQLiteドライバは `modernc.org/sqlite`（pure Go、cgo不要、FTS5標準対応）。全文検索はSQLite FTS5 + Go側でのbi-gramトークナイズ。FTSテーブルへは登録・検索の両方でトークナイズ済みテキストを渡す。コメント編集時は `refreshCommentsFts` でチケット単位に再構築される。チケット・コメントの編集は毎回履歴テーブル（`ticket_histories` / `comment_histories`）へ保存される。
 
 ### フロントエンド（front/src/）
-* ルーティングは `App.tsx`（react-router）。ページは `pages/`（TicketList / TicketDetail / TicketForm / TicketHistory / TagList / TemplateList）
+* ルーティングは `App.tsx`（react-router）。ページは `pages/`（TicketList / TicketDetail / TicketForm / TicketHistory / TagList / TemplateList / FileList）
 * チケット一覧はリスト / ツリー（階層タグで入れ子表示）/ カンバン（タググループ基準）の3表示モード（`lib/viewMode.ts`、`components/TicketTree.tsx` / `TicketBoard.tsx`）。並び替え・表示モードはクライアント側で処理し、URLクエリ（`sort` / `view` / `by`）で保持する
 * 検索条件＋表示モードは「保存済みビュー」として localStorage に保存できる（`lib/views.ts`、`components/ViewSelect.tsx`）
 * APIクライアントは `api/client.ts` に集約
 * 本文・コメントは markdown + mermaid（`components/Markdown.tsx`）。エクスポート/インポートUI（`components/ExportImport.tsx`）とファイル添付（`components/AttachFileButton.tsx`）あり
-* ショートカットキー対応が要件（ctrl+n 作成、ctrl+shift+n タグ作成、ctrl+e 編集、ctrl+h 履歴、ctrl+l 一覧、ctrl+t タグ一覧、ctrl+m テンプレート一覧、? ヘルプ。`components/Layout.tsx` の `SHORTCUTS` が正）。キーボードだけで操作が完結すること
+* ショートカットキー対応が要件（ctrl+n 作成、ctrl+shift+n タグ作成、ctrl+e 編集、ctrl+h 履歴、ctrl+l 一覧、ctrl+shift+l ファイル一覧、ctrl+t タグ一覧、ctrl+m テンプレート一覧、? ヘルプ。`components/Layout.tsx` の `SHORTCUTS` が正）。キーボードだけで操作が完結すること
 
 ## UIデザインシステム
 

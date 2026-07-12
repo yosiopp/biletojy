@@ -981,6 +981,76 @@ func TestFileServeNonImageAsAttachment(t *testing.T) {
 	}
 }
 
+func TestFileListAndDelete(t *testing.T) {
+	handler := newTestServer(t)
+
+	upload := func(name, contentType string, body []byte) data.File {
+		t.Helper()
+		w := uploadFile(t, handler, "/api/files?name="+url.QueryEscape(name), contentType, body)
+		assertStatus(t, w, http.StatusCreated)
+		return decodeBody[data.File](t, w)
+	}
+	listFiles := func() map[int64]data.FileInfo {
+		t.Helper()
+		w := request(t, handler, "GET", "/api/files", nil)
+		assertStatus(t, w, http.StatusOK)
+		byId := map[int64]data.FileInfo{}
+		for _, f := range decodeBody[[]data.FileInfo](t, w) {
+			byId[f.Id] = f
+		}
+		return byId
+	}
+
+	f1 := upload("shot.png", "image/png", []byte("12345"))
+	f2 := upload("app.log", "text/plain", []byte("123456789"))
+	f3 := upload("memo.txt", "text/plain", []byte("1"))
+
+	// f1は本文から、f2はコメントから参照する。f3への参照は直後に数字が続く別IDのため参照扱いにならない
+	ticket := createTicket(t, handler, data.Ticket{Title: "参照元", Content: fmt.Sprintf("![shot](/api/files/%d)", f1.Id)})
+	other := createTicket(t, handler, data.Ticket{Title: "コメント参照元", Content: fmt.Sprintf("/api/files/%d0 は桁違いの別ファイル", f3.Id)})
+	w := request(t, handler, "POST", fmt.Sprintf("/api/tickets/%d/comments", other.Id),
+		data.Comment{Content: fmt.Sprintf("[log](/api/files/%d)", f2.Id)})
+	assertStatus(t, w, http.StatusCreated)
+
+	// 一覧: BLOB本体は含まず、name / mime / size(LENGTH) / 参照有無が返る
+	files := listFiles()
+	if len(files) != 3 {
+		t.Fatalf("files = %d entries, want 3", len(files))
+	}
+	got := files[f1.Id]
+	if got.Name != "shot.png" || got.Mime != "image/png" || got.Size != 5 || got.CreatedAt.IsZero() {
+		t.Errorf("f1 = %+v, want name=shot.png mime=image/png size=5", got)
+	}
+	// 現役の本文から参照され、作成時の版が履歴にもあるため両方true
+	if !got.Referenced || !got.HistoryReferenced {
+		t.Errorf("f1 refs = %+v, want referenced and history_referenced", got)
+	}
+	if got := files[f2.Id]; !got.Referenced || !got.HistoryReferenced || got.Size != 9 {
+		t.Errorf("f2 = %+v, want referenced via comment, size=9", got)
+	}
+	// f3は未参照（/api/files/{id}0 への誤マッチはしない）
+	if got := files[f3.Id]; got.Referenced || got.HistoryReferenced {
+		t.Errorf("f3 = %+v, want unreferenced", got)
+	}
+
+	// 本文から参照を外すと現役の参照は消え、履歴からの参照だけが残る
+	w = request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", ticket.Id), data.Ticket{Title: "参照元", Content: "参照を外した"})
+	assertStatus(t, w, http.StatusOK)
+	if got := listFiles()[f1.Id]; got.Referenced || !got.HistoryReferenced {
+		t.Errorf("f1 after unlink = %+v, want history_referenced only", got)
+	}
+
+	// 削除。削除済み・存在しないIDは404、不正IDは400
+	w = request(t, handler, "DELETE", fmt.Sprintf("/api/files/%d", f3.Id), nil)
+	assertStatus(t, w, http.StatusNoContent)
+	if files := listFiles(); len(files) != 2 {
+		t.Errorf("files after delete = %d entries, want 2", len(files))
+	}
+	assertErrorResponse(t, request(t, handler, "GET", fmt.Sprintf("/api/files/%d", f3.Id), nil), http.StatusNotFound)
+	assertErrorResponse(t, request(t, handler, "DELETE", fmt.Sprintf("/api/files/%d", f3.Id), nil), http.StatusNotFound)
+	assertErrorResponse(t, request(t, handler, "DELETE", "/api/files/abc", nil), http.StatusBadRequest)
+}
+
 func TestStaticSpaFallback(t *testing.T) {
 	t.Chdir(t.TempDir())
 	staticDir := t.TempDir()

@@ -332,6 +332,16 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		writeJson(w, http.StatusCreated, map[string]int{"imported": len(req.Tickets)})
 	})
 
+	// 添付ファイルの一覧。BLOB本体は含めず、サイズとチケット・コメント（現役/履歴）からの参照有無を返す
+	mux.HandleFunc("GET /api/files", func(w http.ResponseWriter, r *http.Request) {
+		files, err := dao.QueryFiles()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJson(w, http.StatusOK, files)
+	})
+
 	mux.HandleFunc("POST /api/files", func(w http.ResponseWriter, r *http.Request) {
 		mimeType := r.Header.Get("Content-Type")
 		if mimeType == "" {
@@ -384,6 +394,24 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 			w.Header().Set("X-Content-Type-Options", "nosniff")
 		}
 		http.ServeContent(w, r, "", file.CreatedAt, bytes.NewReader(file.Data))
+	})
+
+	// 添付ファイルの削除。チケット本文からの参照が残っていても削除できる（リンク切れの警告はUI側で行う）
+	mux.HandleFunc("DELETE /api/files/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, ok := pathId(w, r)
+		if !ok {
+			return
+		}
+		deleted, err := dao.DeleteFile(id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		if !deleted {
+			writeErrorMessage(w, http.StatusNotFound, "file not found")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 
 	mux.HandleFunc("GET /api/templates", func(w http.ResponseWriter, r *http.Request) {

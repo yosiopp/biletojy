@@ -165,6 +165,15 @@ const (
 	// 添付ファイル
 	_SQL_ADD_FILE = `INSERT INTO files (name, mime, data, created_at) VALUES (?, ?, ?, ?)`
 	_SQL_GET_FILE = `SELECT id, name, mime, data, created_at FROM files WHERE id = ?`
+	// 一覧はBLOB本体を返さず、LENGTH(data)でサイズのみ取得する（新しい順）
+	_SQL_QUERY_FILE_INFOS = `SELECT id, name, mime, LENGTH(data), created_at FROM files ORDER BY id DESC`
+	_SQL_DELETE_FILE      = `DELETE FROM files WHERE id = ?`
+	// ファイル参照（/api/files/{id} のmarkdownリンク）候補の本文の絞り込み。
+	// LIKEは上位集合を返す（id=1 の検索が /api/files/12 にもマッチする）ため、ID単位の厳密判定はGo側で行う
+	_SQL_QUERY_TICKET_FILE_REFS          = `SELECT content FROM tickets WHERE content LIKE ?`
+	_SQL_QUERY_COMMENT_FILE_REFS         = `SELECT content FROM comments WHERE content LIKE ?`
+	_SQL_QUERY_TICKET_HISTORY_FILE_REFS  = `SELECT content FROM ticket_histories WHERE content LIKE ?`
+	_SQL_QUERY_COMMENT_HISTORY_FILE_REFS = `SELECT content FROM comment_histories WHERE content LIKE ?`
 
 	// テンプレート（チケット作成時に適用するタイトル・本文・タグの雛形。一覧は名前順）
 	_SQL_QUERY_TEMPLATES = `SELECT id, name, title, content, tags, created_at, updated_at FROM templates ORDER BY name ASC, id ASC`

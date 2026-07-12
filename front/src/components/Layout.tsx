@@ -10,6 +10,7 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+E', 'チケット編集（詳細表示中）'],
   ['Ctrl+H', 'チケット履歴（詳細表示中）'],
   ['Ctrl+L', 'チケット一覧へ移動'],
+  ['Ctrl+Shift+L', 'ファイル一覧へ移動'],
   ['Ctrl+T', 'タグ一覧へ移動'],
   ['Ctrl+M', 'テンプレート一覧へ移動'],
   ['?', 'このヘルプを表示'],
@@ -59,6 +60,8 @@ function Layout() {
         const match = location.pathname.match(/^\/tickets\/(\d+)$/);
         if (!match) return;
         navigate(`/tickets/${match[1]}/history`);
+      } else if (key === 'l' && event.shiftKey) {
+        navigate('/files');
       } else if (key === 'l') {
         navigate('/tickets');
       } else if (key === 't') {

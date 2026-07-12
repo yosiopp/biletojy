@@ -56,6 +56,17 @@ export type AttachedFile = {
   created_at: string;
 };
 
+// ファイル一覧の項目。バイナリ本体は含まず、サイズと本文（/api/files/{id} のmarkdownリンク）からの参照有無を返す
+export type FileInfo = {
+  id: number;
+  name: string;
+  mime: string;
+  size: number;
+  referenced: boolean; // 現役のチケット・コメント本文からの参照あり
+  history_referenced: boolean; // チケット・コメントの履歴からの参照あり
+  created_at: string;
+};
+
 // チケット作成時に適用するタイトル・本文・タグの雛形
 export type Template = {
   id: number;
@@ -133,6 +144,8 @@ export const api = {
       body: file,
     }),
   fileUrl: (id: number) => `/api/files/${id}`,
+  listFiles: () => request<FileInfo[]>('/api/files'),
+  deleteFile: (id: number) => request<void>(`/api/files/${id}`, { method: 'DELETE' }),
   listTemplates: () => request<Template[]>('/api/templates'),
   createTemplate: (data: Pick<Template, 'name' | 'title' | 'content' | 'tags'>) =>
     request<Template>('/api/templates', { method: 'POST', body: JSON.stringify(data) }),

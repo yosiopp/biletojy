@@ -80,6 +80,17 @@ type File struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// 添付ファイルの一覧項目。BLOB本体は含めず、サイズと参照状況を返す
+type FileInfo struct {
+	Id                int64     `json:"id"`
+	Name              string    `json:"name"`
+	Mime              string    `json:"mime"`
+	Size              int64     `json:"size"`
+	Referenced        bool      `json:"referenced"`         // 現役のチケット・コメント本文からの参照あり
+	HistoryReferenced bool      `json:"history_referenced"` // チケット・コメントの履歴からの参照あり
+	CreatedAt         time.Time `json:"created_at"`
+}
+
 // エクスポート/インポートで受け渡すチケット（コメント込み）
 type TicketExport struct {
 	Ticket
@@ -834,6 +845,90 @@ func (dao *Dao) GetFile(id int64) (*File, error) {
 		return nil, err
 	}
 	return &f, nil
+}
+
+// 添付ファイルの一覧を新しい順に返す。BLOB本体は含めず、サイズと本文中のmarkdownリンク
+// （/api/files/{id}）による参照の有無を「現役（チケット・コメント）」「履歴」に分けて返す。
+// 参照の判定はrewriteTicketTagsと同じ2段構えで、LIKEで '/api/files/' を含む本文だけに候補を絞り、
+// IDの直後が数字でないこと（id=1 が /api/files/12 に誤マッチしないこと）はGo側で確認する
+func (dao *Dao) QueryFiles() ([]FileInfo, error) {
+	rows, err := dao.db.Query(_SQL_QUERY_FILE_INFOS)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	files := []FileInfo{}
+	for rows.Next() {
+		var f FileInfo
+		if err := rows.Scan(&f.Id, &f.Name, &f.Mime, &f.Size, &f.CreatedAt); err != nil {
+			return nil, err
+		}
+		files = append(files, f)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(files) == 0 {
+		return files, nil
+	}
+	active, err := dao.queryFileRefContents(_SQL_QUERY_TICKET_FILE_REFS, _SQL_QUERY_COMMENT_FILE_REFS)
+	if err != nil {
+		return nil, err
+	}
+	history, err := dao.queryFileRefContents(_SQL_QUERY_TICKET_HISTORY_FILE_REFS, _SQL_QUERY_COMMENT_HISTORY_FILE_REFS)
+	if err != nil {
+		return nil, err
+	}
+	for i := range files {
+		ref := regexp.MustCompile(`/api/files/` + strconv.FormatInt(files[i].Id, 10) + `(\D|$)`)
+		files[i].Referenced = ref.MatchString(active)
+		files[i].HistoryReferenced = ref.MatchString(history)
+	}
+	return files, nil
+}
+
+// 指定クエリ群の本文のうち '/api/files/' を含むものを集めて結合して返す（ファイル参照判定の候補）
+func (dao *Dao) queryFileRefContents(queries ...string) (string, error) {
+	contents := []string{}
+	for _, query := range queries {
+		part, err := dao.queryFileRefChunk(query)
+		if err != nil {
+			return "", err
+		}
+		contents = append(contents, part...)
+	}
+	return strings.Join(contents, "\n"), nil
+}
+
+// 1テーブル分のファイル参照候補の本文を返す
+func (dao *Dao) queryFileRefChunk(query string) ([]string, error) {
+	rows, err := dao.db.Query(query, "%/api/files/%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	contents := []string{}
+	for rows.Next() {
+		var content string
+		if err := rows.Scan(&content); err != nil {
+			return nil, err
+		}
+		contents = append(contents, content)
+	}
+	return contents, rows.Err()
+}
+
+// 添付ファイルを削除する。該当行がなければfalseを返す
+func (dao *Dao) DeleteFile(id int64) (bool, error) {
+	res, err := dao.db.Exec(_SQL_DELETE_FILE, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 // テンプレートを名前順（同名は登録順）に返す
