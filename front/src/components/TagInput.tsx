@@ -19,6 +19,8 @@ type Props = {
   value: string[];
   onChange: (tags: string[]) => void;
   catalog: Tag[];
+  // 未確定の入力テキストの変化を親へ知らせる（保存時の警告などに使う）
+  onTextChange?: (text: string) => void;
 };
 
 // リストから同グループのタグを除き、指定タグに置き換える
@@ -31,11 +33,17 @@ function withGroupReplaced(list: string[], group: string, tag: string): string[]
 // - タググループはチップとして表示し、クリックで選択肢のプルダウンが開く（同グループのタグは置き換え）
 // - 末尾@のグループ（例: due-date@）はプルダウン内の日付ピッカー、末尾#（例: estimate#）は数値入力
 // - 自由入力欄では `xxx@:` と入力すると日付ピッカー、`xxx#:` と入力すると数値入力が現れる
-function TagInput({ value, onChange, catalog }: Props) {
-  const [text, setText] = useState('');
+function TagInput({ value, onChange, catalog, onTextChange }: Props) {
+  const [text, setTextState] = useState('');
   const [rangeValue, setRangeValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const groups = useMemo(() => groupCatalog(catalog), [catalog]);
+
+  // 未確定テキストの変更は常に親へも通知する
+  const setText = (next: string) => {
+    setTextState(next);
+    onTextChange?.(next);
+  };
 
   const rangeGroup = useMemo(() => pendingRangeGroup(text), [text]);
 

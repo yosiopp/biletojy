@@ -10,9 +10,6 @@
 ### チケット作成/編集/インポート時にタグを検証する
 タグカタログAPI（`back/server.go` の `saveTag` → `data.TagNameError`）は `,` `|` 先頭 `-` を400で拒否するが、POST/PUT tickets（`back/server.go:47-114`）とインポートは `tags` を無検証で保存する。メタ文字入りタグは検索構文と衝突して絞り込めなくなり、`registerUnknownTags`（`back/data/dao.go:424` 付近）も黙ってスキップする。書き込み時に `strings.Fields(tags)` の各トークンへタグAPIと同等の検証をかけて400を返す。既存データ互換のため読み取り側は寛容のまま。テストとdocs/api.mdの更新も。
 
-### タグ入力欄に未確定テキストがある状態での保存に警告する
-チケット編集画面のタグ入力欄は Enter/Tab 等で確定するまでタグにならないが、未確定テキスト（`front/src/components/TagInput.tsx:35` の内部 state `text`。日時/数値タグ入力中の `rangeValue` も同様）が残ったまま保存ボタンを押すと、入力途中のタグが黙って失われる。TagInput から未確定テキストの有無を親へ伝えられるようにし（例: `onTextChange` を追加、または ref 経由で公開）、`front/src/pages/TicketForm.tsx:101` の `submit` で未確定テキストがある場合は `ConfirmDialog`（`front/src/components/ConfirmDialog.tsx`）で警告ダイアログを表示して、キャンセル時は保存を中断する。JSの `confirm` は使わない（下記「`window.confirm` を dialog 要素ベースの ConfirmDialog に統一する」参照）。
-
 ## 機能追加
 
 ### ファイル一覧画面を追加する

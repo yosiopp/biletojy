@@ -34,6 +34,9 @@ function TicketForm() {
   const [templateId, setTemplateId] = useState('');
   // 入力済みの内容がある状態でテンプレートを選んだときの確認対象
   const [pendingTemplate, setPendingTemplate] = useState<Template | null>(null);
+  // タグ入力欄の未確定テキスト。残ったまま保存すると失われるため、保存前に確認する
+  const [pendingTagText, setPendingTagText] = useState('');
+  const [confirmPendingTag, setConfirmPendingTag] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const fileDrag = useFileDrag((e) => dropFiles(e, setContent, setError));
   const submittedRef = useRef(false);
@@ -103,7 +106,7 @@ function TicketForm() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
-  const submit = async (e: FormEvent) => {
+  const submit = (e: FormEvent) => {
     e.preventDefault();
     if (submitting) return;
     if (!title.trim()) {
@@ -112,6 +115,15 @@ function TicketForm() {
       titleRef.current?.focus();
       return;
     }
+    // タグ入力欄に未確定のテキストが残っている場合は、失われることを確認してから保存する
+    if (pendingTagText.trim()) {
+      setConfirmPendingTag(true);
+      return;
+    }
+    void save();
+  };
+
+  const save = async () => {
     setSubmitting(true);
     try {
       // 作成者・更新者は常にlocalStorageのユーザ名（ヘッダーの設定ダイアログで変更できる）
@@ -202,7 +214,7 @@ function TicketForm() {
 
       <div className="border rounded-sm p-2 mb-2">
         <div className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">タグ</div>
-        <TagInput value={tags} onChange={setTags} catalog={catalog} />
+        <TagInput value={tags} onChange={setTags} catalog={catalog} onTextChange={setPendingTagText} />
       </div>
 
       <button
@@ -230,6 +242,18 @@ function TicketForm() {
             setPendingTemplate(null);
           }}
           onClose={() => setPendingTemplate(null)}
+        />
+      )}
+      {confirmPendingTag && (
+        <ConfirmDialog
+          title="未確定のタグ入力があります"
+          message={`タグ入力欄の「${pendingTagText.trim()}」はまだタグとして確定されておらず、保存すると失われます。このまま保存しますか？`}
+          actionLabel="このまま保存"
+          onConfirm={() => {
+            setConfirmPendingTag(false);
+            void save();
+          }}
+          onClose={() => setConfirmPendingTag(false)}
         />
       )}
       {blocker.state === 'blocked' && (
