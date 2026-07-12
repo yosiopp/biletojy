@@ -501,18 +501,8 @@ func registerUnknownTags(tx *sql.Tx, tags string, known map[string]bool) error {
 		if known[tag] || TagNameError(tag) != "" {
 			continue
 		}
-		// 一覧のセクション区分（_SQL_QUERY_TAGSと同じ。グループ接頭辞、値なしのグループエントリは ":"、
-		// グループでないタグは ""）を渡し、同一セクションの末尾に並ぶsort_orderを設定させる
-		var section string
-		switch {
-		case sep <= 0:
-			section = ""
-		case sep == len(tag)-1:
-			section = ":"
-		default:
-			section = tag[:sep+1]
-		}
-		if _, err := tx.Exec(_SQL_ADD_UNKNOWN_TAG, tag, isGroup, isRange, section); err != nil {
+		// 同一セクションの末尾に並ぶsort_orderを設定させる（tagSectionが一覧のセクション区分を返す）
+		if _, err := tx.Exec(_SQL_ADD_UNKNOWN_TAG, tag, isGroup, isRange, tagSection(tag)); err != nil {
 			return err
 		}
 		known[tag] = true
@@ -1061,8 +1051,22 @@ func (dao *Dao) GetTag(id int64) (*Tag, error) {
 	return &t, nil
 }
 
+// タグ名の一覧セクション区分を返す（_SQL_QUERY_TAGSと同じ。グループ接頭辞、
+// 値なしのグループエントリは ":"、グループでないタグは ""）。sort_orderのセクション末尾採番に使う
+func tagSection(tag string) string {
+	sep := strings.Index(tag, ":")
+	switch {
+	case sep <= 0:
+		return ""
+	case sep == len(tag)-1:
+		return ":"
+	default:
+		return tag[:sep+1]
+	}
+}
+
 func (dao *Dao) AddTag(tag *Tag) error {
-	res, err := dao.db.Exec(_SQL_ADD_TAG, tag.Tag, tag.Note, tag.Color, tag.IsGroup, tag.IsRange)
+	res, err := dao.db.Exec(_SQL_ADD_TAG, tag.Tag, tag.Note, tag.Color, tag.IsGroup, tag.IsRange, tagSection(tag.Tag))
 	if err != nil {
 		return err
 	}

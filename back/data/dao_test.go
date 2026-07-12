@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -813,6 +814,64 @@ func TestTagCatalog(t *testing.T) {
 	tags, _ = dao.QueryTags()
 	if len(tags) != seeded {
 		t.Errorf("QueryTags after delete = %d, want %d", len(tags), seeded)
+	}
+}
+
+// UI経由（AddTag）で追加したタグが同一セクションの末尾に、作成順で並ぶことを検証する。
+// sort_orderを設定しないとグループ先頭へ割り込む・同値0同士でアルファベット順になっていた
+func TestAddTagSortOrder(t *testing.T) {
+	dao := newTestDao(t)
+
+	// アルファベット順とは異なる作成順で追加する
+	for _, name := range []string{"priority:high", "priority:mid", "priority:low"} {
+		if err := dao.AddTag(&Tag{Tag: name, IsGroup: true}); err != nil {
+			t.Fatalf("AddTag(%q): %v", name, err)
+		}
+	}
+
+	tags, err := dao.QueryTags()
+	if err != nil {
+		t.Fatalf("QueryTags: %v", err)
+	}
+
+	// priority: セクションのタグを一覧の並び順（sort_order ASC, tag ASC）で取り出す
+	var got []string
+	var prev *Tag
+	for i := range tags {
+		if strings.HasPrefix(tags[i].Tag, "priority:") {
+			got = append(got, tags[i].Tag)
+			// 各追加でsort_orderが厳密に増えていること（同値0でのアルファベット順化を防ぐ）
+			if prev != nil && tags[i].SortOrder <= prev.SortOrder {
+				t.Errorf("sort_order not increasing: %q(%d) after %q(%d)", tags[i].Tag, tags[i].SortOrder, prev.Tag, prev.SortOrder)
+			}
+			prev = &tags[i]
+		}
+	}
+	want := []string{"priority:high", "priority:mid", "priority:low"}
+	if !slices.Equal(got, want) {
+		t.Errorf("priority order = %v, want %v (作成順=セクション末尾採番)", got, want)
+	}
+
+	// 既存セクション（status:）の末尾に追加され、seed済みタグより後に並ぶこと
+	before, _ := dao.QueryTags()
+	seededStatus := 0
+	for _, tg := range before {
+		if strings.HasPrefix(tg.Tag, "status:") {
+			seededStatus++
+		}
+	}
+	if err := dao.AddTag(&Tag{Tag: "status:PENDING", IsGroup: true}); err != nil {
+		t.Fatalf("AddTag(status:PENDING): %v", err)
+	}
+	after, _ := dao.QueryTags()
+	var statusTags []string
+	for _, tg := range after {
+		if strings.HasPrefix(tg.Tag, "status:") {
+			statusTags = append(statusTags, tg.Tag)
+		}
+	}
+	if len(statusTags) != seededStatus+1 || statusTags[len(statusTags)-1] != "status:PENDING" {
+		t.Errorf("status section = %v, want status:PENDING at the end", statusTags)
 	}
 }
 

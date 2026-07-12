@@ -116,7 +116,11 @@ const (
 	_SQL_GET_TAG         = `SELECT id, tag, note, color, is_group, is_range, sort_order FROM tag_catalog WHERE id = ?`
 	_SQL_GET_TAG_NAME    = `SELECT tag FROM tag_catalog WHERE id = ?`
 	_SQL_QUERY_TAG_NAMES = `SELECT tag FROM tag_catalog`
-	_SQL_ADD_TAG         = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range) VALUES (?, ?, ?, ?, ?)`
+	// UI経由のタグ追加。一覧・絞り込みプルダウンでセクション末尾に並ぶよう、?6（Go側で導出したセクション区分）と
+	// 同一セクションの最大sort_order + 1を設定する（_SQL_ADD_UNKNOWN_TAGと同方式）
+	_SQL_ADD_TAG         = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range, sort_order)
+		SELECT ?1, ?2, ?3, ?4, ?5, COALESCE(MAX(sort_order), 0) + 1 FROM tag_catalog
+		WHERE CASE WHEN instr(tag, ':') <= 1 THEN '' WHEN instr(tag, ':') = length(tag) THEN ':' ELSE substr(tag, 1, instr(tag, ':')) END = ?6`
 	_SQL_EDIT_TAG        = `UPDATE tag_catalog SET tag = ?, note = ?, color = ?, is_group = ?, is_range = ? WHERE id = ?`
 	_SQL_DELETE_TAG      = `DELETE FROM tag_catalog WHERE id = ?`
 	_SQL_SET_TAG_ORDER   = `UPDATE tag_catalog SET sort_order = ? WHERE id = ?`
