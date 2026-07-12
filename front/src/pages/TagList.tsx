@@ -5,6 +5,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import Dialog from '../components/Dialog';
 import TagItem from '../components/TagItem';
 import { currentUser, parseTag, splitTags } from '../lib/tags';
+import { invalidateCatalog } from '../lib/useCatalog';
 
 type Editing = {
   id: number | null; // nullは新規作成
@@ -35,6 +36,12 @@ function TagList() {
   const [error, setError] = useState('');
 
   const reload = () => api.listTags().then(setCatalog).catch((e: Error) => setError(e.message));
+
+  // タグを変更したら、useCatalogの共有キャッシュを無効化した上で一覧を取得し直す
+  const reloadAfterChange = () => {
+    invalidateCatalog();
+    return reload();
+  };
 
   useEffect(() => {
     reload();
@@ -101,7 +108,7 @@ function TagList() {
       }
       setEditing(null);
       setError('');
-      await reload();
+      await reloadAfterChange();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -120,7 +127,7 @@ function TagList() {
       });
       setEditing(null);
       setError('');
-      await reload();
+      await reloadAfterChange();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -167,7 +174,7 @@ function TagList() {
     try {
       await api.reorderTags(ids);
       setError('');
-      await reload();
+      await reloadAfterChange();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -193,7 +200,7 @@ function TagList() {
     try {
       await api.deleteTag(confirming.tag.id);
       setError('');
-      await reload();
+      await reloadAfterChange();
     } catch (err) {
       setError((err as Error).message);
     }
