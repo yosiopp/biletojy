@@ -275,9 +275,10 @@ func TestCommentCreateAndList(t *testing.T) {
 		t.Errorf("comments = %+v, want 2", got)
 	}
 
-	// バリデーションと404
+	// バリデーションと404（存在しないチケットは一覧・追加とも404）
 	assertErrorResponse(t, request(t, handler, "POST", commentsPath, data.Comment{}), http.StatusBadRequest)
 	assertErrorResponse(t, request(t, handler, "POST", "/api/tickets/9999/comments", data.Comment{Content: "x"}), http.StatusNotFound)
+	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/9999/comments", nil), http.StatusNotFound)
 }
 
 func TestCommentUpdate(t *testing.T) {
@@ -324,12 +325,8 @@ func TestTicketHistories(t *testing.T) {
 		t.Errorf("histories[1] = %+v, want 改版 by bob", histories[1])
 	}
 
-	// 存在しないチケットは空配列
-	w = request(t, handler, "GET", "/api/tickets/9999/histories", nil)
-	assertStatus(t, w, http.StatusOK)
-	if got := decodeBody[[]data.TicketHistory](t, w); len(got) != 0 {
-		t.Errorf("histories of missing ticket = %+v, want empty", got)
-	}
+	// 存在しないチケットは404（他のサブリソースGETと同じ）
+	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/9999/histories", nil), http.StatusNotFound)
 
 	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/abc/histories", nil), http.StatusBadRequest)
 }
@@ -358,12 +355,8 @@ func TestCommentHistories(t *testing.T) {
 		t.Errorf("histories[1] = %+v, want 改版コメント by bob", histories[1])
 	}
 
-	// 存在しないコメントは空配列
-	w = request(t, handler, "GET", "/api/comments/9999/histories", nil)
-	assertStatus(t, w, http.StatusOK)
-	if got := decodeBody[[]data.CommentHistory](t, w); len(got) != 0 {
-		t.Errorf("histories of missing comment = %+v, want empty", got)
-	}
+	// 存在しないコメントは404（他のサブリソースGETと同じ）
+	assertErrorResponse(t, request(t, handler, "GET", "/api/comments/9999/histories", nil), http.StatusNotFound)
 
 	assertErrorResponse(t, request(t, handler, "GET", "/api/comments/abc/histories", nil), http.StatusBadRequest)
 }
@@ -487,6 +480,8 @@ func TestTicketBacklinks(t *testing.T) {
 		t.Errorf("backlinks of unreferenced ticket = %+v, want empty", got)
 	}
 
+	// 存在しないチケットは404（他のサブリソースGETと同じ）
+	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/9999/backlinks", nil), http.StatusNotFound)
 	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/abc/backlinks", nil), http.StatusBadRequest)
 }
 

@@ -129,6 +129,9 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		if !ok {
 			return
 		}
+		if _, ok := fetchOr404(w, dao.GetTicket, id, "ticket"); !ok {
+			return
+		}
 		comments, err := dao.QueryComments(id)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
@@ -140,6 +143,9 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 	mux.HandleFunc("GET /api/tickets/{id}/histories", func(w http.ResponseWriter, r *http.Request) {
 		id, ok := pathId(w, r)
 		if !ok {
+			return
+		}
+		if _, ok := fetchOr404(w, dao.GetTicket, id, "ticket"); !ok {
 			return
 		}
 		histories, err := dao.QueryTicketHistories(id)
@@ -155,6 +161,9 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		if !ok {
 			return
 		}
+		if _, ok := fetchOr404(w, dao.GetComment, id, "comment"); !ok {
+			return
+		}
 		histories, err := dao.QueryCommentHistories(id)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
@@ -166,6 +175,9 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 	mux.HandleFunc("GET /api/tickets/{id}/backlinks", func(w http.ResponseWriter, r *http.Request) {
 		id, ok := pathId(w, r)
 		if !ok {
+			return
+		}
+		if _, ok := fetchOr404(w, dao.GetTicket, id, "ticket"); !ok {
 			return
 		}
 		tickets, err := dao.QueryBacklinks(id)
