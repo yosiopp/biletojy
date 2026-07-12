@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api, Tag } from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Dialog from '../components/Dialog';
+import TagCatalogMenu from '../components/TagCatalogMenu';
 import TagItem from '../components/TagItem';
 import { currentUser, parseTag } from '../lib/tags';
 import { invalidateCatalog } from '../lib/useCatalog';
@@ -34,12 +35,15 @@ function TagList() {
   const [dragId, setDragId] = useState<number | null>(null);
   const [dropId, setDropId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  // エクスポート/インポート・デフォルト復元の完了通知
+  const [notice, setNotice] = useState('');
 
   const reload = () => api.listTags().then(setCatalog).catch((e: Error) => setError(e.message));
 
   // タグを変更したら、useCatalogの共有キャッシュを無効化した上で一覧を取得し直す
   const reloadAfterChange = () => {
     invalidateCatalog();
+    setNotice('');
     return reload();
   };
 
@@ -279,8 +283,19 @@ function TagList() {
 
   return (
     <>
-      <div className="flex items-center mb-2">
+      <div className="flex items-center gap-2 mb-2">
         <h2 className="text-xl flex-1">タグ一覧</h2>
+        <TagCatalogMenu
+          onDone={(message) => {
+            setError('');
+            setNotice(message);
+            reload();
+          }}
+          onError={(message) => {
+            setNotice('');
+            setError(message);
+          }}
+        />
         <button
           type="button"
           className="bg-blue-600 text-white rounded-sm px-3 py-1 text-sm hover:bg-blue-700"
@@ -294,6 +309,7 @@ function TagList() {
         </button>
       </div>
       {error && !editing && <p className="text-red-600 dark:text-red-400 mb-2">{error}</p>}
+      {notice && <p className="text-blue-700 dark:text-blue-400 mb-2">{notice}</p>}
       {editDialog}
       {renameDialog}
       {confirmDialog}

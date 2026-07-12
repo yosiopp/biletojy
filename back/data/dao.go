@@ -144,12 +144,79 @@ func NewDao(dbPath string) (*Dao, error) {
 		return nil, err
 	}
 	if count == 0 {
-		if _, err := db.Exec(_SQL_INIT_TAG_CATALOG); err != nil {
+		if err := seedDefaultTags(db); err != nil {
 			db.Close()
 			return nil, err
 		}
 	}
 	return &Dao{db: db}, nil
+}
+
+// seedDefaultTags は空のタグカタログへ DefaultTags を一括投入する（NewDaoの初回シード用）。
+// ImportTags / RestoreDefaultTags と同じ挿入関数（insertCatalogTag）を共有する
+func seedDefaultTags(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, t := range DefaultTags {
+		if _, err := insertCatalogTag(tx, t); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// insertCatalogTag はタグ定義を1件カタログへ登録する（シード・インポート・デフォルト復元で共用）。
+// is_group / is_range は TagAttrs でタグ名から導出し（AddTag / registerUnknownTagsと同じ流儀）、
+// 同名の既存タグは変更せずスキップする。SortOrder が正なら尊重し（export→importの往復再現）、
+// 0（未指定）なら同一セクションの末尾へ採番する。行を追加したら true を返す
+func insertCatalogTag(tx *sql.Tx, t Tag) (bool, error) {
+	isGroup, isRange := TagAttrs(t.Tag)
+	var res sql.Result
+	var err error
+	if t.SortOrder > 0 {
+		res, err = tx.Exec(_SQL_IMPORT_TAG, t.Tag, t.Note, t.Color, isGroup, isRange, t.SortOrder)
+	} else {
+		res, err = tx.Exec(_SQL_IMPORT_TAG_SECTION_END, t.Tag, t.Note, t.Color, isGroup, isRange, tagSection(t.Tag))
+	}
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// ImportTags はタグ定義の一覧をひとつのトランザクションで一括登録する（エクスポートしたタグカタログの
+// 取り込み・デフォルト復元で共用）。各タグは insertCatalogTag で登録し、同名の既存タグは変更せずスキップする。
+// タグ名の検証（TagNameError）は保存系（AddTag/saveTag）と同じくHTTPハンドラ側で行う。
+// 登録した件数とスキップした件数を返す
+func (dao *Dao) ImportTags(tags []Tag) (imported, skipped int, err error) {
+	tx, err := dao.db.Begin()
+	if err != nil {
+		return 0, 0, err
+	}
+	defer tx.Rollback()
+	for _, t := range tags {
+		inserted, err := insertCatalogTag(tx, t)
+		if err != nil {
+			return 0, 0, err
+		}
+		if inserted {
+			imported++
+		} else {
+			skipped++
+		}
+	}
+	return imported, skipped, tx.Commit()
+}
+
+// RestoreDefaultTags は DefaultTags のうちカタログに無いものだけを追加する
+// （既存のカスタマイズ＝名前・色・並び順は変更しない）。追加した件数を返す
+func (dao *Dao) RestoreDefaultTags() (int, error) {
+	restored, _, err := dao.ImportTags(DefaultTags)
+	return restored, err
 }
 
 // user_versionが現行より古いDBへのスキーマ移行。

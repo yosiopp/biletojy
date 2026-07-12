@@ -152,7 +152,7 @@ func TestTicketLegacyTagsRemainEditable(t *testing.T) {
 	handler := newTestServer(t)
 
 	// 検証導入前のDBからのエクスポート相当（メタ文字入りのタグ）もインポートで取り込める
-	w := request(t, handler, "POST", "/api/import",
+	w := request(t, handler, "POST", "/api/tickets/import",
 		map[string]any{"tickets": []map[string]any{{"title": "旧データ", "tags": "a,b status:OPEN"}}})
 	assertStatus(t, w, http.StatusCreated)
 
@@ -877,7 +877,7 @@ func TestExportAndImport(t *testing.T) {
 	createTicket(t, handler, data.Ticket{Title: "対象外", Content: "別の本文", Tags: "status:CLOSED"})
 
 	// JSONエクスポート（formatデフォルト）。検索条件（tags）で絞り込める
-	w := request(t, handler, "GET", "/api/export?tags=status:OPEN", nil)
+	w := request(t, handler, "GET", "/api/tickets/export?tags=status:OPEN", nil)
 	assertStatus(t, w, http.StatusOK)
 	if cd := w.Header().Get("Content-Disposition"); !strings.Contains(cd, "biletojy-export.json") {
 		t.Errorf("Content-Disposition = %q", cd)
@@ -893,7 +893,7 @@ func TestExportAndImport(t *testing.T) {
 	}
 
 	// markdownエクスポートは人間可読のテキストを返す
-	w = request(t, handler, "GET", "/api/export?format=markdown", nil)
+	w = request(t, handler, "GET", "/api/tickets/export?format=markdown", nil)
 	assertStatus(t, w, http.StatusOK)
 	if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "text/markdown") {
 		t.Errorf("Content-Type = %q", ct)
@@ -906,10 +906,10 @@ func TestExportAndImport(t *testing.T) {
 	}
 
 	// 不明なformatは400
-	assertErrorResponse(t, request(t, handler, "GET", "/api/export?format=xml", nil), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/export?format=xml", nil), http.StatusBadRequest)
 
 	// インポート。新規IDで登録され、コメントも取り込まれる
-	w = request(t, handler, "POST", "/api/import", map[string]any{"tickets": exported.Tickets})
+	w = request(t, handler, "POST", "/api/tickets/import", map[string]any{"tickets": exported.Tickets})
 	assertStatus(t, w, http.StatusCreated)
 	if res := decodeBody[map[string]int](t, w); res["imported"] != 1 {
 		t.Errorf("imported = %v, want 1", res)
@@ -938,11 +938,92 @@ func TestExportAndImport(t *testing.T) {
 	}
 
 	// バリデーション: 空のtickets、タイトルなし、コメント本文なし
-	assertErrorResponse(t, request(t, handler, "POST", "/api/import", map[string]any{"tickets": []any{}}), http.StatusBadRequest)
-	assertErrorResponse(t, request(t, handler, "POST", "/api/import",
+	assertErrorResponse(t, request(t, handler, "POST", "/api/tickets/import", map[string]any{"tickets": []any{}}), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "POST", "/api/tickets/import",
 		map[string]any{"tickets": []map[string]any{{"content": "タイトルなし"}}}), http.StatusBadRequest)
-	assertErrorResponse(t, request(t, handler, "POST", "/api/import",
+	assertErrorResponse(t, request(t, handler, "POST", "/api/tickets/import",
 		map[string]any{"tickets": []map[string]any{{"title": "t", "comments": []map[string]any{{"content": ""}}}}}), http.StatusBadRequest)
+}
+
+func TestTagCatalogExportImportRestore(t *testing.T) {
+	handler := newTestServer(t)
+
+	type exportItem struct {
+		Tag       string  `json:"tag"`
+		Note      *string `json:"note"`
+		Color     *string `json:"color"`
+		SortOrder int64   `json:"sort_order"`
+	}
+	hasTag := func(name string) bool {
+		for _, tag := range decodeBody[[]data.Tag](t, request(t, handler, "GET", "/api/tags", nil)) {
+			if tag.Tag == name {
+				return true
+			}
+		}
+		return false
+	}
+
+	// エクスポート: 全タグを {tags:[{tag,note,color,sort_order}]} で返し、idは含めない
+	w := request(t, handler, "GET", "/api/tags/export", nil)
+	assertStatus(t, w, http.StatusOK)
+	if cd := w.Header().Get("Content-Disposition"); !strings.Contains(cd, "biletojy-tags.json") {
+		t.Errorf("Content-Disposition = %q", cd)
+	}
+	if strings.Contains(w.Body.String(), `"id"`) {
+		t.Errorf("export must not contain id: %s", w.Body.String())
+	}
+	exported := decodeBody[struct {
+		Tags []exportItem `json:"tags"`
+	}](t, w)
+	if len(exported.Tags) == 0 {
+		t.Fatalf("export returned no tags")
+	}
+
+	// インポート: 新規タグと既存タグを混在させると、既存はスキップされ新規のみ登録される
+	color := "#abcdef"
+	w = request(t, handler, "POST", "/api/tags/import", map[string]any{"tags": []map[string]any{
+		{"tag": "priority:HIGH", "note": "優先度", "color": color, "sort_order": 9},
+		{"tag": "status:OPEN"}, // 既存＝スキップ
+	}})
+	assertStatus(t, w, http.StatusCreated)
+	if res := decodeBody[map[string]int](t, w); res["imported"] != 1 || res["skipped"] != 1 {
+		t.Errorf("import = %v, want {imported:1, skipped:1}", res)
+	}
+	if !hasTag("priority:HIGH") {
+		t.Errorf("imported tag priority:HIGH not found in catalog")
+	}
+
+	// インポートのバリデーション: 空・不正なタグ名は400
+	assertErrorResponse(t, request(t, handler, "POST", "/api/tags/import", map[string]any{"tags": []any{}}), http.StatusBadRequest)
+	assertErrorResponse(t, request(t, handler, "POST", "/api/tags/import",
+		map[string]any{"tags": []map[string]any{{"tag": "a|b"}}}), http.StatusBadRequest)
+
+	// デフォルト復元: 揃っているうちは0件
+	w = request(t, handler, "POST", "/api/tags/restore-defaults", nil)
+	assertStatus(t, w, http.StatusOK)
+	if res := decodeBody[map[string]int](t, w); res["restored"] != 0 {
+		t.Errorf("restore-defaults(full) = %v, want {restored:0}", res)
+	}
+
+	// デフォルトを1件削除してから復元すると、その1件だけが戻る
+	var doneId int64
+	for _, tag := range decodeBody[[]data.Tag](t, request(t, handler, "GET", "/api/tags", nil)) {
+		if tag.Tag == "status:DONE" {
+			doneId = tag.Id
+		}
+	}
+	if doneId == 0 {
+		t.Fatalf("status:DONE not found")
+	}
+	assertStatus(t, request(t, handler, "DELETE", fmt.Sprintf("/api/tags/%d", doneId), nil), http.StatusNoContent)
+	w = request(t, handler, "POST", "/api/tags/restore-defaults", nil)
+	assertStatus(t, w, http.StatusOK)
+	if res := decodeBody[map[string]int](t, w); res["restored"] != 1 {
+		t.Errorf("restore-defaults(missing 1) = %v, want {restored:1}", res)
+	}
+	if !hasTag("status:DONE") {
+		t.Errorf("status:DONE was not restored")
+	}
 }
 
 func uploadFile(t *testing.T, handler http.Handler, path, contentType string, body []byte) *httptest.ResponseRecorder {

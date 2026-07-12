@@ -5,17 +5,6 @@
 - 調査・分析タスクは並列実行して構いません。
 - ファイルを変更するタスクを並列実行する場合は worktree で分離してください。
 
-## タグカタログのエクスポート/インポートとデフォルトタグの復元
-- シードデータのGo構造体化: `_SQL_INIT_TAG_CATALOG`（back/data/const.go）のSQL文字列を `[]Tag` 相当のGoリテラルへ変更し、初回シードと復元機能の単一ソースにする（v6マイグレーションの `status:CLOSE` 参照はSQL側のため影響なし）
-- DAO `ImportTags` を追加: トランザクションで一括登録。`TagNameError` で検証、`is_group` / `is_range` は `TagAttrs` で導出（既存 `saveTag` と同じ流儀）。sort_order 未指定時はセクション末尾（`_SQL_ADD_UNKNOWN_TAG` と同じ `MAX(sort_order) + 1` 方式）
-- 新規API 3本（衝突時はどちらも既存タグを変更しない）
-  - `GET /api/tags/export` — カタログ全件を `{tags: [{tag, note, color, sort_order}]}` でダウンロード（idは含めない）
-  - `POST /api/tags/import` — 上記JSONを取り込み。同名の既存タグはスキップし `{imported, skipped}` を返す
-  - `POST /api/tags/restore-defaults` — デフォルト定義の不足分のみ追加（既存カスタマイズを壊さない）。`{restored}` を返す
-- チケットエクスポート/インポートのエンドポイントを `/api/tickets/export`・`/api/tickets/import` へ変更する（back/server.go のルーティングと front/src/api/client.ts の `exportUrl` / `importTickets`）
-- フロントエンド: タグ一覧ページ（TagList.tsx）のヘッダへ ExportImport.tsx と同パターンのメニューを追加（エクスポート / インポート / デフォルトタグの復元。`useMenuKeys` によるキーボード操作・`invalidateCatalog` も同じ流儀）。復元とインポートは ConfirmDialog で確認を挟み、完了後に件数を表示
-- docs/api.md を更新（新規3本の追記とチケットエクスポート/インポートのパス変更）
-
 ## チケット編集画面の分割表示モード（編集とプレビューを左右に並べる）
 - TicketForm.tsx の `preview: boolean` を `mode: 'edit' | 'split' | 'preview'` に変更し、セグメントボタンを「編集 | 両方 | プレビュー」の3状態にする（「両方」は中央、角丸なし。JetBrains / HackMD と同型の排他的表示モード選択）
 - 分割表示は `grid sm:grid-cols-2 gap-2` で左にTicketRefTextarea・右にプレビュー。両ペインとも同じ固定高（`h-96` 程度）でプレビュー側は `overflow-y-auto`

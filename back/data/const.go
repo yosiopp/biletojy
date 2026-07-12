@@ -91,19 +91,8 @@ const (
 	);
 	`
 
-	// 初期データ投入（タグカタログ）
+	// 初期データ投入（タグカタログ）。0件のとき DefaultTags（Goリテラル。シードとデフォルト復元の単一ソース）をシードする
 	_SQL_COUNT_TAG_CATALOG = `SELECT COUNT(*) FROM tag_catalog`
-	_SQL_INIT_TAG_CATALOG  = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range, sort_order) VALUES
-		('status:OPEN', '未処理', '#e11d48', 1, 0, 1),
-		('status:WIP', '処理中', '#f59e0b', 1, 0, 2),
-		('status:DONE', '処理済', '#10b981', 1, 0, 3),
-		('status:CLOSED', '完了', '#64748b', 1, 0, 4),
-		('type:ISSUE', '課題', '#3b82f6', 1, 0, 1),
-		('type:TASK', 'タスク', '#8b5cf6', 1, 0, 2),
-		('type:BUG', 'バグ', '#ef4444', 1, 0, 3),
-		('type:QUESTION', '質問', '#06b6d4', 1, 0, 4),
-		('type:NOTE', 'メモ', '#a3a3a3', 1, 0, 5),
-		('due-date@:', '期限', NULL, 1, 1, 0);`
 
 	// タグカタログ。一覧は「値を持つタググループ（接頭辞順）→ 値なしのグループエントリ → グループでないタグ」の
 	// 順にまとめ、それぞれの中はsort_order順（同値はタグ名順）で返す。値なしのグループエントリ（"due-date@:" 等）同士と
@@ -135,6 +124,15 @@ const (
 	_SQL_ADD_UNKNOWN_TAG = `INSERT INTO tag_catalog (tag, is_group, is_range, sort_order)
 		SELECT ?1, ?2, ?3, COALESCE(MAX(sort_order), 0) + 1 FROM tag_catalog
 		WHERE CASE WHEN instr(tag, ':') <= 1 THEN '' WHEN instr(tag, ':') = length(tag) THEN ':' ELSE substr(tag, 1, instr(tag, ':')) END = ?4
+		ON CONFLICT (tag) DO NOTHING`
+	// タグ定義の一括登録（初回シード・インポート・デフォルト復元で共用）。同名の既存タグは
+	// ON CONFLICT DO NOTHING で変更せずスキップする。sort_orderを明示する版（export→importの往復再現用）と、
+	// 未指定時に同一セクションの末尾へ採番する版（_SQL_ADD_UNKNOWN_TAGにnote/colorを加えた版）の2種
+	_SQL_IMPORT_TAG = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range, sort_order)
+		VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (tag) DO NOTHING`
+	_SQL_IMPORT_TAG_SECTION_END = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range, sort_order)
+		SELECT ?1, ?2, ?3, ?4, ?5, COALESCE(MAX(sort_order), 0) + 1 FROM tag_catalog
+		WHERE CASE WHEN instr(tag, ':') <= 1 THEN '' WHEN instr(tag, ':') = length(tag) THEN ':' ELSE substr(tag, 1, instr(tag, ':')) END = ?6
 		ON CONFLICT (tag) DO NOTHING`
 
 	// チケット取得
@@ -217,7 +215,7 @@ const (
 	_SQL_COUNT_IMAGES_TABLE      = `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'images'`
 	_SQL_MIGRATE_IMAGES_TO_FILES = `INSERT INTO files (id, name, mime, data, created_at) SELECT id, '', mime, data, created_at FROM images`
 	_SQL_DROP_IMAGES_TABLE       = `DROP TABLE images`
-	// シード済みの既存DBにも_SQL_INIT_TAG_CATALOGと同じstatusの並び順を設定する。
+	// シード済みの既存DBにもDefaultTagsと同じstatusの並び順を設定する。
 	// v6の改名より前（対象DBはv4未満＝旧名のまま）に実行されるため 'status:CLOSE' を参照する
 	_SQL_BACKFILL_STATUS_ORDER = `UPDATE tag_catalog SET sort_order = CASE tag
 		WHEN 'status:OPEN' THEN 1
@@ -232,6 +230,26 @@ const (
 		WHERE tag = 'status:CLOSE' AND NOT EXISTS (SELECT 1 FROM tag_catalog WHERE tag = 'status:CLOSED')`
 	_SQL_MIGRATE_TICKET_TAGS = `UPDATE tickets SET tags = ? WHERE id = ?`
 )
+
+// strPtr は文字列リテラルへのポインタを返す（DefaultTagsのNote/Colorをまとめて書くための補助）
+func strPtr(s string) *string { return &s }
+
+// DefaultTags はタグカタログの初期定義。初回シード（NewDao）とデフォルト復元（RestoreDefaultTags）の
+// 単一ソース。is_group / is_range はタグ名から TagAttrs で導出するため保持しない（export形状に合わせる）。
+// sort_order は status / type グループの表示順を固定するために明示し、due-date@: は 0
+// （未指定＝登録時に同一セクションの末尾へ採番）とする
+var DefaultTags = []Tag{
+	{Tag: "status:OPEN", Note: strPtr("未処理"), Color: strPtr("#e11d48"), SortOrder: 1},
+	{Tag: "status:WIP", Note: strPtr("処理中"), Color: strPtr("#f59e0b"), SortOrder: 2},
+	{Tag: "status:DONE", Note: strPtr("処理済"), Color: strPtr("#10b981"), SortOrder: 3},
+	{Tag: "status:CLOSED", Note: strPtr("完了"), Color: strPtr("#64748b"), SortOrder: 4},
+	{Tag: "type:ISSUE", Note: strPtr("課題"), Color: strPtr("#3b82f6"), SortOrder: 1},
+	{Tag: "type:TASK", Note: strPtr("タスク"), Color: strPtr("#8b5cf6"), SortOrder: 2},
+	{Tag: "type:BUG", Note: strPtr("バグ"), Color: strPtr("#ef4444"), SortOrder: 3},
+	{Tag: "type:QUESTION", Note: strPtr("質問"), Color: strPtr("#06b6d4"), SortOrder: 4},
+	{Tag: "type:NOTE", Note: strPtr("メモ"), Color: strPtr("#a3a3a3"), SortOrder: 5},
+	{Tag: "due-date@:", Note: strPtr("期限"), SortOrder: 0},
+}
 
 // v3で追加されたカラムを既存DBへ足すALTER文
 var _SQL_ADD_SUB_COLUMNS = []string{

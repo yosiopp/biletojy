@@ -24,6 +24,15 @@ import (
 // 貼り付け・ドロップで添付するファイルの上限サイズ
 const _MAX_FILE_BYTES = 10 << 20
 
+// タグカタログのエクスポート/インポートで受け渡す1タグ。
+// idと導出属性（is_group / is_range）は含めず、tag / note / color / sort_order のみを持つ
+type tagCatalogItem struct {
+	Tag       string  `json:"tag"`
+	Note      *string `json:"note"`
+	Color     *string `json:"color"`
+	SortOrder int64   `json:"sort_order"`
+}
+
 // インライン表示で配信する画像のMIMEタイプ。これ以外はHTML等の埋め込み実行を防ぐためダウンロードとして配信する
 var inlineImageMimes = map[string]bool{
 	"image/png":  true,
@@ -255,7 +264,7 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 
 	// チケットのエクスポート。検索と同じ条件（q, tags）で絞り込んだチケットをコメント込みで、
 	// JSON（機械可読・再インポート用）またはmarkdown（人間可読）のダウンロードとして返す
-	mux.HandleFunc("GET /api/export", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/tickets/export", func(w http.ResponseWriter, r *http.Request) {
 		format := r.URL.Query().Get("format")
 		if format == "" {
 			format = "json"
@@ -285,7 +294,7 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 
 	// エクスポートしたJSONデータのインポート。チケット・コメントは新規IDで登録され、
 	// 作成者・更新者・sub・タイムスタンプはデータの値をそのまま引き継ぐ（バックアップの復元用）
-	mux.HandleFunc("POST /api/import", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/tickets/import", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Tickets []data.TicketExport `json:"tickets"`
 		}
@@ -489,6 +498,63 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 			return
 		}
 		writeJson(w, http.StatusOK, tags)
+	})
+
+	// タグカタログのエクスポート。全タグを {tags: [{tag, note, color, sort_order}]} で
+	// ダウンロードさせる（idと導出属性は含めない。別環境への複製・バックアップ・再インポート用）
+	mux.HandleFunc("GET /api/tags/export", func(w http.ResponseWriter, r *http.Request) {
+		tags, err := dao.QueryTags()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		items := make([]tagCatalogItem, len(tags))
+		for i, t := range tags {
+			items[i] = tagCatalogItem{Tag: t.Tag, Note: t.Note, Color: t.Color, SortOrder: t.SortOrder}
+		}
+		w.Header().Set("Content-Disposition", `attachment; filename="biletojy-tags.json"`)
+		writeJson(w, http.StatusOK, map[string]any{"tags": items})
+	})
+
+	// エクスポートしたタグカタログの取り込み。同名の既存タグは変更せずスキップし、
+	// 登録件数とスキップ件数を返す（衝突時に既存タグを壊さない）
+	mux.HandleFunc("POST /api/tags/import", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Tags []tagCatalogItem `json:"tags"`
+		}
+		if !readJson(w, r, &req) {
+			return
+		}
+		if len(req.Tags) == 0 {
+			writeErrorMessage(w, http.StatusBadRequest, "tags is required")
+			return
+		}
+		// タグ名は保存系（saveTag）と同じ検証をHTTP境界で行う（違反は400）
+		tags := make([]data.Tag, len(req.Tags))
+		for i, t := range req.Tags {
+			if msg := data.TagNameError(t.Tag); msg != "" {
+				writeErrorMessage(w, http.StatusBadRequest, fmt.Sprintf("tags[%d]: %s", i, msg))
+				return
+			}
+			tags[i] = data.Tag{Tag: t.Tag, Note: t.Note, Color: t.Color, SortOrder: t.SortOrder}
+		}
+		imported, skipped, err := dao.ImportTags(tags)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJson(w, http.StatusCreated, map[string]int{"imported": imported, "skipped": skipped})
+	})
+
+	// デフォルトタグの復元。デフォルト定義のうちカタログに無いものだけを追加し（既存のカスタマイズは変更しない）、
+	// 追加した件数を返す
+	mux.HandleFunc("POST /api/tags/restore-defaults", func(w http.ResponseWriter, r *http.Request) {
+		restored, err := dao.RestoreDefaultTags()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJson(w, http.StatusOK, map[string]int{"restored": restored})
 	})
 
 	mux.HandleFunc("POST /api/tags", func(w http.ResponseWriter, r *http.Request) {

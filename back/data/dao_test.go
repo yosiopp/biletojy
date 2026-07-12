@@ -875,6 +875,100 @@ func TestAddTagSortOrder(t *testing.T) {
 	}
 }
 
+// ImportTagsは同名の既存タグをスキップし、is_group/is_rangeをタグ名から導出し、
+// sort_orderは明示値を尊重・未指定(0)はセクション末尾へ採番することを検証する
+func TestImportTags(t *testing.T) {
+	dao := newTestDao(t)
+
+	// シード済みのstatus:OPENの色を控えておき、インポートで変更されないことを確認する
+	before, _ := dao.QueryTags()
+	open := findTag(before, "status:OPEN")
+	if open == nil || open.Color == nil {
+		t.Fatalf("seeded status:OPEN missing: %+v", open)
+	}
+	openColor := *open.Color
+
+	imported, skipped, err := dao.ImportTags([]Tag{
+		{Tag: "priority:HIGH", Note: strPtr("優先度"), Color: strPtr("#ff0000"), SortOrder: 7}, // 新規・明示sort_order
+		{Tag: "status:OPEN", Note: strPtr("上書きされない"), Color: strPtr("#000000")},              // 同名＝スキップ
+		{Tag: "estimate#:", SortOrder: 0},                                                  // 新規・未指定＝セクション末尾（値なしグループ）
+		{Tag: "memo"},                                                                      // 新規・未指定＝セクション末尾（非グループ）
+	})
+	if err != nil {
+		t.Fatalf("ImportTags: %v", err)
+	}
+	if imported != 3 || skipped != 1 {
+		t.Errorf("ImportTags = (imported=%d, skipped=%d), want (3, 1)", imported, skipped)
+	}
+
+	after, _ := dao.QueryTags()
+
+	// 同名の既存タグは変更されない（note/colorが上書きされない）
+	open2 := findTag(after, "status:OPEN")
+	if open2 == nil || open2.Color == nil || *open2.Color != openColor || open2.Note == nil || *open2.Note != "未処理" {
+		t.Errorf("existing status:OPEN was modified on import: %+v", open2)
+	}
+
+	// 明示sort_orderは尊重される。is_group/is_rangeはタグ名から導出される
+	if p := findTag(after, "priority:HIGH"); p == nil || p.SortOrder != 7 || !p.IsGroup || p.IsRange {
+		t.Errorf("priority:HIGH = %+v, want sort_order 7, group, non-range", p)
+	}
+	// 数値タグ（末尾#）はis_range=true。値なしグループ（due-date@:）と同じセクションの末尾へ採番される
+	if e := findTag(after, "estimate#:"); e == nil || !e.IsGroup || !e.IsRange || e.SortOrder <= 0 {
+		t.Errorf("estimate#: = %+v, want group, range, sort_order > 0", e)
+	}
+	if m := findTag(after, "memo"); m == nil || m.IsGroup || m.IsRange || m.SortOrder != 1 {
+		t.Errorf("memo = %+v, want non-group, sort_order 1 (empty section head)", m)
+	}
+}
+
+// RestoreDefaultTagsは不足しているデフォルトタグだけを追加し、既存のカスタマイズを変更しないことを検証する
+func TestRestoreDefaultTags(t *testing.T) {
+	dao := newTestDao(t)
+
+	// すべてのデフォルトが揃った直後は0件（重複追加しない）
+	if restored, err := dao.RestoreDefaultTags(); err != nil || restored != 0 {
+		t.Fatalf("RestoreDefaultTags(full) = (%d, %v), want (0, nil)", restored, err)
+	}
+
+	// デフォルトを2件削除し、既存の1件（status:OPEN）はカスタマイズする
+	tags, _ := dao.QueryTags()
+	wip := findTag(tags, "status:WIP")
+	bug := findTag(tags, "type:BUG")
+	if wip == nil || bug == nil {
+		t.Fatalf("seed missing status:WIP / type:BUG")
+	}
+	for _, id := range []int64{wip.Id, bug.Id} {
+		if _, err := dao.DeleteTag(id); err != nil {
+			t.Fatalf("DeleteTag: %v", err)
+		}
+	}
+	open := findTag(tags, "status:OPEN")
+	custom := "#123456"
+	open.Color = &custom
+	open.Note = strPtr("カスタム")
+	if err := dao.EditTag(open); err != nil {
+		t.Fatalf("EditTag: %v", err)
+	}
+
+	// 不足していた2件だけが復元される
+	restored, err := dao.RestoreDefaultTags()
+	if err != nil {
+		t.Fatalf("RestoreDefaultTags: %v", err)
+	}
+	if restored != 2 {
+		t.Errorf("RestoreDefaultTags = %d, want 2", restored)
+	}
+	after, _ := dao.QueryTags()
+	if findTag(after, "status:WIP") == nil || findTag(after, "type:BUG") == nil {
+		t.Errorf("deleted defaults were not restored: %+v", after)
+	}
+	// カスタマイズした既存タグは変更されない
+	if open2 := findTag(after, "status:OPEN"); open2 == nil || open2.Color == nil || *open2.Color != custom || open2.Note == nil || *open2.Note != "カスタム" {
+		t.Errorf("customized status:OPEN was overwritten by restore: %+v", open2)
+	}
+}
+
 func TestRenameTag(t *testing.T) {
 	dao := newTestDao(t)
 

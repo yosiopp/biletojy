@@ -88,6 +88,9 @@ export type Tag = {
   sort_order: number;
 };
 
+// タグカタログのエクスポート/インポートで受け渡す1タグ（id・導出属性は含めない）
+export type TagCatalogItem = Pick<Tag, 'tag' | 'note' | 'color' | 'sort_order'>;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },
@@ -132,11 +135,11 @@ export const api = {
     if (q) params.set('q', q);
     if (tags.length > 0) params.set('tags', tags.join(','));
     params.set('format', format);
-    return `/api/export?${params.toString()}`;
+    return `/api/tickets/export?${params.toString()}`;
   },
   // エクスポートしたJSONデータのインポート。チケット・コメントは新規IDで登録される
   importTickets: (tickets: TicketExport[]) =>
-    request<{ imported: number }>('/api/import', { method: 'POST', body: JSON.stringify({ tickets }) }),
+    request<{ imported: number }>('/api/tickets/import', { method: 'POST', body: JSON.stringify({ tickets }) }),
   uploadFile: (file: File) =>
     request<AttachedFile>(`/api/files?name=${encodeURIComponent(file.name)}`, {
       method: 'POST',
@@ -165,4 +168,14 @@ export const api = {
   countTagUsage: (id: number) => request<{ count: number }>(`/api/tags/${id}/usage`),
   reorderTags: (ids: number[]) =>
     request<void>('/api/tags/order', { method: 'PUT', body: JSON.stringify({ ids }) }),
+  // タグカタログのエクスポートのダウンロードURL（全タグ。別環境への複製・バックアップ用）
+  tagsExportUrl: () => '/api/tags/export',
+  // エクスポートしたタグカタログの取り込み。同名の既存タグはスキップされる
+  importTags: (tags: TagCatalogItem[]) =>
+    request<{ imported: number; skipped: number }>('/api/tags/import', {
+      method: 'POST',
+      body: JSON.stringify({ tags }),
+    }),
+  // デフォルトタグの復元。不足しているデフォルト定義だけを追加する（既存のカスタマイズは変更しない）
+  restoreDefaultTags: () => request<{ restored: number }>('/api/tags/restore-defaults', { method: 'POST' }),
 };
