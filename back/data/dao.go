@@ -136,11 +136,12 @@ func NewDao() (*Dao, error) {
 }
 
 // user_versionが現行より古いDBへのスキーマ移行。
-//   - v2未満: 旧形式（bi-gram化前や旧トークナイズ）で格納されたFTSデータを再構築する
 //   - v3未満: sub関連カラムを追加する（新規DBは_SQL_INITで作成済みのため、カラムの有無で判定する）
 //   - v4未満: tag_catalogへsort_orderカラムを追加する（同上）
 //   - v5未満: 旧imagesテーブルの内容をfilesテーブルへ移行する（テーブルの有無で判定する）
 //   - v6未満: プリセットのstatus:CLOSEタグをstatus:CLOSEDへ改名し、チケットのタグ表記も書き換える
+//   - v7未満: FTSを再構築し、rowidへチケットIDを設定する
+//     （v2の旧トークナイズ形式からの再構築もこの全件再構築が兼ねる）
 func migrate(db *sql.DB) error {
 	var version int
 	if err := db.QueryRow(_SQL_GET_USER_VERSION).Scan(&version); err != nil {
@@ -149,7 +150,7 @@ func migrate(db *sql.DB) error {
 	if version >= _SCHEMA_VERSION {
 		return nil
 	}
-	if version < 2 {
+	if version < 7 {
 		if err := rebuildFts(db); err != nil {
 			return err
 		}

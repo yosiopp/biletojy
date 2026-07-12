@@ -596,6 +596,68 @@ func TestMigrateRenamesCloseTag(t *testing.T) {
 	}
 }
 
+// v6時点のDB（FTSのrowidがチケットIDと未対応）からの移行。
+// FTSが再構築されてrowid = チケットIDになり、rowidベースの検索・更新が機能する
+func TestMigrateRebuildsFtsRowid(t *testing.T) {
+	t.Chdir(t.TempDir())
+	dao, err := NewDao()
+	if err != nil {
+		t.Fatalf("NewDao: %v", err)
+	}
+	ticket := addTestTicket(t, dao, "移行対象", "本文の初版", "status:OPEN")
+	comment := &Comment{TicketId: ticket.Id, Content: "コメントも索引される", CreatedBy: "alice"}
+	if err := dao.AddComment(comment); err != nil {
+		t.Fatalf("AddComment: %v", err)
+	}
+	// 旧DB相当: FTS行のrowidをチケットIDとずらしてv6へ巻き戻す
+	for _, q := range []string{
+		`DELETE FROM tickets_fts`,
+		`INSERT INTO tickets_fts (rowid, ticket_id, title, content, tags, comments) VALUES (100, ` + strconv.FormatInt(ticket.Id, 10) + `, 'x', 'x', 'x', 'x')`,
+		`PRAGMA user_version = 6`,
+	} {
+		if _, err := dao.db.Exec(q); err != nil {
+			t.Fatalf("exec %q: %v", q, err)
+		}
+	}
+	dao.Close()
+
+	dao, err = NewDao()
+	if err != nil {
+		t.Fatalf("NewDao: %v", err)
+	}
+	t.Cleanup(dao.Close)
+
+	// rowidがチケットIDで再構築され、本文・コメントとも検索できる
+	if n := countRows(t, dao, `SELECT COUNT(*) FROM tickets_fts WHERE rowid = ?`, ticket.Id); n != 1 {
+		t.Errorf("tickets_fts rows with rowid = ticket id: %d, want 1", n)
+	}
+	if n := countRows(t, dao, `SELECT COUNT(*) FROM tickets_fts`); n != 1 {
+		t.Errorf("tickets_fts rows = %d, want 1", n)
+	}
+	if ids := queryTicketIds(t, dao, "初版", nil); !slices.Equal(ids, []int64{ticket.Id}) {
+		t.Errorf("QueryTickets(content) = %v, want [%d]", ids, ticket.Id)
+	}
+	if ids := queryTicketIds(t, dao, "索引", nil); !slices.Equal(ids, []int64{ticket.Id}) {
+		t.Errorf("QueryTickets(comment) = %v, want [%d]", ids, ticket.Id)
+	}
+
+	// rowidベースの更新（チケット編集・コメント編集）もFTSへ反映される
+	got, err := dao.GetTicket(ticket.Id)
+	if err != nil {
+		t.Fatalf("GetTicket: %v", err)
+	}
+	got.Content = "編集後の本文"
+	if err := dao.EditTicket(got); err != nil {
+		t.Fatalf("EditTicket: %v", err)
+	}
+	if ids := queryTicketIds(t, dao, "編集後", nil); !slices.Equal(ids, []int64{ticket.Id}) {
+		t.Errorf("QueryTickets(after edit) = %v, want [%d]", ids, ticket.Id)
+	}
+	if ids := queryTicketIds(t, dao, "初版", nil); len(ids) != 0 {
+		t.Errorf("QueryTickets(old content) = %v, want empty", ids)
+	}
+}
+
 func TestTagCatalog(t *testing.T) {
 	dao := newTestDao(t)
 

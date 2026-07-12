@@ -133,15 +133,16 @@ const (
 	// チケット取得
 	_SQL_GET_TICKET = `SELECT id, title, content, COALESCE(tags, ''), created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM tickets WHERE id = ?`
 
-	// チケット追加
+	// チケット追加。FTSはticket_idカラムがUNINDEXEDで絞り込みに使えないため、
+	// rowidへチケットIDを入れて更新・JOINはrowidベース（FTS5が最適化できる形）で行う
 	_SQL_ADD_TICKET         = `INSERT INTO tickets (title, content, tags, created_by, created_sub, updated_by, updated_sub, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	_SQL_ADD_TICKET_HISTORY = `INSERT INTO ticket_histories (ticket_id, title, content, tags, created_by, created_sub, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
-	_SQL_ADD_TICKET_FTS     = `INSERT INTO tickets_fts (ticket_id, title, content, tags, comments) VALUES (?, ?, ?, ?, ?)`
+	_SQL_ADD_TICKET_FTS     = `INSERT INTO tickets_fts (rowid, ticket_id, title, content, tags, comments) VALUES (?1, ?1, ?2, ?3, ?4, ?5)`
 
 	// チケット編集
 	_SQL_EDIT_TICKET          = `UPDATE tickets SET title = ?, content = ?, tags = ?, updated_by = ?, updated_sub = ?, updated_at = ? WHERE id = ?`
-	_SQL_EDIT_TICKET_FTS      = `UPDATE tickets_fts SET title = ?, content = ?, tags = ? WHERE ticket_id = ?`
-	_SQL_EDIT_TICKET_FTS_TAGS = `UPDATE tickets_fts SET tags = ? WHERE ticket_id = ?`
+	_SQL_EDIT_TICKET_FTS      = `UPDATE tickets_fts SET title = ?, content = ?, tags = ? WHERE rowid = ?`
+	_SQL_EDIT_TICKET_FTS_TAGS = `UPDATE tickets_fts SET tags = ? WHERE rowid = ?`
 
 	// コメント
 	_SQL_GET_COMMENT    = `SELECT id, ticket_id, content, created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM comments WHERE id = ?`
@@ -154,7 +155,7 @@ const (
 	_SQL_ADD_COMMENT            = `INSERT INTO comments (ticket_id, content, created_by, created_sub, updated_by, updated_sub, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 	_SQL_ADD_COMMENT_HISTORY    = `INSERT INTO comment_histories (comment_id, content, created_by, created_sub, created_at) VALUES (?, ?, ?, ?, ?)`
 	_SQL_EDIT_COMMENT           = `UPDATE comments SET content = ?, updated_by = ?, updated_sub = ?, updated_at = ? WHERE id = ?`
-	_SQL_EDIT_COMMENT_FTS       = `UPDATE tickets_fts SET comments = ? WHERE ticket_id = ?`
+	_SQL_EDIT_COMMENT_FTS       = `UPDATE tickets_fts SET comments = ? WHERE rowid = ?`
 
 	// 履歴（古い版から順に返す。idは挿入順のためソートキーに使える）
 	_SQL_QUERY_TICKET_HISTORIES  = `SELECT id, ticket_id, title, content, COALESCE(tags, ''), created_by, created_sub, created_at FROM ticket_histories WHERE ticket_id = ? ORDER BY id ASC`
@@ -173,7 +174,7 @@ const (
 
 	// チケット検索
 	_SQL_QUERY_TICKETS_BASE = `SELECT t.id, t.title, t.content, COALESCE(t.tags, ''), t.created_by, t.created_sub, t.updated_by, t.updated_sub, t.created_at, t.updated_at FROM tickets t`
-	_SQL_QUERY_TICKETS_FTS  = ` JOIN tickets_fts ON t.id = tickets_fts.ticket_id`
+	_SQL_QUERY_TICKETS_FTS  = ` JOIN tickets_fts ON t.id = tickets_fts.rowid`
 
 	// バックリンク検索。LIKEで候補を絞り、桁違いのIDへの誤マッチ除外はGo側で行う
 	_SQL_QUERY_BACKLINKS = `SELECT t.id, t.title, t.content, COALESCE(t.tags, ''), t.created_by, t.created_sub, t.updated_by, t.updated_sub, t.created_at, t.updated_at,
@@ -183,8 +184,9 @@ const (
 		ORDER BY t.updated_at DESC`
 
 	// マイグレーション（v2: FTSインデックス再構築、v3: subカラム追加、v4: sort_orderカラム追加、
-	// v5: imagesテーブルをfilesテーブルへ移行、v6: status:CLOSEをstatus:CLOSEDへ改名）
-	_SCHEMA_VERSION            = 6
+	// v5: imagesテーブルをfilesテーブルへ移行、v6: status:CLOSEをstatus:CLOSEDへ改名、
+	// v7: FTSのrowidへチケットIDを設定するための再構築）
+	_SCHEMA_VERSION            = 7
 	_SQL_GET_USER_VERSION      = `PRAGMA user_version`
 	_SQL_DELETE_ALL_TICKET_FTS = `DELETE FROM tickets_fts`
 	_SQL_QUERY_TICKETS_FOR_FTS = `SELECT id, title, content, COALESCE(tags, '') FROM tickets`

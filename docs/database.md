@@ -123,6 +123,10 @@ CREATE VIRTUAL TABLE tickets_fts USING fts5 (
 );
 ```
 
+`rowid` にチケットIDを設定して登録し、チケット編集・コメント編集時の更新と検索時の `tickets` とのJOINは
+`rowid` ベースで行う（FTS5はMATCHとrowid以外の絞り込みを最適化できないため。`ticket_id` カラムはUNINDEXEDのまま
+同じ値を保持する）。
+
 ### トークナイズ処理
 日本語検索に対応するため、格納時にGo側でbi-gramへ分かち書きする（[back/data/tokenize.go](../back/data/tokenize.go)）。
 
@@ -132,10 +136,11 @@ CREATE VIRTUAL TABLE tickets_fts USING fts5 (
 * **tags** — そのままスペース区切りで格納する
 
 ## マイグレーション
-スキーマバージョンは `PRAGMA user_version` で管理する（現行は6）。
+スキーマバージョンは `PRAGMA user_version` で管理する（現行は7）。
 起動時にバージョンが古い場合、以下を実行して `user_version` を更新する。
 
-* v2未満: FTSインデックスを全件再構築する（旧トークナイズ形式からの移行）
+* v7未満: FTSインデックスを全件再構築し、`rowid` へチケットIDを設定する
+  （v2で行っていた旧トークナイズ形式からの再構築もこの全件再構築が兼ねる）
 * v3未満: `tickets` / `comments` / `ticket_histories` / `comment_histories` へv3で追加されたカラム
   （`created_sub` / `updated_sub` のsub関連カラムに加え、tickets / comments の `updated_by`、
   comment_histories の `created_by`）を `ALTER TABLE ... ADD COLUMN` で追加する
