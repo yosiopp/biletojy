@@ -80,7 +80,7 @@ function Layout() {
   return (
     <>
       <Header onUserClick={() => setShowUserDialog(true)} />
-      <main className="p-2">
+      <main className="p-2 pb-16">
         <Outlet />
       </main>
 
