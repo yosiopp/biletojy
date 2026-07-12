@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useDeferredValue, useEffect, useRef, useState } from 'react';
 import { useBlocker, useNavigate, useParams } from 'react-router-dom';
 import { api, Template } from '../api/client';
 import AttachFileButton from '../components/AttachFileButton';
@@ -7,12 +7,16 @@ import Markdown from '../components/Markdown';
 import TagInput from '../components/TagInput';
 import TicketRefTextarea from '../components/TicketRefTextarea';
 import { dropFiles, pasteFiles, useFileDrag } from '../lib/attachFiles';
+import { EditorMode, EDITOR_MODES, loadEditorMode, saveEditorMode } from '../lib/editorMode';
 import { staleGuard } from '../lib/staleGuard';
 import { currentUser, joinTags, splitTags } from '../lib/tags';
 import { invalidateCatalog, useCatalog } from '../lib/useCatalog';
 import { usePendingTagGuard } from '../lib/usePendingTagGuard';
 
 type Draft = { title: string; content: string; tags: string };
+
+const CONTENT_PLACEHOLDER =
+  '本文（markdown / mermaid可、画像・ファイル添付可（ペースト/ドロップ）、#でチケット参照）\n\n```mermaid\ngraph TD; A-->B;\n```';
 
 // チケット作成（/tickets/new）と編集（/tickets/:id/edit）を兼ねるフォーム
 function TicketForm() {
@@ -24,7 +28,10 @@ function TicketForm() {
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const catalog = useCatalog();
-  const [preview, setPreview] = useState(false);
+  // 表示モード（編集 / 両方 / プレビュー）は前回選択をlocalStorageから復元する
+  const [mode, setMode] = useState(loadEditorMode);
+  // Markdown内のmermaidはcode変更のたびに非同期描画するため、プレビューへ渡す本文は遅延させる
+  const deferredContent = useDeferredValue(content);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [titleError, setTitleError] = useState(false);
@@ -66,6 +73,12 @@ function TicketForm() {
 
   const dirty =
     title !== initial.title || content !== initial.content || joinTags(tags) !== initial.tags;
+
+  // モード切替時に選択を永続化する
+  const selectMode = (next: EditorMode) => {
+    setMode(next);
+    saveEditorMode(next);
+  };
 
   // 選択したテンプレートのタイトル・本文・タグをフォームへ適用する
   const applyTemplate = (template: Template) => {
@@ -181,31 +194,44 @@ function TicketForm() {
 
       <div className="mb-1 flex items-center">
         <div className="flex-1">
-          <button
-            type="button"
-            className={`text-sm border rounded-l-sm px-3 py-0.5 ${!preview ? 'bg-neutral-200 dark:bg-neutral-600' : ''}`}
-            onClick={() => setPreview(false)}
-          >
-            編集
-          </button>
-          <button
-            type="button"
-            className={`text-sm border rounded-r-sm px-3 py-0.5 ${preview ? 'bg-neutral-200 dark:bg-neutral-600' : ''}`}
-            onClick={() => setPreview(true)}
-          >
-            プレビュー
-          </button>
+          {EDITOR_MODES.map(({ value, label }, i) => (
+            <button
+              key={value}
+              type="button"
+              // 編集=左端(左角丸)、両方=中央(角丸なし・sm未満は非表示)、プレビュー=右端(右角丸)
+              className={`text-sm border px-3 py-0.5 ${
+                i === 0 ? 'rounded-l-sm' : i === EDITOR_MODES.length - 1 ? 'rounded-r-sm' : 'hidden sm:inline-block'
+              } ${mode === value ? 'bg-neutral-200 dark:bg-neutral-600' : ''}`}
+              onClick={() => selectMode(value)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
         <AttachFileButton setValue={setContent} onError={setError} />
       </div>
-      {preview ? (
+      {mode === 'split' ? (
+        <div className="grid sm:grid-cols-2 gap-2 mb-2">
+          <TicketRefTextarea
+            className={`border rounded-sm w-full p-2 h-96 font-mono text-sm ${fileDrag.dragClass}`}
+            placeholder={CONTENT_PLACEHOLDER}
+            value={content}
+            onChange={setContent}
+            onPaste={(e) => pasteFiles(e, setContent, setError)}
+            {...fileDrag.dragProps}
+          />
+          <div className="border rounded-sm p-4 h-96 overflow-y-auto">
+            <Markdown content={deferredContent} />
+          </div>
+        </div>
+      ) : mode === 'preview' ? (
         <div className="border rounded-sm p-4 mb-2 min-h-64">
-          <Markdown content={content} />
+          <Markdown content={deferredContent} />
         </div>
       ) : (
         <TicketRefTextarea
           className={`border rounded-sm w-full p-2 h-64 mb-2 font-mono text-sm ${fileDrag.dragClass}`}
-          placeholder={'本文（markdown / mermaid可、画像・ファイル添付可（ペースト/ドロップ）、#でチケット参照）\n\n```mermaid\ngraph TD; A-->B;\n```'}
+          placeholder={CONTENT_PLACEHOLDER}
           value={content}
           onChange={setContent}
           onPaste={(e) => pasteFiles(e, setContent, setError)}

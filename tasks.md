@@ -5,14 +5,6 @@
 - 調査・分析タスクは並列実行して構いません。
 - ファイルを変更するタスクを並列実行する場合は worktree で分離してください。
 
-## チケット編集画面の分割表示モード（編集とプレビューを左右に並べる）
-- TicketForm.tsx の `preview: boolean` を `mode: 'edit' | 'split' | 'preview'` に変更し、セグメントボタンを「編集 | 両方 | プレビュー」の3状態にする（「両方」は中央、角丸なし。JetBrains / HackMD と同型の排他的表示モード選択）
-- 分割表示は `grid sm:grid-cols-2 gap-2` で左にTicketRefTextarea・右にプレビュー。両ペインとも同じ固定高（`h-96` 程度）でプレビュー側は `overflow-y-auto`
-- プレビューへ渡す content は `useDeferredValue` を経由させる（Markdown.tsx の Mermaid が code 変更のたびに非同期レンダリングするため、キーストロークごとの発火を抑える）
-- モバイル対応: 「両方」ボタンは `hidden sm:inline-block` で `sm` 未満は非表示。グリッドは `sm:grid-cols-2` なので分割中に狭めた場合は縦積みにフォールバック
-- モード選択は localStorage で永続化し、次回のチケット作成・編集時に前回のモードを復元する。未知の値は 'edit' 扱いにするパース関数を通す（lib/viewMode.ts の parseViewMode と同じ流儀。保存キーは lib/theme.ts / lib/tags.ts の localStorage 利用と同様に定数化）
-- スコープ外: スクロール同期、キーボードショートカットの追加
-
 ## フロントエンドの多言語化（en / ja、ブラウザ言語の優先度で自動選択）
 - 方針: ライブラリは導入せず自前の軽量i18nモジュールで実装する（2言語・300文言弱の規模で複数形等の高度な機能が不要なため。依存最小のプロジェクト方針にも合わせる）
 - フェーズ1 — 基盤: `front/src/i18n/` を新設
