@@ -192,7 +192,7 @@ func migrate(db *sql.DB) error {
 	if err := renameCloseTag(db); err != nil {
 		return err
 	}
-	_, err := db.Exec(_SQL_SET_USER_VERSION)
+	_, err := db.Exec(fmt.Sprintf("PRAGMA user_version = %d", _SCHEMA_VERSION))
 	return err
 }
 

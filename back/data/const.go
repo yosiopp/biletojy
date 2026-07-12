@@ -186,7 +186,6 @@ const (
 	// v5: imagesテーブルをfilesテーブルへ移行、v6: status:CLOSEをstatus:CLOSEDへ改名）
 	_SCHEMA_VERSION            = 6
 	_SQL_GET_USER_VERSION      = `PRAGMA user_version`
-	_SQL_SET_USER_VERSION      = `PRAGMA user_version = 6`
 	_SQL_DELETE_ALL_TICKET_FTS = `DELETE FROM tickets_fts`
 	_SQL_QUERY_TICKETS_FOR_FTS = `SELECT id, title, content, COALESCE(tags, '') FROM tickets`
 	// カラムの有無で既存DB（ALTERが必要）か新規DB（_SQL_INITで作成済み）かを判定する
