@@ -113,12 +113,13 @@ const (
 		ORDER BY CASE WHEN instr(tag, ':') <= 1 THEN 2 WHEN instr(tag, ':') = length(tag) THEN 1 ELSE 0 END ASC,
 			CASE WHEN instr(tag, ':') > 1 AND instr(tag, ':') < length(tag) THEN substr(tag, 1, instr(tag, ':')) ELSE '' END ASC,
 			sort_order ASC, tag ASC`
-	_SQL_GET_TAG       = `SELECT id, tag, note, color, is_group, is_range, sort_order FROM tag_catalog WHERE id = ?`
-	_SQL_GET_TAG_NAME  = `SELECT tag FROM tag_catalog WHERE id = ?`
-	_SQL_ADD_TAG       = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range) VALUES (?, ?, ?, ?, ?)`
-	_SQL_EDIT_TAG      = `UPDATE tag_catalog SET tag = ?, note = ?, color = ?, is_group = ?, is_range = ? WHERE id = ?`
-	_SQL_DELETE_TAG    = `DELETE FROM tag_catalog WHERE id = ?`
-	_SQL_SET_TAG_ORDER = `UPDATE tag_catalog SET sort_order = ? WHERE id = ?`
+	_SQL_GET_TAG         = `SELECT id, tag, note, color, is_group, is_range, sort_order FROM tag_catalog WHERE id = ?`
+	_SQL_GET_TAG_NAME    = `SELECT tag FROM tag_catalog WHERE id = ?`
+	_SQL_QUERY_TAG_NAMES = `SELECT tag FROM tag_catalog`
+	_SQL_ADD_TAG         = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range) VALUES (?, ?, ?, ?, ?)`
+	_SQL_EDIT_TAG        = `UPDATE tag_catalog SET tag = ?, note = ?, color = ?, is_group = ?, is_range = ? WHERE id = ?`
+	_SQL_DELETE_TAG      = `DELETE FROM tag_catalog WHERE id = ?`
+	_SQL_SET_TAG_ORDER   = `UPDATE tag_catalog SET sort_order = ? WHERE id = ?`
 	// タグ名変更時の書き換え候補の絞り込み（LIKEは % _ を含むタグ名でも上位集合を返すため、
 	// 実際の書き換え対象はGo側でトークン単位に判定する）
 	_SQL_QUERY_TICKETS_BY_TAG = `SELECT id, title, content, COALESCE(tags, ''), created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM tickets WHERE tags LIKE ?`

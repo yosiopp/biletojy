@@ -444,16 +444,25 @@ func (dao *Dao) GetTicket(id int64) (*Ticket, error) {
 }
 
 // チケットに付与されたタグのうちタグカタログ未定義のものを自動登録する。
+// 既存タグ名を1回のSELECTで取得し、未定義の差分だけINSERTする（タグごとの集計付きINSERTを避ける）。
 // 日時・数値タグ（グループ名末尾 @/#）は値ごとではなくグループ（例: "due-date@:"）として登録する。
 // タグAPIの検証（TagNameError）に通らない名前はカタログに登録できないため除外する
 func registerUnknownTags(tx *sql.Tx, tags string) error {
-	for _, tag := range strings.Fields(tags) {
+	fields := strings.Fields(tags)
+	if len(fields) == 0 {
+		return nil
+	}
+	known, err := queryTagNames(tx)
+	if err != nil {
+		return err
+	}
+	for _, tag := range fields {
 		sep := strings.Index(tag, ":")
 		isGroup, isRange := TagAttrs(tag)
 		if isRange {
 			tag = tag[:sep+1]
 		}
-		if TagNameError(tag) != "" {
+		if known[tag] || TagNameError(tag) != "" {
 			continue
 		}
 		// 一覧のセクション区分（_SQL_QUERY_TAGSと同じ。グループ接頭辞、値なしのグループエントリは ":"、
@@ -470,8 +479,27 @@ func registerUnknownTags(tx *sql.Tx, tags string) error {
 		if _, err := tx.Exec(_SQL_ADD_UNKNOWN_TAG, tag, isGroup, isRange, section); err != nil {
 			return err
 		}
+		known[tag] = true
 	}
 	return nil
+}
+
+// タグカタログの全タグ名を集合として返す（未定義タグの差分判定用）
+func queryTagNames(tx *sql.Tx) (map[string]bool, error) {
+	rows, err := tx.Query(_SQL_QUERY_TAG_NAMES)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	names := map[string]bool{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names[name] = true
+	}
+	return names, rows.Err()
 }
 
 func (dao *Dao) AddTicket(ticket *Ticket) error {
