@@ -69,9 +69,11 @@ function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props
   const move = (ticket: Ticket, targetTag: string | null) => {
     const prefix = `${by}:`;
     const tags = splitTags(ticket.tags);
-    const index = tags.findIndex((t) => t.startsWith(prefix));
+    const first = tags.findIndex((t) => t.startsWith(prefix));
     const next = tags.filter((t) => !t.startsWith(prefix));
-    if (targetTag != null) next.splice(index >= 0 ? Math.min(index, next.length) : next.length, 0, targetTag);
+    // 挿入位置はfilter後のnext配列基準で数える（元のタグより前に残るタグの数）
+    const index = first >= 0 ? tags.slice(0, first).filter((t) => !t.startsWith(prefix)).length : next.length;
+    if (targetTag != null) next.splice(index, 0, targetTag);
     const nextTags = joinTags(next);
     if (nextTags === ticket.tags) return;
     api

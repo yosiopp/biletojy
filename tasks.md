@@ -55,7 +55,6 @@
 
 - `back/data/const.go:187-189` — `_SCHEMA_VERSION` と `_SQL_SET_USER_VERSION` にバージョン番号が二重管理。`migrate` 側で `fmt.Sprintf("PRAGMA user_version = %d", _SCHEMA_VERSION)` を組み立てる形にする
 - `back/data/dao.go` — `rows.Close()` の扱いが3通り混在（`rewriteTicketTags` / `rebuildFts` はdefer＋明示の二重、`queryCommentsByTickets` はdeferなし手動）。チャンク処理を小関数に切り出して `defer rows.Close()` に統一
-- `front/src/components/TicketBoard.tsx:71-73` — カード移動時の挿入位置 `index` がfilter前の `tags` 配列基準。filter後の `next` 配列で `findIndex` する方が正確（同一グループのタグが複数付いた不正データ時のみずれる）
 - `front/src/pages/TicketList.tsx:48` — `tagsParam.split(',').filter(...)` が28行目の `tags` 導出と重複。統一する
 - `back/server.go:488,518`（PUT /api/tags/{id} と /rename）— レスポンスがリクエストボディ由来の `data.Tag` をそのまま返すため、ボディで `sort_order` を省略するとDB上の実値と食い違う `sort_order: 0` が返る。DBから読み直して返すか、docs/api.md に挙動を明記する
 - `back/data/dao.go:417-443`（`registerUnknownTags`）— タグ1個ごとに集計付きINSERTを実行。先に `SELECT tag FROM tag_catalog` を1回引いて差分だけINSERTすれば定数回になる
