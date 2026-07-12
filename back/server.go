@@ -56,6 +56,10 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 			writeErrorMessage(w, http.StatusBadRequest, "title is required")
 			return
 		}
+		if msg := data.TagsError(ticket.Tags); msg != "" {
+			writeErrorMessage(w, http.StatusBadRequest, msg)
+			return
+		}
 		if ticket.CreatedBy == "" {
 			ticket.CreatedBy = "anonymous"
 		}
@@ -98,6 +102,10 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		}
 		if ticket.Title == "" {
 			writeErrorMessage(w, http.StatusBadRequest, "title is required")
+			return
+		}
+		if msg := data.TagsError(ticket.Tags); msg != "" {
+			writeErrorMessage(w, http.StatusBadRequest, msg)
 			return
 		}
 		ticket.Id = id
@@ -279,6 +287,10 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 			ticket := &req.Tickets[i]
 			if ticket.Title == "" {
 				writeErrorMessage(w, http.StatusBadRequest, fmt.Sprintf("tickets[%d]: title is required", i))
+				return
+			}
+			if msg := data.TagsError(ticket.Tags); msg != "" {
+				writeErrorMessage(w, http.StatusBadRequest, fmt.Sprintf("tickets[%d]: %s", i, msg))
 				return
 			}
 			if ticket.CreatedBy == "" {

@@ -126,6 +126,30 @@ func TestTicketCreate(t *testing.T) {
 	assertErrorResponse(t, request(t, handler, "POST", "/api/tickets", "{invalid json"), http.StatusBadRequest)
 }
 
+func TestTicketTagsValidation(t *testing.T) {
+	handler := newTestServer(t)
+	created := createTicket(t, handler, data.Ticket{Title: "検証対象", Content: "本文", Tags: "status:OPEN"})
+
+	// 作成・編集時、検索構文のメタ文字と衝突するタグ（","・"|" を含む、先頭 "-"）は400
+	invalid := []string{"a,b", "a|b", "-lead", "status:OPEN a,b"}
+	for _, tags := range invalid {
+		assertErrorResponse(t, request(t, handler, "POST", "/api/tickets", data.Ticket{Title: "x", Tags: tags}), http.StatusBadRequest)
+		assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", created.Id), data.Ticket{Title: "x", Tags: tags}), http.StatusBadRequest)
+	}
+
+	// インポートも同じ検証を受ける（不正なタグを含むチケットがあれば全体が400）
+	assertErrorResponse(t, request(t, handler, "POST", "/api/import",
+		map[string]any{"tickets": []map[string]any{{"title": "t", "tags": "a|b"}}}), http.StatusBadRequest)
+
+	// 通常のタグ（グループ・階層・日時・数値・複数指定）は通る
+	valid := createTicket(t, handler, data.Ticket{Title: "有効なタグ", Tags: "status:OPEN docs/design due-date@:2026-01-01 estimate#:3"})
+	if valid.Id <= 0 {
+		t.Errorf("valid tags rejected: %+v", valid)
+	}
+	// タグなしも通る
+	assertStatus(t, request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", created.Id), data.Ticket{Title: "タグなし", Tags: ""}), http.StatusOK)
+}
+
 func TestTicketGet(t *testing.T) {
 	handler := newTestServer(t)
 	created := createTicket(t, handler, data.Ticket{Title: "取得テスト", Content: "本文"})

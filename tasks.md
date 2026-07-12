@@ -10,9 +10,6 @@
 ### 日時タグ値の正規表現をフロントとバックで揃える
 バックエンドの日時値判定（`back/data/rangecond.go:19` の `dateValuePattern`）は `^...$` の完全一致だが、フロントの `DATE_RANGE_VALUE`（`front/src/lib/tags.ts:110` 付近）と `dueState`（同 207 付近）は末尾アンカーがない。`due-date@:2026-01-01x` のような不正値がフロントだけ期限切れ表示・補正対象になり、バックエンドの範囲検索やソート（`front/src/lib/sort.ts` は `$` あり）と食い違う。フロント側の2つの正規表現に終端アンカーを追加して揃える（`dueState` は時刻部分が任意なので `(?:...)?$` の形）。
 
-### チケット作成/編集/インポート時にタグを検証する
-タグカタログAPI（`back/server.go` の `saveTag` → `data.TagNameError`）は `,` `|` 先頭 `-` を400で拒否するが、POST/PUT tickets（`back/server.go:47-114`）とインポートは `tags` を無検証で保存する。メタ文字入りタグは検索構文と衝突して絞り込めなくなり、`registerUnknownTags`（`back/data/dao.go:424` 付近）も黙ってスキップする。書き込み時に `strings.Fields(tags)` の各トークンへタグAPIと同等の検証をかけて400を返す。既存データ互換のため読み取り側は寛容のまま。テストとdocs/api.mdの更新も。
-
 ### TicketForm の編集ロードに staleGuard を適用する
 他画面（TicketList / TicketDetail / TicketHistory / TicketRefTextarea）で徹底されている古いレスポンス破棄パターンが、`front/src/pages/TicketForm.tsx:44-56` の `getTicket` ロードだけ未適用。編集画面間を素早く遷移すると古い内容がフォームと `initial`（dirty判定基準）に載る。同じパターンで `staleGuard()` を適用する。
 
