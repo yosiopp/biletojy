@@ -126,6 +126,30 @@ func TestTicketCreate(t *testing.T) {
 	assertErrorResponse(t, request(t, handler, "POST", "/api/tickets", "{invalid json"), http.StatusBadRequest)
 }
 
+func TestTicketTagsValidation(t *testing.T) {
+	handler := newTestServer(t)
+	created := createTicket(t, handler, data.Ticket{Title: "検証対象", Content: "本文", Tags: "status:OPEN"})
+
+	// 作成・編集時、検索構文のメタ文字と衝突するタグ（","・"|" を含む、先頭 "-"）は400
+	invalid := []string{"a,b", "a|b", "-lead", "status:OPEN a,b"}
+	for _, tags := range invalid {
+		assertErrorResponse(t, request(t, handler, "POST", "/api/tickets", data.Ticket{Title: "x", Tags: tags}), http.StatusBadRequest)
+		assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", created.Id), data.Ticket{Title: "x", Tags: tags}), http.StatusBadRequest)
+	}
+
+	// インポートも同じ検証を受ける（不正なタグを含むチケットがあれば全体が400）
+	assertErrorResponse(t, request(t, handler, "POST", "/api/import",
+		map[string]any{"tickets": []map[string]any{{"title": "t", "tags": "a|b"}}}), http.StatusBadRequest)
+
+	// 通常のタグ（グループ・階層・日時・数値・複数指定）は通る
+	valid := createTicket(t, handler, data.Ticket{Title: "有効なタグ", Tags: "status:OPEN docs/design due-date@:2026-01-01 estimate#:3"})
+	if valid.Id <= 0 {
+		t.Errorf("valid tags rejected: %+v", valid)
+	}
+	// タグなしも通る
+	assertStatus(t, request(t, handler, "PUT", fmt.Sprintf("/api/tickets/%d", created.Id), data.Ticket{Title: "タグなし", Tags: ""}), http.StatusOK)
+}
+
 func TestTicketGet(t *testing.T) {
 	handler := newTestServer(t)
 	created := createTicket(t, handler, data.Ticket{Title: "取得テスト", Content: "本文"})
@@ -251,9 +275,10 @@ func TestCommentCreateAndList(t *testing.T) {
 		t.Errorf("comments = %+v, want 2", got)
 	}
 
-	// バリデーションと404
+	// バリデーションと404（存在しないチケットは一覧・追加とも404）
 	assertErrorResponse(t, request(t, handler, "POST", commentsPath, data.Comment{}), http.StatusBadRequest)
 	assertErrorResponse(t, request(t, handler, "POST", "/api/tickets/9999/comments", data.Comment{Content: "x"}), http.StatusNotFound)
+	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/9999/comments", nil), http.StatusNotFound)
 }
 
 func TestCommentUpdate(t *testing.T) {
@@ -300,12 +325,8 @@ func TestTicketHistories(t *testing.T) {
 		t.Errorf("histories[1] = %+v, want 改版 by bob", histories[1])
 	}
 
-	// 存在しないチケットは空配列
-	w = request(t, handler, "GET", "/api/tickets/9999/histories", nil)
-	assertStatus(t, w, http.StatusOK)
-	if got := decodeBody[[]data.TicketHistory](t, w); len(got) != 0 {
-		t.Errorf("histories of missing ticket = %+v, want empty", got)
-	}
+	// 存在しないチケットは404（他のサブリソースGETと同じ）
+	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/9999/histories", nil), http.StatusNotFound)
 
 	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/abc/histories", nil), http.StatusBadRequest)
 }
@@ -334,12 +355,8 @@ func TestCommentHistories(t *testing.T) {
 		t.Errorf("histories[1] = %+v, want 改版コメント by bob", histories[1])
 	}
 
-	// 存在しないコメントは空配列
-	w = request(t, handler, "GET", "/api/comments/9999/histories", nil)
-	assertStatus(t, w, http.StatusOK)
-	if got := decodeBody[[]data.CommentHistory](t, w); len(got) != 0 {
-		t.Errorf("histories of missing comment = %+v, want empty", got)
-	}
+	// 存在しないコメントは404（他のサブリソースGETと同じ）
+	assertErrorResponse(t, request(t, handler, "GET", "/api/comments/9999/histories", nil), http.StatusNotFound)
 
 	assertErrorResponse(t, request(t, handler, "GET", "/api/comments/abc/histories", nil), http.StatusBadRequest)
 }
@@ -463,6 +480,8 @@ func TestTicketBacklinks(t *testing.T) {
 		t.Errorf("backlinks of unreferenced ticket = %+v, want empty", got)
 	}
 
+	// 存在しないチケットは404（他のサブリソースGETと同じ）
+	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/9999/backlinks", nil), http.StatusNotFound)
 	assertErrorResponse(t, request(t, handler, "GET", "/api/tickets/abc/backlinks", nil), http.StatusBadRequest)
 }
 
@@ -678,6 +697,35 @@ func TestTagRename(t *testing.T) {
 	assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d/rename", tagId), map[string]any{"tag": "a b"}), http.StatusBadRequest)
 	assertErrorResponse(t, request(t, handler, "PUT", "/api/tags/9999/rename", map[string]any{"tag": "x"}), http.StatusNotFound)
 	assertErrorResponse(t, request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d/rename", tagId), map[string]any{"tag": "status:OPEN"}), http.StatusConflict)
+}
+
+// タグ編集・改名のレスポンスは、ボディで省略した項目（sort_order等）もDB上の実値で返す
+func TestTagUpdateResponseFromDb(t *testing.T) {
+	handler := newTestServer(t)
+
+	w := request(t, handler, "POST", "/api/tags", data.Tag{Tag: "priority:HIGH"})
+	assertStatus(t, w, http.StatusCreated)
+	created := decodeBody[data.Tag](t, w)
+
+	// 並び替えでsort_orderを設定しておく
+	w = request(t, handler, "PUT", "/api/tags/order", map[string][]int64{"ids": {created.Id}})
+	assertStatus(t, w, http.StatusNoContent)
+
+	// 編集: sort_orderをボディで省略してもDBの実値（1）が返る
+	w = request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d", created.Id), data.Tag{Tag: "priority:URGENT"})
+	assertStatus(t, w, http.StatusOK)
+	updated := decodeBody[data.Tag](t, w)
+	if updated.Tag != "priority:URGENT" || updated.SortOrder != 1 {
+		t.Errorf("updated = %+v, want tag=priority:URGENT sort_order=1", updated)
+	}
+
+	// 改名も同様
+	w = request(t, handler, "PUT", fmt.Sprintf("/api/tags/%d/rename", created.Id), map[string]any{"tag": "priority:TOP"})
+	assertStatus(t, w, http.StatusOK)
+	renamed := decodeBody[data.Tag](t, w)
+	if renamed.Tag != "priority:TOP" || renamed.SortOrder != 1 {
+		t.Errorf("renamed = %+v, want tag=priority:TOP sort_order=1", renamed)
+	}
 }
 
 func TestTagDuplicateConflict(t *testing.T) {

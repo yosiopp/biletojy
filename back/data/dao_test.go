@@ -307,17 +307,17 @@ func TestQueryTicketsNotOr(t *testing.T) {
 		want []int64
 	}{
 		{[]string{"-status:CLOSED"}, []int64{t4.Id, t2.Id, t1.Id}},                 // NOT
-		{[]string{"-docs"}, []int64{t4.Id, t3.Id, t1.Id}},                         // 階層の前方一致のNOT
-		{[]string{"status:OPEN|status:WIP"}, []int64{t4.Id, t2.Id, t1.Id}},        // OR
-		{[]string{"status:OPEN|docs/design"}, []int64{t2.Id, t1.Id}},              // グループを跨ぐOR
-		{[]string{"-status:OPEN|status:WIP"}, []int64{t3.Id}},                     // NOTはOR全体に掛かる
+		{[]string{"-docs"}, []int64{t4.Id, t3.Id, t1.Id}},                          // 階層の前方一致のNOT
+		{[]string{"status:OPEN|status:WIP"}, []int64{t4.Id, t2.Id, t1.Id}},         // OR
+		{[]string{"status:OPEN|docs/design"}, []int64{t2.Id, t1.Id}},               // グループを跨ぐOR
+		{[]string{"-status:OPEN|status:WIP"}, []int64{t3.Id}},                      // NOTはOR全体に掛かる
 		{[]string{"type:BUG", "-status:CLOSED"}, []int64{t1.Id}},                   // ANDとの組み合わせ
 		{[]string{"-status:CLOSED", "-status:WIP"}, []int64{t1.Id}},                // NOT同士のAND
 		{[]string{"status:OPEN|status:CLOSED", "type:BUG"}, []int64{t3.Id, t1.Id}}, // ORとANDの組み合わせ
-		{[]string{"due-date@:>=2026-01-01|status:OPEN"}, []int64{t4.Id, t1.Id}},   // 範囲条件を含むOR
-		{[]string{"-due-date@:>=2026-01-01"}, []int64{t3.Id, t2.Id, t1.Id}},       // 範囲条件のNOT（タグなしも含む）
-		{[]string{"-"}, []int64{t4.Id, t3.Id, t2.Id, t1.Id}},                      // 空の条件は無視
-		{[]string{"status:OPEN|"}, []int64{t1.Id}},                                // 空の択は無視
+		{[]string{"due-date@:>=2026-01-01|status:OPEN"}, []int64{t4.Id, t1.Id}},    // 範囲条件を含むOR
+		{[]string{"-due-date@:>=2026-01-01"}, []int64{t3.Id, t2.Id, t1.Id}},        // 範囲条件のNOT（タグなしも含む）
+		{[]string{"-"}, []int64{t4.Id, t3.Id, t2.Id, t1.Id}},                       // 空の条件は無視
+		{[]string{"status:OPEN|"}, []int64{t1.Id}},                                 // 空の択は無視
 	}
 	for _, tt := range tests {
 		if got := queryTicketIds(t, dao, "", tt.tags); !slices.Equal(got, tt.want) {
@@ -405,6 +405,56 @@ func TestQueryTicketsLimit(t *testing.T) {
 		if len(tickets) != 2 || tickets[0].Id != t3.Id || tickets[1].Id != t1.Id {
 			t.Errorf("QueryTickets(limit=%d) = %+v, want [%d %d]", limit, tickets, t3.Id, t1.Id)
 		}
+	}
+}
+
+// 肯定条件のLIKEによる事前絞り込みが、厳密なタグ一致の結果を変えないこと
+func TestQueryTicketsTagPrefilter(t *testing.T) {
+	dao := newTestDao(t)
+
+	t1 := addTestTicket(t, dao, "記号タグ", "内容1", "rate:100%")
+	addTestTicket(t, dao, "部分文字列", "内容2", "rate:10x0 food")
+
+	tests := []struct {
+		tags []string
+		want []int64
+	}{
+		{[]string{"rate:100%"}, []int64{t1.Id}},          // LIKEのワイルドカードを含むタグの完全一致
+		{[]string{"rate:10_0"}, []int64{}},               // "_" は任意の1文字ではなくリテラルとして判定される
+		{[]string{"foo"}, []int64{}},                     // "food" のような部分文字列には一致しない
+		{[]string{"rate:100%", "-food"}, []int64{t1.Id}}, // 肯定条件とNOT条件の併用
+	}
+	for _, tt := range tests {
+		if got := queryTicketIds(t, dao, "", tt.tags); !slices.Equal(got, tt.want) {
+			t.Errorf("QueryTickets(tags=%v) = %v, want %v", tt.tags, got, tt.want)
+		}
+	}
+}
+
+// タグ条件なしの場合はSQLのLIMITで打ち切られる（結果は従来と同じ）
+func TestQueryTicketsSqlLimit(t *testing.T) {
+	dao := newTestDao(t)
+
+	addTestTicket(t, dao, "対象1", "共通ワード", "")
+	t2 := addTestTicket(t, dao, "対象2", "共通ワード", "")
+	t3 := addTestTicket(t, dao, "対象3", "共通ワード", "")
+
+	// 条件なし
+	tickets, err := dao.QueryTickets("", nil, 2)
+	if err != nil {
+		t.Fatalf("QueryTickets(limit=2): %v", err)
+	}
+	if len(tickets) != 2 || tickets[0].Id != t3.Id || tickets[1].Id != t2.Id {
+		t.Errorf("QueryTickets(limit=2) = %+v, want [%d %d]", tickets, t3.Id, t2.Id)
+	}
+
+	// 全文検索と組み合わせ
+	tickets, err = dao.QueryTickets("共通ワード", nil, 2)
+	if err != nil {
+		t.Fatalf("QueryTickets(q, limit=2): %v", err)
+	}
+	if len(tickets) != 2 || tickets[0].Id != t3.Id || tickets[1].Id != t2.Id {
+		t.Errorf("QueryTickets(q, limit=2) = %+v, want [%d %d]", tickets, t3.Id, t2.Id)
 	}
 }
 
@@ -593,6 +643,68 @@ func TestMigrateRenamesCloseTag(t *testing.T) {
 	}
 	if ids := queryTicketIds(t, dao, "", []string{"status:CLOSED"}); !slices.Equal(ids, []int64{ticket.Id}) {
 		t.Errorf("QueryTickets(status:CLOSED) = %v, want [%d]", ids, ticket.Id)
+	}
+}
+
+// v6時点のDB（FTSのrowidがチケットIDと未対応）からの移行。
+// FTSが再構築されてrowid = チケットIDになり、rowidベースの検索・更新が機能する
+func TestMigrateRebuildsFtsRowid(t *testing.T) {
+	t.Chdir(t.TempDir())
+	dao, err := NewDao()
+	if err != nil {
+		t.Fatalf("NewDao: %v", err)
+	}
+	ticket := addTestTicket(t, dao, "移行対象", "本文の初版", "status:OPEN")
+	comment := &Comment{TicketId: ticket.Id, Content: "コメントも索引される", CreatedBy: "alice"}
+	if err := dao.AddComment(comment); err != nil {
+		t.Fatalf("AddComment: %v", err)
+	}
+	// 旧DB相当: FTS行のrowidをチケットIDとずらしてv6へ巻き戻す
+	for _, q := range []string{
+		`DELETE FROM tickets_fts`,
+		`INSERT INTO tickets_fts (rowid, ticket_id, title, content, tags, comments) VALUES (100, ` + strconv.FormatInt(ticket.Id, 10) + `, 'x', 'x', 'x', 'x')`,
+		`PRAGMA user_version = 6`,
+	} {
+		if _, err := dao.db.Exec(q); err != nil {
+			t.Fatalf("exec %q: %v", q, err)
+		}
+	}
+	dao.Close()
+
+	dao, err = NewDao()
+	if err != nil {
+		t.Fatalf("NewDao: %v", err)
+	}
+	t.Cleanup(dao.Close)
+
+	// rowidがチケットIDで再構築され、本文・コメントとも検索できる
+	if n := countRows(t, dao, `SELECT COUNT(*) FROM tickets_fts WHERE rowid = ?`, ticket.Id); n != 1 {
+		t.Errorf("tickets_fts rows with rowid = ticket id: %d, want 1", n)
+	}
+	if n := countRows(t, dao, `SELECT COUNT(*) FROM tickets_fts`); n != 1 {
+		t.Errorf("tickets_fts rows = %d, want 1", n)
+	}
+	if ids := queryTicketIds(t, dao, "初版", nil); !slices.Equal(ids, []int64{ticket.Id}) {
+		t.Errorf("QueryTickets(content) = %v, want [%d]", ids, ticket.Id)
+	}
+	if ids := queryTicketIds(t, dao, "索引", nil); !slices.Equal(ids, []int64{ticket.Id}) {
+		t.Errorf("QueryTickets(comment) = %v, want [%d]", ids, ticket.Id)
+	}
+
+	// rowidベースの更新（チケット編集・コメント編集）もFTSへ反映される
+	got, err := dao.GetTicket(ticket.Id)
+	if err != nil {
+		t.Fatalf("GetTicket: %v", err)
+	}
+	got.Content = "編集後の本文"
+	if err := dao.EditTicket(got); err != nil {
+		t.Fatalf("EditTicket: %v", err)
+	}
+	if ids := queryTicketIds(t, dao, "編集後", nil); !slices.Equal(ids, []int64{ticket.Id}) {
+		t.Errorf("QueryTickets(after edit) = %v, want [%d]", ids, ticket.Id)
+	}
+	if ids := queryTicketIds(t, dao, "初版", nil); len(ids) != 0 {
+		t.Errorf("QueryTickets(old content) = %v, want empty", ids)
 	}
 }
 

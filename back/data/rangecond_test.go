@@ -1,6 +1,9 @@
 package data
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseRangeCond(t *testing.T) {
 	tests := []struct {
@@ -117,7 +120,7 @@ func TestRangeCondMatch(t *testing.T) {
 		if c == nil {
 			t.Fatalf("parseRangeCond(%q) = nil", tt.cond)
 		}
-		if got := c.match(tt.tags); got != tt.want {
+		if got := c.match(strings.Fields(tt.tags)); got != tt.want {
 			t.Errorf("(%q).match(%q) = %v, want %v", tt.cond, tt.tags, got, tt.want)
 		}
 	}

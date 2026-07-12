@@ -40,8 +40,28 @@ func parseTagCond(s string) *tagCond {
 	return c
 }
 
-// チケットのタグ文字列が条件を満たすか（いずれかの択にマッチ。NOTなら反転）
-func (c *tagCond) match(tags string) bool {
+// 候補の事前絞り込み用に、いずれかの択を部分文字列として含むことを表すLIKE条件
+// （SQL断片とバインド値）を返す。LIKEは上位集合を返す（部分文字列や % _ のワイルドカードにも
+// マッチする）ため、厳密な判定はmatchで行う。NOT条件は絞り込みに使えないため空を返す
+func (c *tagCond) likeCond() (string, []any) {
+	if c.not {
+		return "", nil
+	}
+	likes := make([]string, len(c.alts))
+	args := make([]any, len(c.alts))
+	for i, alt := range c.alts {
+		token := alt.tag
+		if alt.rng != nil {
+			token = alt.rng.group
+		}
+		likes[i] = `t.tags LIKE ?`
+		args[i] = "%" + token + "%"
+	}
+	return "(" + strings.Join(likes, " OR ") + ")", args
+}
+
+// チケットの分割済みタグ群が条件を満たすか（いずれかの択にマッチ。NOTなら反転）
+func (c *tagCond) match(tags []string) bool {
 	for _, alt := range c.alts {
 		if alt.match(tags) {
 			return !c.not
@@ -50,11 +70,11 @@ func (c *tagCond) match(tags string) bool {
 	return c.not
 }
 
-func (a tagAlt) match(tags string) bool {
+func (a tagAlt) match(tags []string) bool {
 	if a.rng != nil {
 		return a.rng.match(tags)
 	}
-	for _, tag := range strings.Fields(tags) {
+	for _, tag := range tags {
 		if tag == a.tag || strings.HasPrefix(tag, a.tag+"/") {
 			return true
 		}

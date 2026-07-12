@@ -56,6 +56,10 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 			writeErrorMessage(w, http.StatusBadRequest, "title is required")
 			return
 		}
+		if msg := data.TagsError(ticket.Tags); msg != "" {
+			writeErrorMessage(w, http.StatusBadRequest, msg)
+			return
+		}
 		if ticket.CreatedBy == "" {
 			ticket.CreatedBy = "anonymous"
 		}
@@ -100,6 +104,10 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 			writeErrorMessage(w, http.StatusBadRequest, "title is required")
 			return
 		}
+		if msg := data.TagsError(ticket.Tags); msg != "" {
+			writeErrorMessage(w, http.StatusBadRequest, msg)
+			return
+		}
 		ticket.Id = id
 		ticket.CreatedBy = current.CreatedBy
 		ticket.CreatedSub = current.CreatedSub
@@ -121,6 +129,9 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		if !ok {
 			return
 		}
+		if _, ok := fetchOr404(w, dao.GetTicket, id, "ticket"); !ok {
+			return
+		}
 		comments, err := dao.QueryComments(id)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
@@ -132,6 +143,9 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 	mux.HandleFunc("GET /api/tickets/{id}/histories", func(w http.ResponseWriter, r *http.Request) {
 		id, ok := pathId(w, r)
 		if !ok {
+			return
+		}
+		if _, ok := fetchOr404(w, dao.GetTicket, id, "ticket"); !ok {
 			return
 		}
 		histories, err := dao.QueryTicketHistories(id)
@@ -147,6 +161,9 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		if !ok {
 			return
 		}
+		if _, ok := fetchOr404(w, dao.GetComment, id, "comment"); !ok {
+			return
+		}
 		histories, err := dao.QueryCommentHistories(id)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
@@ -158,6 +175,9 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 	mux.HandleFunc("GET /api/tickets/{id}/backlinks", func(w http.ResponseWriter, r *http.Request) {
 		id, ok := pathId(w, r)
 		if !ok {
+			return
+		}
+		if _, ok := fetchOr404(w, dao.GetTicket, id, "ticket"); !ok {
 			return
 		}
 		tickets, err := dao.QueryBacklinks(id)
@@ -279,6 +299,10 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 			ticket := &req.Tickets[i]
 			if ticket.Title == "" {
 				writeErrorMessage(w, http.StatusBadRequest, fmt.Sprintf("tickets[%d]: title is required", i))
+				return
+			}
+			if msg := data.TagsError(ticket.Tags); msg != "" {
+				writeErrorMessage(w, http.StatusBadRequest, fmt.Sprintf("tickets[%d]: %s", i, msg))
 				return
 			}
 			if ticket.CreatedBy == "" {
@@ -488,7 +512,12 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		}) {
 			return
 		}
-		writeJson(w, http.StatusOK, tag)
+		// ボディで省略された項目（sort_order等）もDB上の実値で返すため読み直す
+		saved, ok := fetchOr404(w, dao.GetTag, id, "tag")
+		if !ok {
+			return
+		}
+		writeJson(w, http.StatusOK, saved)
 	})
 
 	// タグ名の変更。カタログの更新に加え、そのタグを使用している全チケットのタグ表記も一括で書き換える
@@ -518,7 +547,12 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		}) {
 			return
 		}
-		writeJson(w, http.StatusOK, req.Tag)
+		// ボディで省略された項目（sort_order等）もDB上の実値で返すため読み直す
+		saved, ok := fetchOr404(w, dao.GetTag, id, "tag")
+		if !ok {
+			return
+		}
+		writeJson(w, http.StatusOK, saved)
 	})
 
 	mux.HandleFunc("DELETE /api/tags/{id}", func(w http.ResponseWriter, r *http.Request) {

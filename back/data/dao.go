@@ -136,11 +136,12 @@ func NewDao() (*Dao, error) {
 }
 
 // user_versionが現行より古いDBへのスキーマ移行。
-//   - v2未満: 旧形式（bi-gram化前や旧トークナイズ）で格納されたFTSデータを再構築する
 //   - v3未満: sub関連カラムを追加する（新規DBは_SQL_INITで作成済みのため、カラムの有無で判定する）
 //   - v4未満: tag_catalogへsort_orderカラムを追加する（同上）
 //   - v5未満: 旧imagesテーブルの内容をfilesテーブルへ移行する（テーブルの有無で判定する）
 //   - v6未満: プリセットのstatus:CLOSEタグをstatus:CLOSEDへ改名し、チケットのタグ表記も書き換える
+//   - v7未満: FTSを再構築し、rowidへチケットIDを設定する
+//     （v2の旧トークナイズ形式からの再構築もこの全件再構築が兼ねる）
 func migrate(db *sql.DB) error {
 	var version int
 	if err := db.QueryRow(_SQL_GET_USER_VERSION).Scan(&version); err != nil {
@@ -149,7 +150,7 @@ func migrate(db *sql.DB) error {
 	if version >= _SCHEMA_VERSION {
 		return nil
 	}
-	if version < 2 {
+	if version < 7 {
 		if err := rebuildFts(db); err != nil {
 			return err
 		}
@@ -192,7 +193,7 @@ func migrate(db *sql.DB) error {
 	if err := renameCloseTag(db); err != nil {
 		return err
 	}
-	_, err := db.Exec(_SQL_SET_USER_VERSION)
+	_, err := db.Exec(fmt.Sprintf("PRAGMA user_version = %d", _SCHEMA_VERSION))
 	return err
 }
 
@@ -223,23 +224,10 @@ func renameCloseTag(db *sql.DB) error {
 func rewriteTicketTags(tx *sql.Tx, oldName, newName string, update func(t Ticket, tags string) error) (int, error) {
 	// LIKEは上位集合を返す（oldNameを含むだけのタグにもマッチする）が、
 	// replaceTagTokensのトークン単位の判定で実際の書き換え対象が決まる
-	rows, err := tx.Query(_SQL_QUERY_TICKETS_BY_TAG, "%"+oldName+"%")
+	tickets, err := queryTicketsByTagPattern(tx, "%"+oldName+"%")
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
-	tickets := []Ticket{}
-	for rows.Next() {
-		t, err := scanTicket(rows)
-		if err != nil {
-			return 0, err
-		}
-		tickets = append(tickets, t)
-	}
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-	rows.Close()
 
 	updated := 0
 	for _, t := range tickets {
@@ -258,6 +246,42 @@ func rewriteTicketTags(tx *sql.Tx, oldName, newName string, update func(t Ticket
 	return updated, nil
 }
 
+// タグのLIKEパターンに一致するチケットを返す（rewriteTicketTagsの候補取得用）
+func queryTicketsByTagPattern(tx *sql.Tx, pattern string) ([]Ticket, error) {
+	rows, err := tx.Query(_SQL_QUERY_TICKETS_BY_TAG, pattern)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tickets := []Ticket{}
+	for rows.Next() {
+		t, err := scanTicket(rows)
+		if err != nil {
+			return nil, err
+		}
+		tickets = append(tickets, t)
+	}
+	return tickets, rows.Err()
+}
+
+// FTSの再構築対象（全チケットのid, title, content, tags）を返す
+func queryTicketsForFts(tx *sql.Tx) ([]Ticket, error) {
+	rows, err := tx.Query(_SQL_QUERY_TICKETS_FOR_FTS)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tickets := []Ticket{}
+	for rows.Next() {
+		var t Ticket
+		if err := rows.Scan(&t.Id, &t.Title, &t.Content, &t.Tags); err != nil {
+			return nil, err
+		}
+		tickets = append(tickets, t)
+	}
+	return tickets, rows.Err()
+}
+
 // FTSテーブルを全チケットから再構築する
 func rebuildFts(db *sql.DB) error {
 	tx, err := db.Begin()
@@ -269,23 +293,10 @@ func rebuildFts(db *sql.DB) error {
 	if _, err := tx.Exec(_SQL_DELETE_ALL_TICKET_FTS); err != nil {
 		return err
 	}
-	rows, err := tx.Query(_SQL_QUERY_TICKETS_FOR_FTS)
+	tickets, err := queryTicketsForFts(tx)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	tickets := []Ticket{}
-	for rows.Next() {
-		var t Ticket
-		if err := rows.Scan(&t.Id, &t.Title, &t.Content, &t.Tags); err != nil {
-			return err
-		}
-		tickets = append(tickets, t)
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	rows.Close()
 	for _, t := range tickets {
 		title, content, tags := ftsValues(&t)
 		if _, err := tx.Exec(_SQL_ADD_TICKET_FTS, t.Id, title, content, tags, ""); err != nil {
@@ -323,24 +334,43 @@ func ftsValues(t *Ticket) (title, content, tags string) {
 // チケット検索。qはbi-gram全文検索、tagsはタグ条件のAND絞り込み。
 // 各条件は完全一致または階層の前方一致で、先頭 "-" で除外（NOT）、"|" 区切りでOR指定できる。
 // 日時タグ・数値タグは "due-date@:>=2026-01-01" "estimate#:>=2" のように比較演算子（>, <, >=, <=, =）付きで範囲指定できる。
-// NOT/ORを含むタグ条件はSQLに落とし込みにくいため、タグの絞り込みはGo側で行う
+// NOT/ORを含むタグ条件はSQLに落とし込みにくいため、タグの厳密な判定はGo側で行う
+// （肯定条件はLIKEで候補を事前に絞り、全件の本文込みスキャンを避ける）。
 // 検索条件（q, tags）に一致するチケットをupdated_at降順で返す。
-// タグ条件はGo側で判定するためSQLのLIMITは使えず、limit > 0 のとき一致した先頭limit件で打ち切る（0で全件）
+// limit > 0 のとき一致した先頭limit件で打ち切る（0で全件）。タグ条件がある場合は
+// Go側の判定後に数えるためSQLのLIMITは使えず、タグ条件がない場合のみSQLで打ち切る
 func (dao *Dao) QueryTickets(q string, tags []string, limit int) ([]Ticket, error) {
-	query := _SQL_QUERY_TICKETS_BASE
-	args := []any{}
-	// 空白のみ・記号のみの検索語は空のMATCH式（構文エラー）になるため、変換後に判定する
-	if match := BigramQuery(q); match != "" {
-		query += _SQL_QUERY_TICKETS_FTS + ` WHERE tickets_fts MATCH ?`
-		args = append(args, match)
-	}
-	query += ` ORDER BY t.updated_at DESC`
-
 	conds := []*tagCond{}
 	for _, tag := range tags {
 		if c := parseTagCond(tag); c != nil {
 			conds = append(conds, c)
 		}
+	}
+
+	query := _SQL_QUERY_TICKETS_BASE
+	args := []any{}
+	where := []string{}
+	// 空白のみ・記号のみの検索語は空のMATCH式（構文エラー）になるため、変換後に判定する
+	if match := BigramQuery(q); match != "" {
+		query += _SQL_QUERY_TICKETS_FTS
+		where = append(where, `tickets_fts MATCH ?`)
+		args = append(args, match)
+	}
+	// 肯定条件はLIKEで候補を事前に絞る（rewriteTicketTagsと同じ2段構え。
+	// LIKEは上位集合を返すため、厳密な一致判定は従来通り下のループで行う）
+	for _, c := range conds {
+		if cond, condArgs := c.likeCond(); cond != "" {
+			where = append(where, cond)
+			args = append(args, condArgs...)
+		}
+	}
+	if len(where) > 0 {
+		query += ` WHERE ` + strings.Join(where, ` AND `)
+	}
+	query += ` ORDER BY t.updated_at DESC`
+	if limit > 0 && len(conds) == 0 {
+		query += ` LIMIT ?`
+		args = append(args, limit)
 	}
 
 	rows, err := dao.db.Query(query, args...)
@@ -354,7 +384,8 @@ func (dao *Dao) QueryTickets(q string, tags []string, limit int) ([]Ticket, erro
 		if err != nil {
 			return nil, err
 		}
-		if !matchAllTagConds(conds, t.Tags) {
+		// タグの分割は条件・択ごとに繰り返さず、チケットごとに1回だけ行う
+		if len(conds) > 0 && !matchAllTagConds(conds, strings.Fields(t.Tags)) {
 			continue
 		}
 		tickets = append(tickets, t)
@@ -365,7 +396,8 @@ func (dao *Dao) QueryTickets(q string, tags []string, limit int) ([]Ticket, erro
 	return tickets, rows.Err()
 }
 
-func matchAllTagConds(conds []*tagCond, tags string) bool {
+// 分割済みのタグ群がすべてのタグ条件を満たすか
+func matchAllTagConds(conds []*tagCond, tags []string) bool {
 	for _, c := range conds {
 		if !c.match(tags) {
 			return false
@@ -412,16 +444,25 @@ func (dao *Dao) GetTicket(id int64) (*Ticket, error) {
 }
 
 // チケットに付与されたタグのうちタグカタログ未定義のものを自動登録する。
+// 既存タグ名を1回のSELECTで取得し、未定義の差分だけINSERTする（タグごとの集計付きINSERTを避ける）。
 // 日時・数値タグ（グループ名末尾 @/#）は値ごとではなくグループ（例: "due-date@:"）として登録する。
 // タグAPIの検証（TagNameError）に通らない名前はカタログに登録できないため除外する
 func registerUnknownTags(tx *sql.Tx, tags string) error {
-	for _, tag := range strings.Fields(tags) {
+	fields := strings.Fields(tags)
+	if len(fields) == 0 {
+		return nil
+	}
+	known, err := queryTagNames(tx)
+	if err != nil {
+		return err
+	}
+	for _, tag := range fields {
 		sep := strings.Index(tag, ":")
 		isGroup, isRange := TagAttrs(tag)
 		if isRange {
 			tag = tag[:sep+1]
 		}
-		if TagNameError(tag) != "" {
+		if known[tag] || TagNameError(tag) != "" {
 			continue
 		}
 		// 一覧のセクション区分（_SQL_QUERY_TAGSと同じ。グループ接頭辞、値なしのグループエントリは ":"、
@@ -438,8 +479,27 @@ func registerUnknownTags(tx *sql.Tx, tags string) error {
 		if _, err := tx.Exec(_SQL_ADD_UNKNOWN_TAG, tag, isGroup, isRange, section); err != nil {
 			return err
 		}
+		known[tag] = true
 	}
 	return nil
+}
+
+// タグカタログの全タグ名を集合として返す（未定義タグの差分判定用）
+func queryTagNames(tx *sql.Tx) (map[string]bool, error) {
+	rows, err := tx.Query(_SQL_QUERY_TAG_NAMES)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	names := map[string]bool{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names[name] = true
+	}
+	return names, rows.Err()
 }
 
 func (dao *Dao) AddTicket(ticket *Ticket) error {
@@ -678,30 +738,33 @@ func (dao *Dao) queryCommentsByTickets(ids []int64) (map[int64][]Comment, error)
 	byTicket := map[int64][]Comment{}
 	// SQLiteのバインド変数上限を超えないようINのプレースホルダをチャンク単位で展開する
 	for chunk := range slices.Chunk(ids, 500) {
-		query := fmt.Sprintf(_SQL_QUERY_COMMENTS_BY_TICKETS, strings.TrimSuffix(strings.Repeat("?,", len(chunk)), ","))
-		args := make([]any, len(chunk))
-		for i, id := range chunk {
-			args[i] = id
-		}
-		rows, err := dao.db.Query(query, args...)
-		if err != nil {
+		if err := dao.queryCommentsChunk(chunk, byTicket); err != nil {
 			return nil, err
 		}
-		for rows.Next() {
-			c, err := scanComment(rows)
-			if err != nil {
-				rows.Close()
-				return nil, err
-			}
-			byTicket[c.TicketId] = append(byTicket[c.TicketId], c)
-		}
-		if err := rows.Err(); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		rows.Close()
 	}
 	return byTicket, nil
+}
+
+// 1チャンク分のコメントを取得してbyTicketへ格納する
+func (dao *Dao) queryCommentsChunk(chunk []int64, byTicket map[int64][]Comment) error {
+	query := fmt.Sprintf(_SQL_QUERY_COMMENTS_BY_TICKETS, strings.TrimSuffix(strings.Repeat("?,", len(chunk)), ","))
+	args := make([]any, len(chunk))
+	for i, id := range chunk {
+		args[i] = id
+	}
+	rows, err := dao.db.Query(query, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		c, err := scanComment(rows)
+		if err != nil {
+			return err
+		}
+		byTicket[c.TicketId] = append(byTicket[c.TicketId], c)
+	}
+	return rows.Err()
 }
 
 // エクスポートデータのチケット（コメント込み）をひとつのトランザクションで登録する。

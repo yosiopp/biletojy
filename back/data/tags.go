@@ -1,6 +1,7 @@
 package data
 
 import (
+	"fmt"
 	"strings"
 	"unicode"
 )
@@ -25,6 +26,17 @@ func TagNameError(name string) string {
 		return "tag must not contain ',' or '|'"
 	case strings.ContainsFunc(name, unicode.IsSpace):
 		return "tag must not contain whitespace"
+	}
+	return ""
+}
+
+// チケット等のタグ文字列（スペース区切り）を検証し、問題があればエラーメッセージを返す。
+// 各タグへタグカタログAPIと同じ検証（TagNameError）をかける。空文字（タグなし）は許容する
+func TagsError(tags string) string {
+	for _, tag := range strings.Fields(tags) {
+		if msg := TagNameError(tag); msg != "" {
+			return fmt.Sprintf("tag %q: %s", tag, msg)
+		}
 	}
 	return ""
 }
