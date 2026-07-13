@@ -10,13 +10,15 @@ type Props = {
   tags: string[];
   onImported: (count: number) => void;
   onError: (message: string) => void;
+  // ルート要素へ付与する追加クラス（並び替えグループと視覚的に分けるための余白など）
+  className?: string;
 };
 
 // チケット一覧のエクスポート/インポートのメニュー。
 // エクスポートは現在の検索条件（q + tags）で絞り込んだチケットをコメント込みでダウンロードし、
 // インポートはJSONエクスポートファイルを選択して新規チケットとして取り込む
 // キーボード: ↑↓で移動、Enter/Spaceで実行、Escで閉じる
-function ExportImport({ q, tags, onImported, onError }: Props) {
+function ExportImport({ q, tags, onImported, onError, className = '' }: Props) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const [importing, setImporting] = useState(false);
@@ -61,7 +63,6 @@ function ExportImport({ q, tags, onImported, onError }: Props) {
     { key: 'export-md', label: 'Markdownエクスポート', href: api.exportUrl(q, tags, 'markdown') },
     { key: 'import', label: 'JSONインポート...', href: null },
   ];
-  const hasFilter = q.length > 0 || tags.length > 0;
 
   const { onKeyDown, close } = useMenuKeys({
     open,
@@ -80,7 +81,7 @@ function ExportImport({ q, tags, onImported, onError }: Props) {
     `block w-full text-left px-2 py-1 text-sm ${i === active ? 'bg-blue-100 dark:bg-blue-900' : ''} hover:bg-neutral-100 dark:hover:bg-neutral-700`;
 
   return (
-    <span ref={rootRef} className="relative inline-block" onKeyDown={onKeyDown}>
+    <span ref={rootRef} className={`relative inline-block ${className}`} onKeyDown={onKeyDown}>
       <button
         ref={buttonRef}
         type="button"
@@ -116,7 +117,6 @@ function ExportImport({ q, tags, onImported, onError }: Props) {
                 onClick={() => setOpen(false)}
               >
                 {item.label}
-                {hasFilter && <span className="text-neutral-400 ml-1 text-xs">現在の検索条件</span>}
               </a>
             ) : (
               <button

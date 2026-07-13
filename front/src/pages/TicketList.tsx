@@ -167,6 +167,7 @@ function TicketList() {
             <Icon name={sort.desc ? 'arrow_downward' : 'arrow_upward'} />
           </button>
           <ExportImport
+            className="ml-3"
             q={q}
             tags={tags}
             onImported={(count) => {
