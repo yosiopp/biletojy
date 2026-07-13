@@ -99,7 +99,7 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
   });
 
   const btnClass = (target: ViewMode, extra: string) =>
-    `px-2 py-0.5 ${extra} ${
+    `py-0.5 ${extra} ${
       mode === target ? 'bg-neutral-200 dark:bg-neutral-600' : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
     }`;
 
@@ -146,7 +146,7 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
       <button
         type="button"
         aria-pressed={mode === 'list'}
-        className={btnClass('list', 'rounded-l-sm')}
+        className={btnClass('list', 'px-2 rounded-l-sm')}
         onClick={() => {
           closeMenu();
           onChange('list', '');
@@ -157,7 +157,7 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
 
       <span className="relative inline-flex" onKeyDown={treeKeys.onKeyDown}>
         {/* ラベル=モード切替のみ、▾=対象プルダウン、で別々のクリック領域にする */}
-        <button type="button" aria-pressed={mode === 'tree'} className={btnClass('tree', 'border-l')} onClick={() => selectMode('tree')}>
+        <button type="button" aria-pressed={mode === 'tree'} className={btnClass('tree', 'border-l pl-2 pr-1')} onClick={() => selectMode('tree')}>
           ツリー
         </button>
         <button
@@ -175,7 +175,7 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
       </span>
 
       <span className="relative inline-flex" onKeyDown={boardKeys.onKeyDown}>
-        <button type="button" aria-pressed={mode === 'board'} className={btnClass('board', 'border-l')} onClick={() => selectMode('board')}>
+        <button type="button" aria-pressed={mode === 'board'} className={btnClass('board', 'border-l pl-2 pr-1')} onClick={() => selectMode('board')}>
           ボード
         </button>
         <button
