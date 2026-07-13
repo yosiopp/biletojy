@@ -7,12 +7,13 @@ import TagFilter from '../components/TagFilter';
 import TicketBoard from '../components/TicketBoard';
 import TicketRow from '../components/TicketRow';
 import TicketTree from '../components/TicketTree';
+import ViewModeSelect from '../components/ViewModeSelect';
 import ViewSelect from '../components/ViewSelect';
 import { buildSort, HIERARCHY_SORT_KEY, parseSort, sortTickets, SortSpec } from '../lib/sort';
 import { staleGuard } from '../lib/staleGuard';
-import { groupCatalog, hierarchyOptions } from '../lib/tags';
+import { groupCatalog } from '../lib/tags';
 import { useCatalog, useTagColors } from '../lib/useCatalog';
-import { parseViewMode, VIEW_MODES, ViewMode } from '../lib/viewMode';
+import { parseViewMode, ViewMode } from '../lib/viewMode';
 
 function TicketList() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -55,18 +56,6 @@ function TicketList() {
       .catch(fresh((e: Error) => setError(e.message)));
     return cancel;
   }, [q, tags, reload]);
-
-  // 表示対象の選択肢。ツリーはルートに選べる階層タグ（中間階層含む）、ボードは基準に選べる
-  // タググループ（日時・数値グループは値が離散でないため対象外）。
-  // URL直指定でカタログに無い値が来ても選択欄の表示が崩れないように含める
-  const byOptions = useMemo(() => {
-    const options =
-      mode === 'board'
-        ? [...groupCatalog(catalog).keys()].filter((g) => !/[@#]$/.test(g))
-        : hierarchyOptions(catalog);
-    if (by && !options.includes(by)) options.push(by);
-    return options;
-  }, [catalog, by, mode]);
 
   // 検索条件と表示モードをまとめてURLパラメータへ反映する（リスト表示は view / by を付けない）
   const applyView = (nextQ: string, nextTags: string[], nextMode: ViewMode, nextBy: string) => {
@@ -143,44 +132,11 @@ function TicketList() {
 
       <div id="ticket-controls" className={filtersOpen ? '' : 'hidden sm:block'}>
       <div className="flex flex-wrap items-start justify-between mb-2">
-        {/* items-start で上端揃え。対象セレクト等が出ても toggle の縦位置がズレないようにする */}
+        {/* items-start で上端揃え。ビュー選択が出ても表示モードの縦位置がズレないようにする */}
         <div className="flex flex-wrap items-start">
-          {/* 表示モードの切替を先頭に固定して、ビュー選択・対象セレクトの出現でボタンがズレないようにする */}
-          <div className="inline-flex border rounded-sm text-sm mr-2 mb-1" role="group" aria-label="表示モード">
-            {VIEW_MODES.map(({ value, label }, i) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={mode === value}
-                className={`px-2 py-0.5 ${i > 0 ? 'border-l' : ''} ${
-                  mode === value
-                    ? 'bg-neutral-200 dark:bg-neutral-600'
-                    : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                }`}
-                onClick={() => applyView(q, tags, value, value === mode ? by : '')}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {/* 表示モード切替を先頭に固定。ツリー/ボードは ▾ で対象選択のプルダウンを内蔵する */}
+          <ViewModeSelect mode={mode} by={by} catalog={catalog} onChange={(m, b) => applyView(q, tags, m, b)} />
           <ViewSelect q={q} tags={tags} mode={mode} by={by} onApply={applyView} />
-          {mode !== 'list' && (
-            <label className="text-sm mb-1 text-neutral-500 dark:text-neutral-400">
-              対象:{' '}
-              <select
-                className="border rounded-sm px-1 py-0.5 text-neutral-900 dark:text-neutral-100"
-                value={by}
-                onChange={(e) => applyView(q, tags, mode, e.target.value)}
-              >
-                <option value="">{mode === 'tree' ? 'すべて' : '-'}</option>
-                {byOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <label htmlFor="ticket-sort" className="text-neutral-500 dark:text-neutral-400">
