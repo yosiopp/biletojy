@@ -63,6 +63,13 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
     else openMenuFor(target);
   };
 
+  // ラベル部分のクリック: プルダウンは開かずモードだけ切り替える（対象は▾で選ぶ）。
+  // 別モードからの切替時は対象をリセットする（リストへの切替と同じ流儀）
+  const selectMode = (target: ViewMode) => {
+    onChange(target, target !== 'list' && mode === target ? by : '');
+    closeMenu();
+  };
+
   const selectOption = (target: MenuMode, value: string) => {
     onChange(target, value);
     closeMenu();
@@ -94,6 +101,14 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
   const btnClass = (target: ViewMode, extra: string) =>
     `px-2 py-0.5 ${extra} ${
       mode === target ? 'bg-neutral-200 dark:bg-neutral-600' : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
+    }`;
+
+  // ▾（対象選択トリガー）部分。ラベルと同じセグメント内に置くため border-l は付けない
+  const caretClass = (target: MenuMode) =>
+    `px-2 py-0.5 ${target === 'board' ? 'rounded-r-sm' : ''} ${
+      openMode === target || mode === target
+        ? 'bg-neutral-200 dark:bg-neutral-600'
+        : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
     }`;
 
   // 対象選択プルダウン本体
@@ -141,31 +156,38 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
       </button>
 
       <span className="relative inline-flex" onKeyDown={treeKeys.onKeyDown}>
+        {/* ラベル=モード切替のみ、▾=対象プルダウン、で別々のクリック領域にする */}
+        <button type="button" aria-pressed={mode === 'tree'} className={btnClass('tree', 'border-l')} onClick={() => selectMode('tree')}>
+          ツリー
+        </button>
         <button
           ref={treeBtnRef}
           type="button"
-          aria-pressed={mode === 'tree'}
           aria-haspopup="listbox"
           aria-expanded={openMode === 'tree'}
-          className={btnClass('tree', 'border-l')}
+          aria-label="ツリーの対象を選択"
+          className={caretClass('tree')}
           onClick={() => toggleMenu('tree')}
         >
-          ツリー<span aria-hidden="true" className="ml-0.5 text-xs text-neutral-400">▾</span>
+          <span aria-hidden="true" className="text-xs text-neutral-400">▾</span>
         </button>
         {openMode === 'tree' && renderMenu('tree')}
       </span>
 
       <span className="relative inline-flex" onKeyDown={boardKeys.onKeyDown}>
+        <button type="button" aria-pressed={mode === 'board'} className={btnClass('board', 'border-l')} onClick={() => selectMode('board')}>
+          ボード
+        </button>
         <button
           ref={boardBtnRef}
           type="button"
-          aria-pressed={mode === 'board'}
           aria-haspopup="listbox"
           aria-expanded={openMode === 'board'}
-          className={btnClass('board', 'border-l rounded-r-sm')}
+          aria-label="ボードの対象を選択"
+          className={caretClass('board')}
           onClick={() => toggleMenu('board')}
         >
-          ボード<span aria-hidden="true" className="ml-0.5 text-xs text-neutral-400">▾</span>
+          <span aria-hidden="true" className="text-xs text-neutral-400">▾</span>
         </button>
         {openMode === 'board' && renderMenu('board')}
       </span>
