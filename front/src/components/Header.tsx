@@ -4,6 +4,7 @@ import { currentUser, hasCurrentUser, USER_CHANGED_EVENT } from '../lib/tags';
 import { loadThemeMode, setThemeMode, ThemeMode } from '../lib/theme';
 import { useMenuKeys } from '../lib/useMenuKeys';
 import { useOutsideClick } from '../lib/useOutsideClick';
+import Icon, { IconName } from './Icon';
 
 const NAV_ITEMS = [
   { to: '/tickets', label: 'tickets' },
@@ -12,12 +13,18 @@ const NAV_ITEMS = [
   { to: '/files', label: 'files' },
 ];
 
+// 表示テーマの選択肢。現在値はボタンのアイコン（と title）で示す
+const THEME_OPTIONS: { mode: ThemeMode; icon: IconName; label: string }[] = [
+  { mode: 'system', icon: 'brightness_auto', label: '自動' },
+  { mode: 'light', icon: 'light_mode', label: 'ライト' },
+  { mode: 'dark', icon: 'dark_mode', label: 'ダーク' },
+];
+
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `mx-2 text-blue-700 dark:text-blue-400 hover:underline ${isActive ? 'underline' : ''}`;
 
-// モバイル（sm未満）のグローバルナビ。ハンバーガーボタンで開くポップアップメニュー。
+// モバイル（sm未満）のグローバルナビ。ハンバーガーボタン（menu / close アイコン）で開くポップアップメニュー。
 // ExportImport / ViewSelect と同型（↑↓移動・Enter実行・Escで閉じる・外側クリックで閉じる）。
-// 開閉アイコンはアイコンボタン化タスクまでテキスト「≡」/「×」で仮置き。
 function NavMenu() {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -48,10 +55,10 @@ function NavMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="メニュー"
-        className="border rounded-sm px-2 py-0.5 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        className="border rounded-sm p-2 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         onClick={() => (open ? close() : setOpen(true))}
       >
-        {open ? '×' : '≡'}
+        <Icon name={open ? 'close' : 'menu'} />
       </button>
 
       {open && (
@@ -88,11 +95,93 @@ function NavMenu() {
   );
 }
 
+// 表示テーマ切替。アイコンボタン + ポップアップメニュー（自動 / ライト / ダーク）。
+// NavMenu と同型のキーボード操作（↑↓移動・Enter実行・Escで閉じる・外側クリックで閉じる）
+function ThemeMenu() {
+  const [theme, setTheme] = useState<ThemeMode>(loadThemeMode);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const rootRef = useRef<HTMLSpanElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  useOutsideClick(rootRef, open ? () => setOpen(false) : undefined);
+
+  const current = THEME_OPTIONS.find((o) => o.mode === theme) ?? THEME_OPTIONS[0];
+
+  // 開くときは現在のテーマにハイライトを合わせる
+  const openMenu = () => {
+    setActive(Math.max(THEME_OPTIONS.findIndex((o) => o.mode === theme), 0));
+    setOpen(true);
+  };
+
+  const { onKeyDown, close } = useMenuKeys({
+    open,
+    buttonRef,
+    count: THEME_OPTIONS.length,
+    setActive,
+    onOpen: openMenu,
+    onClose: () => setOpen(false),
+    onActivate: () => itemRefs.current[active]?.click(),
+  });
+
+  const choose = (mode: ThemeMode) => {
+    setTheme(mode);
+    setThemeMode(mode);
+    close();
+  };
+
+  return (
+    <span ref={rootRef} className="relative mr-3" onKeyDown={onKeyDown}>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="表示テーマ"
+        title={`表示テーマ: ${current.label}（自動はOS設定に追随）`}
+        className="border rounded-sm p-2 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        onClick={() => (open ? close() : openMenu())}
+      >
+        <Icon name={current.icon} />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          aria-label="表示テーマ"
+          className="absolute z-10 right-0 top-full mt-1 bg-white dark:bg-neutral-800 border rounded-sm shadow-md whitespace-nowrap"
+        >
+          {THEME_OPTIONS.map((option, i) => (
+            <button
+              key={option.mode}
+              ref={(el) => {
+                itemRefs.current[i] = el;
+              }}
+              type="button"
+              role="menuitemradio"
+              aria-checked={option.mode === theme}
+              className={`flex items-center gap-2 w-full text-left px-3 py-1.5 text-sm ${
+                i === active ? 'bg-blue-100 dark:bg-blue-900' : ''
+              } ${
+                option.mode === theme ? 'text-blue-700 dark:text-blue-400' : ''
+              } hover:bg-neutral-100 dark:hover:bg-neutral-700`}
+              onMouseEnter={() => setActive(i)}
+              onClick={() => choose(option.mode)}
+            >
+              <Icon name={option.icon} />
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
 function Header({ onUserClick }: { onUserClick: () => void }) {
   // 現在のユーザ名（未設定ならnull）。設定ダイアログでの保存を即時反映する
   const [user, setUser] = useState<string | null>(() => (hasCurrentUser() ? currentUser() : null));
-  // 表示テーマ（自動=OS設定追随 / ライト / ダーク）
-  const [theme, setTheme] = useState<ThemeMode>(loadThemeMode);
 
   useEffect(() => {
     const handler = () => setUser(hasCurrentUser() ? currentUser() : null);
@@ -121,21 +210,7 @@ function Header({ onUserClick }: { onUserClick: () => void }) {
         </nav>
         <NavMenu />
 
-        <select
-          className="border rounded-sm px-1 py-0.5 text-sm text-neutral-500 dark:text-neutral-400 mr-3"
-          aria-label="表示テーマ"
-          title="表示テーマ（自動はOS設定に追随）"
-          value={theme}
-          onChange={(e) => {
-            const mode = e.target.value as ThemeMode;
-            setTheme(mode);
-            setThemeMode(mode);
-          }}
-        >
-          <option value="system">自動</option>
-          <option value="light">ライト</option>
-          <option value="dark">ダーク</option>
-        </select>
+        <ThemeMenu />
 
         <button
           type="button"

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { splitTags } from '../lib/tags';
+import Icon from './Icon';
 import { useMenuKeys } from '../lib/useMenuKeys';
 import { useOutsideClick } from '../lib/useOutsideClick';
 import { parseViewMode, ViewMode, viewModeLabel } from '../lib/viewMode';
@@ -148,11 +149,12 @@ function ViewSelect({ q, tags, mode, by, onApply }: Props) {
                   </button>
                   <button
                     type="button"
-                    className="px-2 py-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                    className="p-2 text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
                     title={`ビュー「${view.name}」を削除`}
+                    aria-label={`ビュー「${view.name}」を削除`}
                     onClick={() => remove(view.name)}
                   >
-                    ×
+                    <Icon name="delete" />
                   </button>
                 </div>
               ))}

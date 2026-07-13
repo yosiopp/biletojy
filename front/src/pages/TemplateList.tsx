@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, Template } from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Dialog from '../components/Dialog';
+import Icon from '../components/Icon';
 import TagInput from '../components/TagInput';
 import TagItem from '../components/TagItem';
 import TicketRefTextarea from '../components/TicketRefTextarea';
@@ -187,7 +188,7 @@ function TemplateList() {
         <div className="w-1/4 py-1 pl-2">テンプレート名</div>
         <div className="w-1/4 py-1">タイトル</div>
         <div className="flex-1 py-1">タグ</div>
-        <div className="flex-none w-32 py-1"></div>
+        <div className="flex-none w-24 py-1"></div>
       </div>
       {loaded && templates.length === 0 && (
         <p className="text-neutral-500 dark:text-neutral-400 p-4">
@@ -203,10 +204,12 @@ function TemplateList() {
               <TagItem key={tag} tag={tag} color={tagColor(colors, tag)} />
             ))}
           </div>
-          <div className="sm:flex-none sm:w-32 sm:py-2 sm:pr-2 sm:text-right mt-1 sm:mt-0 text-sm">
+          <div className="sm:flex-none sm:w-24 sm:pr-2 mt-1 sm:mt-0 flex items-center sm:justify-end gap-1">
             <button
               type="button"
-              className="text-blue-700 dark:text-blue-400 hover:underline mr-3"
+              aria-label={`テンプレート「${tpl.name}」を編集`}
+              title="編集"
+              className="p-2 rounded-sm text-neutral-500 dark:text-neutral-400 hover:text-blue-700 dark:hover:text-blue-400"
               onClick={() => {
                 setError('');
                 setEditing({
@@ -218,10 +221,16 @@ function TemplateList() {
                 });
               }}
             >
-              編集
+              <Icon name="edit" />
             </button>
-            <button type="button" className="text-red-600 dark:text-red-400 hover:underline" onClick={() => setConfirming(tpl)}>
-              削除
+            <button
+              type="button"
+              aria-label={`テンプレート「${tpl.name}」を削除`}
+              title="削除"
+              className="p-2 rounded-sm text-neutral-500 dark:text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
+              onClick={() => setConfirming(tpl)}
+            >
+              <Icon name="delete" />
             </button>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api, Tag } from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Dialog from '../components/Dialog';
+import Icon from '../components/Icon';
 import TagCatalogMenu from '../components/TagCatalogMenu';
 import TagItem from '../components/TagItem';
 import { currentUser, parseTag } from '../lib/tags';
@@ -336,7 +337,7 @@ function TagList() {
         <div className="w-1/3 py-1 pl-2">tag</div>
         <div className="w-1/4 py-1">説明</div>
         <div className="flex-1 py-1">属性</div>
-        <div className="flex-none w-32 py-1"></div>
+        <div className="flex-none w-24 py-1"></div>
       </div>
       {visible.map((tag, i) => {
         const key = sectionOf(tag);
@@ -370,7 +371,7 @@ function TagList() {
                 <button
                   type="button"
                   draggable
-                  className="cursor-grab text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 text-sm"
+                  className="cursor-grab text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
                   title="ドラッグまたは↑↓キーで並び替え"
                   aria-label={`${tag.tag} を並び替え`}
                   onDragStart={(e) => {
@@ -389,7 +390,7 @@ function TagList() {
                     }
                   }}
                 >
-                  ⋮⋮
+                  <Icon name="drag_indicator" />
                 </button>
               )}
             </span>
@@ -401,19 +402,27 @@ function TagList() {
             {tag.is_range && <span className="mr-2">{parseTag(tag.tag).isNumber ? '数値' : '日時'}</span>}
             {tag.tag.includes('/') && <span className="mr-2">階層</span>}
           </div>
-          <div className="sm:flex-none sm:w-32 sm:py-2 sm:pr-2 sm:text-right mt-1 sm:mt-0 text-sm">
+          <div className="sm:flex-none sm:w-24 sm:pr-2 mt-1 sm:mt-0 flex items-center sm:justify-end gap-1">
             <button
               type="button"
-              className="text-blue-700 dark:text-blue-400 hover:underline mr-3"
+              aria-label={`${tag.tag} を編集`}
+              title="編集"
+              className="p-2 rounded-sm text-neutral-500 dark:text-neutral-400 hover:text-blue-700 dark:hover:text-blue-400"
               onClick={() => {
                 setError('');
                 setEditing({ id: tag.id, tag: tag.tag, note: tag.note ?? '', color: tag.color ?? '' });
               }}
             >
-              編集
+              <Icon name="edit" />
             </button>
-            <button type="button" className="text-red-600 dark:text-red-400 hover:underline" onClick={() => confirmRemove(tag)}>
-              削除
+            <button
+              type="button"
+              aria-label={`${tag.tag} を削除`}
+              title="削除"
+              className="p-2 rounded-sm text-neutral-500 dark:text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
+              onClick={() => confirmRemove(tag)}
+            >
+              <Icon name="delete" />
             </button>
           </div>
         </div>

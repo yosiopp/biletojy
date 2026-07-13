@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, Ticket } from '../api/client';
 import ExportImport from '../components/ExportImport';
+import Icon from '../components/Icon';
 import TagFilter from '../components/TagFilter';
 import TicketBoard from '../components/TicketBoard';
 import TicketRow from '../components/TicketRow';
@@ -200,10 +201,12 @@ function TicketList() {
           </select>
           <button
             type="button"
-            className="border rounded-sm px-2 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            aria-label={sort.desc ? '降順' : '昇順'}
+            title={sort.desc ? '降順' : '昇順'}
+            className="border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
             onClick={() => updateSort({ ...sort, desc: !sort.desc })}
           >
-            {sort.desc ? '↓ 降順' : '↑ 昇順'}
+            <Icon name={sort.desc ? 'arrow_downward' : 'arrow_upward'} />
           </button>
           <ExportImport
             q={q}

@@ -1,5 +1,6 @@
 import { Dispatch, SetStateAction, useRef } from 'react';
 import { selectFiles } from '../lib/attachFiles';
+import Icon from './Icon';
 
 // 「ファイルを添付」リンクボタンと隠しファイル選択input。
 // 選択したファイルをアップロードし、setValueの本文末尾へmarkdownリンクを追記する
@@ -17,9 +18,10 @@ function AttachFileButton({
     <>
       <button
         type="button"
-        className={`text-sm text-blue-700 dark:text-blue-400 hover:underline ${className}`}
+        className={`inline-flex items-center gap-1 text-sm text-blue-700 dark:text-blue-400 hover:underline ${className}`}
         onClick={() => fileRef.current?.click()}
       >
+        <Icon name="attach_file" className="size-4" />
         ファイルを添付
       </button>
       <input

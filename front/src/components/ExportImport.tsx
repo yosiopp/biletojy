@@ -3,6 +3,7 @@ import { api, TicketExport } from '../api/client';
 import { invalidateCatalog } from '../lib/useCatalog';
 import { useMenuKeys } from '../lib/useMenuKeys';
 import { useOutsideClick } from '../lib/useOutsideClick';
+import Icon from './Icon';
 
 type Props = {
   q: string;
@@ -85,11 +86,13 @@ function ExportImport({ q, tags, onImported, onError }: Props) {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        className="border rounded-sm px-2 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
+        aria-label="エクスポート/インポート"
+        title={importing ? 'インポート中...' : 'エクスポート/インポート'}
+        className="border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
         disabled={importing}
         onClick={() => (open ? close() : setOpen(true))}
       >
-        {importing ? 'インポート中...' : 'エクスポート/インポート ▾'}
+        <Icon name="more_vert" />
       </button>
 
       {open && (

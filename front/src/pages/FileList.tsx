@@ -1,6 +1,7 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { api, FileInfo } from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Icon from '../components/Icon';
 import { readFileInput } from '../lib/attachFiles';
 import { formatDateTime } from '../lib/date';
 
@@ -140,13 +141,15 @@ function FileList() {
             </div>
             <div className="sm:w-20 sm:py-2 text-sm text-neutral-500 dark:text-neutral-400">{refLabel(file)}</div>
           </a>
-          <div className="sm:flex-none sm:w-16 sm:pt-2 sm:pl-0 sm:pr-2 sm:text-right px-2 pb-2 mt-1 sm:mt-0 text-sm">
+          <div className="sm:flex-none sm:w-16 sm:pr-2 px-2 pb-2 sm:pb-0 mt-1 sm:mt-0 flex sm:justify-end">
             <button
               type="button"
-              className="text-red-600 dark:text-red-400 hover:underline"
+              aria-label={`ファイル「${file.name || `id:${file.id}`}」を削除`}
+              title="削除"
+              className="p-2 rounded-sm text-neutral-500 dark:text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
               onClick={() => setConfirming(file)}
             >
-              削除
+              <Icon name="delete" />
             </button>
           </div>
         </div>

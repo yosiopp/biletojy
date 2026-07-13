@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { currentUser, hasCurrentUser, setCurrentUser } from '../lib/tags';
+import Icon from './Icon';
 
 // ユーザ名（localStorageのbiletojy.user）を設定するダイアログ。
 // 未設定での初回アクセス時に自動表示されるほか、ヘッダーのユーザ名クリックでも開ける（Layout参照）。
@@ -39,11 +40,12 @@ function UserNameDialog({ onClose }: { onClose: () => void }) {
           <h2 className="text-lg flex-1">ユーザ名の設定</h2>
           <button
             type="button"
-            className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+            className="p-2 -m-2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
             aria-label="閉じる"
+            title="閉じる"
             onClick={onClose}
           >
-            ×
+            <Icon name="close" />
           </button>
         </div>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-2">

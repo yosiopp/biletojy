@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { hasCurrentUser } from '../lib/tags';
 import Header from './Header';
+import Icon from './Icon';
 import UserNameDialog from './UserNameDialog';
 
 const SHORTCUTS: [string, string][] = [
@@ -119,11 +120,12 @@ function Layout() {
               <h2 className="text-lg flex-1">キーボードショートカット</h2>
               <button
                 type="button"
-                className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                className="p-2 -m-2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
                 aria-label="閉じる"
+                title="閉じる"
                 onClick={() => setShowHelp(false)}
               >
-                ×
+                <Icon name="close" />
               </button>
             </div>
             <table className="w-full text-sm">

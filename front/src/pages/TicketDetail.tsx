@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, Comment, Ticket } from '../api/client';
 import AttachFileButton from '../components/AttachFileButton';
 import CommentHistory from '../components/CommentHistory';
+import Icon from '../components/Icon';
 import Markdown from '../components/Markdown';
 import TagItem from '../components/TagItem';
 import TicketRefTextarea from '../components/TicketRefTextarea';
@@ -76,17 +77,19 @@ function TicketDetail() {
         </h2>
         <Link
           to={`/tickets/${ticket.id}/history`}
-          className="border rounded-sm px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 mr-2"
+          className="border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 mr-2"
           title="ctrl+h"
+          aria-label="履歴"
         >
-          履歴
+          <Icon name="history" />
         </Link>
         <Link
           to={`/tickets/${ticket.id}/edit`}
-          className="border rounded-sm px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          className="border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           title="ctrl+e"
+          aria-label="編集"
         >
-          編集
+          <Icon name="edit" />
         </Link>
       </div>
       <div className="text-sm text-neutral-500 dark:text-neutral-400 mb-2">
