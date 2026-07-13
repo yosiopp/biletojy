@@ -105,7 +105,7 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
 
   // ▾（対象選択トリガー）部分。ラベルと同じセグメント内に置くため border-l は付けない
   const caretClass = (target: MenuMode) =>
-    `px-2 py-0.5 ${target === 'board' ? 'rounded-r-sm' : ''} ${
+    `px-1 py-0.5 ${target === 'board' ? 'rounded-r-sm' : ''} ${
       openMode === target || mode === target
         ? 'bg-neutral-200 dark:bg-neutral-600'
         : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
