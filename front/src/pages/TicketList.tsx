@@ -143,8 +143,9 @@ function TicketList() {
 
       <div id="ticket-controls" className={filtersOpen ? '' : 'hidden sm:block'}>
       <div className="flex flex-wrap items-start justify-between mb-2">
-        <div className="flex flex-wrap items-center">
-          <ViewSelect q={q} tags={tags} mode={mode} by={by} onApply={applyView} />
+        {/* items-start で上端揃え。対象セレクト等が出ても toggle の縦位置がズレないようにする */}
+        <div className="flex flex-wrap items-start">
+          {/* 表示モードの切替を先頭に固定して、ビュー選択・対象セレクトの出現でボタンがズレないようにする */}
           <div className="inline-flex border rounded-sm text-sm mr-2 mb-1" role="group" aria-label="表示モード">
             {VIEW_MODES.map(({ value, label }, i) => (
               <button
@@ -162,6 +163,7 @@ function TicketList() {
               </button>
             ))}
           </div>
+          <ViewSelect q={q} tags={tags} mode={mode} by={by} onApply={applyView} />
           {mode !== 'list' && (
             <label className="text-sm mb-1 text-neutral-500 dark:text-neutral-400">
               対象:{' '}
