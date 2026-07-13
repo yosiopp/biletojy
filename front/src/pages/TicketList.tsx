@@ -203,7 +203,7 @@ function TicketList() {
             type="button"
             aria-label={sort.desc ? '降順' : '昇順'}
             title={sort.desc ? '降順' : '昇順'}
-            className="border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="inline-flex items-center justify-center border rounded-full p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
             onClick={() => updateSort({ ...sort, desc: !sort.desc })}
           >
             <Icon name={sort.desc ? 'arrow_downward' : 'arrow_upward'} />
