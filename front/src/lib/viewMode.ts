@@ -6,7 +6,7 @@ export type ViewMode = 'list' | 'tree' | 'board';
 export const VIEW_MODES: { value: ViewMode; label: string }[] = [
   { value: 'list', label: 'リスト' },
   { value: 'tree', label: 'ツリー' },
-  { value: 'board', label: 'カンバン' },
+  { value: 'board', label: 'ボード' },
 ];
 
 // URLや保存済みビューの view 値を解釈する。未知の値はリスト扱い

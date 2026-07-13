@@ -49,7 +49,7 @@ SQLiteドライバは `modernc.org/sqlite`（pure Go、cgo不要、FTS5標準対
 
 ### フロントエンド（front/src/）
 * ルーティングは `App.tsx`（react-router）。ページは `pages/`（TicketList / TicketDetail / TicketForm / TicketHistory / TagList / TemplateList / FileList）
-* チケット一覧はリスト / ツリー（階層タグで入れ子表示）/ カンバン（タググループ基準）の3表示モード（`lib/viewMode.ts`、`components/TicketTree.tsx` / `TicketBoard.tsx`）。並び替え・表示モードはクライアント側で処理し、URLクエリ（`sort` / `view` / `by`）で保持する
+* チケット一覧はリスト / ツリー（階層タグで入れ子表示）/ ボード（タググループ基準）の3表示モード（`lib/viewMode.ts`、`components/TicketTree.tsx` / `TicketBoard.tsx`）。並び替え・表示モードはクライアント側で処理し、URLクエリ（`sort` / `view` / `by`）で保持する
 * 検索条件＋表示モードは「保存済みビュー」として localStorage に保存できる（`lib/views.ts`、`components/ViewSelect.tsx`）
 * APIクライアントは `api/client.ts` に集約
 * 本文・コメントは markdown + mermaid（`components/Markdown.tsx`）。エクスポート/インポートUI（`components/ExportImport.tsx`）とファイル添付（`components/AttachFileButton.tsx`）あり

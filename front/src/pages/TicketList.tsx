@@ -33,7 +33,7 @@ function TicketList() {
   // モバイル（sm未満）では絞り込み・表示設定を折りたたむ。初期は条件があるときだけ開く（sm以上は常に表示）
   const [filtersOpen, setFiltersOpen] = useState(() => hasFilter);
   const sort = parseSort(searchParams.get('sort'));
-  // 表示モード（リスト / ツリー / カンバン）と表示対象（ツリーのルート階層タグ、カンバンの基準タググループ）
+  // 表示モード（リスト / ツリー / ボード）と表示対象（ツリーのルート階層タグ、ボードの基準タググループ）
   const mode = parseViewMode(searchParams.get('view'));
   const by = searchParams.get('by') ?? '';
 
@@ -56,7 +56,7 @@ function TicketList() {
     return cancel;
   }, [q, tags, reload]);
 
-  // 表示対象の選択肢。ツリーはルートに選べる階層タグ（中間階層含む）、カンバンは基準に選べる
+  // 表示対象の選択肢。ツリーはルートに選べる階層タグ（中間階層含む）、ボードは基準に選べる
   // タググループ（日時・数値グループは値が離散でないため対象外）。
   // URL直指定でカタログに無い値が来ても選択欄の表示が崩れないように含める
   const byOptions = useMemo(() => {
@@ -84,7 +84,7 @@ function TicketList() {
 
   const updateParams = (nextQ: string, nextTags: string[]) => applyView(nextQ, nextTags, mode, by);
 
-  // カンバンでのタグ付け替えを一覧の再取得なしで反映する
+  // ボードでのタグ付け替えを一覧の再取得なしで反映する
   const replaceTicket = (updated: Ticket) =>
     setTickets((prev) => prev && prev.map((t) => (t.id === updated.id ? updated : t)));
 
