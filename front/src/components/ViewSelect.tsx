@@ -99,9 +99,6 @@ function ViewSelect({ q, tags, mode, by, onApply }: Props) {
     },
   });
 
-  // 保存済みビューがなく保存できる条件もないときは、無効に見えるだけのチップを出さない
-  if (views.length === 0 && !canSave) return null;
-
   return (
     <span ref={rootRef} className="relative inline-block mr-1 mb-1" onKeyDown={onKeyDown}>
       <button
@@ -110,7 +107,7 @@ function ViewSelect({ q, tags, mode, by, onApply }: Props) {
         aria-haspopup="listbox"
         aria-expanded={open}
         title={current ? `ビュー「${current.name}」` : canSave ? '現在の条件をビューとして保存' : '保存済みビューを適用'}
-        className={`inline-flex items-center rounded-sm border py-0.5 px-2 whitespace-nowrap ${
+        className={`inline-flex items-center rounded-sm border py-0.5 px-2 text-sm whitespace-nowrap ${
           current
             ? 'bg-neutral-100 dark:bg-neutral-700 border-transparent'
             : 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800'
