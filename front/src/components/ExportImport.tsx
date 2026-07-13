@@ -88,7 +88,7 @@ function ExportImport({ q, tags, onImported, onError }: Props) {
         aria-expanded={open}
         aria-label="エクスポート/インポート"
         title={importing ? 'インポート中...' : 'エクスポート/インポート'}
-        className="inline-flex items-center justify-center border rounded-full p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
+        className="inline-flex items-center justify-center border rounded-full p-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
         disabled={importing}
         onClick={() => (open ? close() : setOpen(true))}
       >
