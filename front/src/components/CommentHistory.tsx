@@ -52,8 +52,10 @@ function CommentHistory({ comment, onRestored }: { comment: Comment; onRestored:
             <div className="flex items-center text-sm text-neutral-500 dark:text-neutral-400 mb-1">
               <span className="flex-1">
                 v{idx + 1}
-                {idx === histories.length - 1 && t('history.latest')} ・{' '}
-                <span title={history.created_sub || undefined}>{history.created_by}</span> ・{' '}
+                {idx === histories.length - 1 && t('history.latest')}
+                {t('common.metaSeparator')}
+                <span title={history.created_sub || undefined}>{history.created_by}</span>
+                {t('common.metaSeparator')}
                 {formatDateTime(history.created_at)}
               </span>
               {idx < histories.length - 1 && (

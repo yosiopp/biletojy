@@ -131,11 +131,12 @@ function TicketDetail() {
         {comments.map((comment) => (
           <div key={comment.id} className="py-3">
             <div className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">
-              <span title={comment.created_sub || undefined}>{comment.created_by}</span> ・{' '}
+              <span title={comment.created_sub || undefined}>{comment.created_by}</span>
+              {t('common.metaSeparator')}
               {formatDateTime(comment.created_at)}
               {comment.updated_at !== comment.created_at && (
                 <>
-                  {' ・ '}
+                  {t('common.metaSeparator')}
                   <button
                     type="button"
                     className="text-blue-700 dark:text-blue-400 hover:underline"

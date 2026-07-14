@@ -114,12 +114,30 @@ cd front
 npm run dev
 ```
 
+## UI文言の多言語化（i18n）
+フロントのUI文言は自前の軽量i18n（`front/src/i18n/`）で日英対応している。
+`ja.ts` が正とする辞書で、表示言語の優先順位は localStorage（`biletojy.lang`）>
+ブラウザ設定（`navigator.languages` の ja* 判定）> en フォールバック（`front/src/i18n/index.ts`）。
+
+UI文言を追加・変更するときは以下のルールに従う。
+
+* JSX内に生の日本語リテラルを書かず、`ja.ts` にキーを追加して `t('key')` で参照する。
+  キーは「ページ/機能.意味」で構造化する（例: `ticketList.empty`）
+* `en.ts` にも対応する英訳を必ず追加する。`en` は `Record<keyof typeof ja, string>` 型のため、
+  キーの過不足は `npm run build`（tsc）のコンパイルエラーで検出される
+* 文言中の可変部分は `{name}` 記法のプレースホルダで書き、`t('key', { name: value })` の params で置換する
+* JSX内（テキスト・属性・式中のリテラル）の生の日本語（ひらがな・カタカナ・漢字）は
+  `npm run lint` がエラーにする（`front/eslint.config.js` の `no-restricted-syntax` ルール）
+* 対象外（翻訳しない）: タグカタログの表示名・チケット本文などDBに保存されるユーザーデータ、
+  APIが返すGoのエラー文字列、言語切替メニューの言語名ラベル（`日本語` / `English` はその言語のまま表記する）
+
 ## クライアント側の保存データ（localStorage）
 サーバーに保存されないユーザ単位の設定は、ブラウザの localStorage に以下のキーで保存される。
 
 | キー | 内容 | 実装 |
 |---|---|---|
 | `biletojy.theme` | テーマ設定（`light` / `dark`。未設定時はOS設定に追従） | `front/index.html`, `front/src/lib/theme.ts` |
+| `biletojy.lang` | 表示言語設定（`ja` / `en`。未設定時はブラウザ設定から自動判定） | `front/src/i18n/index.ts` |
 | `biletojy.user` | ユーザ名（チケット・コメントの `created_by` / `updated_by` に使う申告値） | `front/src/lib/tags.ts` |
 | `biletojy.views` | 保存済みビュー（チケット一覧の検索条件 q + tags と表示モードに名前を付けたもの） | `front/src/lib/views.ts` |
 

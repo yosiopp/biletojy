@@ -13,6 +13,8 @@ export const ja = {
   'common.loading': '読み込み中...',
   'common.set': '設定',
   'common.clear': 'クリア',
+  // メタ情報の区切り（作成者 ・ 日時 など）。前後の空白も含む
+  'common.metaSeparator': ' ・ ',
 
   // ヘッダー
   'header.menu': 'メニュー',

@@ -15,6 +15,7 @@ export const en: Record<keyof typeof ja, string> = {
   'common.loading': 'Loading...',
   'common.set': 'Set',
   'common.clear': 'Clear',
+  'common.metaSeparator': ' · ',
 
   // ヘッダー
   'header.menu': 'Menu',
