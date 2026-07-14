@@ -1,6 +1,8 @@
 # biletojy
 issue tracking system with tag
 
+[English](README.en.md) | [日本語](README.md)
+
 ## コンセプト
 * チケットの属性はタグとして表現される
 * チケットにmarkdown, mermaid記法を採用する

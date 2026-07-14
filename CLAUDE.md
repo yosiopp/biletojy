@@ -77,3 +77,5 @@ UIを追加・変更する際は [docs/design-system.md](docs/design-system.md) 
 * [docs/design-system.md](docs/design-system.md) — UIデザインシステム
 
 API・テーブル・タグ仕様を変更したら、対応するdocsも更新すること。
+
+README.md を更新したら、英語版 README.en.md も同じ内容に更新すること（言語別ファイル＋冒頭の相互リンクで二重管理している）。

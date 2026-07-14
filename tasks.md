@@ -14,12 +14,6 @@
   - APIエラーはGoの `err` 文字列がそのまま返る現状のまま（フロント側の枠組み文言はキー化済み）
   - 言語名ラベル（Header.tsx の `日本語` / `English`）は翻訳せずその言語のまま表示する
 
-## READMEの多言語化（README.en.md の追加）
-- デフォルト言語は日本語のため README.md は日本語のまま維持し、英語版 `README.en.md` をルートに追加する（GitHubはブラウザ言語によるREADMEの自動切替をサポートしないため、言語別ファイル+相互リンク方式）
-- 両ファイルの冒頭に `[English](README.en.md) | [日本語](README.md)` の切替リンクを置く
-- README.en.md は現行 README.md（76行）の全節を英訳する。タグ記法の例（`due-date@:` 等）やコマンドはそのまま
-- 二重管理の同期ルールとして「README.md を更新したら README.en.md も更新する」旨を CLAUDE.md に追記する
-
 ## OpenAPI対応
 - OpenAPI 3.1 仕様書 `docs/openapi.yaml` を新規作成する（外部I/Fドキュメント。独自クライアント・関連ツール作成者向け）
   - docs/api.md と back/server.go を突き合わせて全27エンドポイントを手書きで書き起こす（実装コードは変更しない）
