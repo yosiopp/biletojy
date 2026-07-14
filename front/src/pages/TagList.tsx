@@ -4,6 +4,7 @@ import { api, Tag } from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Dialog from '../components/Dialog';
 import Icon from '../components/Icon';
+import RowIconButton from '../components/RowIconButton';
 import TagCatalogMenu from '../components/TagCatalogMenu';
 import TagItem from '../components/TagItem';
 import { currentUser, parseTag } from '../lib/tags';
@@ -29,24 +30,36 @@ const sectionOf = (tag: Tag): string => {
 
 function TagList() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [catalog, setCatalog] = useState<Tag[]>([]);
+  // カタログ。nullはロード未完了（初回表示・取得失敗時に「0件」と区別する）
+  const [catalog, setCatalog] = useState<Tag[] | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [confirming, setConfirming] = useState<{ tag: Tag; message: string } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null); // タグ名変更の確認メッセージ
   const [dragId, setDragId] = useState<number | null>(null);
   const [dropId, setDropId] = useState<number | null>(null);
-  const [error, setError] = useState('');
-  // エクスポート/インポート・デフォルト復元の完了通知
-  const [notice, setNotice] = useState('');
-  // タグ名・説明での絞り込みワード
-  const [filter, setFilter] = useState('');
+  // 画面上部のメッセージ。エラーと完了通知（エクスポート/インポート等）は同時に片方だけ表示する
+  const [status, setStatus] = useState<{ kind: 'error' | 'notice'; text: string } | null>(null);
+  const setError = (text: string) => setStatus({ kind: 'error', text });
+  // タグ名・説明での絞り込みワード。他画面から戻っても保てるようURLクエリで保持する（チケット一覧と同じ流儀）
+  const filter = searchParams.get('filter') ?? '';
+  const setFilter = (value: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (value) params.set('filter', value);
+    else params.delete('filter');
+    setSearchParams(params, { replace: true });
+  };
 
-  const reload = () => api.listTags().then(setCatalog).catch((e: Error) => setError(e.message));
+  // setStatusを直接使う（安定なsetStateのみ参照させ、useEffectの依存に載せずに済ませる）
+  const reload = () =>
+    api
+      .listTags()
+      .then(setCatalog)
+      .catch((e: Error) => setStatus({ kind: 'error', text: e.message }));
 
   // タグを変更したら、useCatalogの共有キャッシュを無効化した上で一覧を取得し直す
   const reloadAfterChange = () => {
     invalidateCatalog();
-    setNotice('');
+    setStatus(null);
     return reload();
   };
 
@@ -60,7 +73,9 @@ function TagList() {
       // URLパラメータ起点でダイアログを開くため、ここでのsetStateは意図したもの
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setEditing(EMPTY);
-      setSearchParams({}, { replace: true });
+      const params = new URLSearchParams(searchParams);
+      params.delete('new');
+      setSearchParams(params, { replace: true });
     }
   }, [searchParams, setSearchParams]);
 
@@ -72,7 +87,7 @@ function TagList() {
     e.preventDefault();
     if (!editing || !editing.tag.trim()) return;
     // タグ名の変更は使用中チケットの一括書き換えを伴うため、使用状況を調べて警告ダイアログを挟む
-    const original = editing.id != null ? catalog.find((t) => t.id === editing.id) : undefined;
+    const original = editing.id != null ? catalog?.find((t) => t.id === editing.id) : undefined;
     const name = editing.tag.trim();
     if (original && original.tag !== name) {
       let count = 0;
@@ -102,7 +117,6 @@ function TagList() {
         await api.updateTag(editing.id, data);
       }
       setEditing(null);
-      setError('');
       await reloadAfterChange();
     } catch (err) {
       setError((err as Error).message);
@@ -121,7 +135,6 @@ function TagList() {
         updated_by: currentUser(),
       });
       setEditing(null);
-      setError('');
       await reloadAfterChange();
     } catch (err) {
       setError((err as Error).message);
@@ -149,7 +162,7 @@ function TagList() {
   // カタログの変化時にまとめて構築する
   const sections = useMemo(() => {
     const m = new Map<string, Tag[]>();
-    for (const t of catalog) {
+    for (const t of catalog ?? []) {
       const key = sectionOf(t);
       const members = m.get(key);
       if (members) members.push(t);
@@ -158,14 +171,15 @@ function TagList() {
     return m;
   }, [catalog]);
   const sortMembers = (key: string) => sections.get(key) ?? [];
-  const dragTag = dragId != null ? catalog.find((t) => t.id === dragId) : undefined;
+  const dragTag = dragId != null ? catalog?.find((t) => t.id === dragId) : undefined;
   const dragKey = dragTag ? sectionOf(dragTag) : null;
 
   // タグ名・説明の部分一致（大文字小文字を無視）で表示を絞り込む
   const visible = useMemo(() => {
+    const list = catalog ?? [];
     const q = filter.trim().toLowerCase();
-    if (!q) return catalog;
-    return catalog.filter((t) => t.tag.toLowerCase().includes(q) || (t.note ?? '').toLowerCase().includes(q));
+    if (!q) return list;
+    return list.filter((t) => t.tag.toLowerCase().includes(q) || (t.note ?? '').toLowerCase().includes(q));
   }, [catalog, filter]);
 
   // 同じ並び替え単位内でfromの位置のタグをtoの位置へ移動した並びを保存する
@@ -175,7 +189,6 @@ function TagList() {
     ids.splice(to, 0, ...ids.splice(from, 1));
     try {
       await api.reorderTags(ids);
-      setError('');
       await reloadAfterChange();
     } catch (err) {
       setError((err as Error).message);
@@ -201,7 +214,6 @@ function TagList() {
     setConfirming(null);
     try {
       await api.deleteTag(confirming.tag.id);
-      setError('');
       await reloadAfterChange();
     } catch (err) {
       setError((err as Error).message);
@@ -212,7 +224,7 @@ function TagList() {
     <Dialog label={editing.id == null ? '新規タグ' : 'タグの編集'} onClose={() => setEditing(null)}>
       <form onSubmit={submit} className="w-80 max-w-full">
         <h2 className="text-lg mb-2">{editing.id == null ? '新規タグ' : 'タグの編集'}</h2>
-        {error && <p className="text-red-600 dark:text-red-400 text-sm mb-2">{error}</p>}
+        {status?.kind === 'error' && <p className="text-red-600 dark:text-red-400 text-sm mb-2">{status.text}</p>}
         <label className="block text-sm text-neutral-600 dark:text-neutral-300 mb-2">
           タグ
           <input
@@ -297,29 +309,25 @@ function TagList() {
         <h2 className="text-xl flex-1">タグ一覧</h2>
         <TagCatalogMenu
           onDone={(message) => {
-            setError('');
-            setNotice(message);
+            setStatus({ kind: 'notice', text: message });
             reload();
           }}
-          onError={(message) => {
-            setNotice('');
-            setError(message);
-          }}
+          onError={setError}
         />
         <button
           type="button"
           className="bg-blue-600 text-white rounded-sm px-3 py-1 text-sm hover:bg-blue-700"
           title="ctrl+shift+n"
           onClick={() => {
-            setError('');
+            setStatus(null);
             setEditing(EMPTY);
           }}
         >
           + 新規タグ
         </button>
       </div>
-      {error && !editing && <p className="text-red-600 dark:text-red-400 mb-2">{error}</p>}
-      {notice && <p className="text-blue-700 dark:text-blue-400 mb-2">{notice}</p>}
+      {status?.kind === 'error' && !editing && <p className="text-red-600 dark:text-red-400 mb-2">{status.text}</p>}
+      {status?.kind === 'notice' && <p className="text-blue-700 dark:text-blue-400 mb-2">{status.text}</p>}
       {editDialog}
       {renameDialog}
       {confirmDialog}
@@ -403,32 +411,28 @@ function TagList() {
             {tag.tag.includes('/') && <span className="mr-2">階層</span>}
           </div>
           <div className="sm:flex-none sm:w-24 sm:pr-2 mt-1 sm:mt-0 flex items-center sm:justify-end gap-1">
-            <button
-              type="button"
+            <RowIconButton
+              icon="edit"
+              action="edit"
               aria-label={`${tag.tag} を編集`}
               title="編集"
-              className="p-2 rounded-sm text-neutral-500 dark:text-neutral-400 hover:text-blue-700 dark:hover:text-blue-400"
               onClick={() => {
-                setError('');
+                setStatus(null);
                 setEditing({ id: tag.id, tag: tag.tag, note: tag.note ?? '', color: tag.color ?? '' });
               }}
-            >
-              <Icon name="edit" />
-            </button>
-            <button
-              type="button"
+            />
+            <RowIconButton
+              icon="delete"
+              action="delete"
               aria-label={`${tag.tag} を削除`}
               title="削除"
-              className="p-2 rounded-sm text-neutral-500 dark:text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
               onClick={() => confirmRemove(tag)}
-            >
-              <Icon name="delete" />
-            </button>
+            />
           </div>
         </div>
         );
       })}
-      {visible.length === 0 && (
+      {catalog != null && visible.length === 0 && (
         <p className="text-neutral-500 dark:text-neutral-400 p-4">一致するタグがありません</p>
       )}
     </>
