@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { Tag } from '../api/client';
-import { groupCatalog, hierarchyOptions } from '../lib/tags';
+import { groupCatalog, hierarchyOptions, isRangeGroup } from '../lib/tags';
 import { useMenuKeys } from '../lib/useMenuKeys';
 import { useOutsideClick } from '../lib/useOutsideClick';
 import { ViewMode } from '../lib/viewMode';
@@ -38,7 +38,7 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
     return opts;
   }, [catalog, by, mode]);
   const boardOptions = useMemo(() => {
-    const opts = ['', ...[...groupCatalog(catalog).keys()].filter((g) => !/[@#]$/.test(g))];
+    const opts = ['', ...[...groupCatalog(catalog).keys()].filter((g) => !isRangeGroup(g))];
     if (mode === 'board' && by && !opts.includes(by)) opts.push(by);
     return opts;
   }, [catalog, by, mode]);
@@ -57,6 +57,14 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
     setOpenMode(null);
     setActive(-1);
   };
+
+  // ↑↓でハイライトを動かしたとき、スクロール領域（max-h-64）内で選択肢を追従表示する
+  useEffect(() => {
+    if (active < 0 || openMode == null) return;
+    rootRef.current
+      ?.querySelector(`[role="listbox"] [role="option"]:nth-child(${active + 1})`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [active, openMode]);
 
   const toggleMenu = (target: MenuMode) => {
     if (openMode === target) closeMenu();
@@ -141,6 +149,33 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
     );
   };
 
+  // ツリー / ボード共通のセグメント（ラベル=モード切替のみ、▾=対象プルダウン、で別々のクリック領域にする）
+  const renderSegment = (
+    target: MenuMode,
+    label: string,
+    keys: ReturnType<typeof useMenuKeys>,
+    btnRef: RefObject<HTMLButtonElement | null>,
+  ) => (
+    <span className="relative inline-flex" onKeyDown={keys.onKeyDown}>
+      <button type="button" aria-pressed={mode === target} className={btnClass(target, 'border-l pl-2 pr-1')} onClick={() => selectMode(target)}>
+        {label}
+      </button>
+      <button
+        ref={btnRef}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={openMode === target}
+        aria-label={`${label}の対象を選択`}
+        title={`${label}の対象を選択`}
+        className={caretClass(target)}
+        onClick={() => toggleMenu(target)}
+      >
+        <span aria-hidden="true" className="text-xs text-neutral-400">▾</span>
+      </button>
+      {openMode === target && renderMenu(target)}
+    </span>
+  );
+
   return (
     <div ref={rootRef} className="inline-flex border rounded-sm text-sm mr-2 mb-1" role="group" aria-label="表示モード">
       <button
@@ -154,43 +189,8 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
       >
         リスト
       </button>
-
-      <span className="relative inline-flex" onKeyDown={treeKeys.onKeyDown}>
-        {/* ラベル=モード切替のみ、▾=対象プルダウン、で別々のクリック領域にする */}
-        <button type="button" aria-pressed={mode === 'tree'} className={btnClass('tree', 'border-l pl-2 pr-1')} onClick={() => selectMode('tree')}>
-          ツリー
-        </button>
-        <button
-          ref={treeBtnRef}
-          type="button"
-          aria-haspopup="listbox"
-          aria-expanded={openMode === 'tree'}
-          aria-label="ツリーの対象を選択"
-          className={caretClass('tree')}
-          onClick={() => toggleMenu('tree')}
-        >
-          <span aria-hidden="true" className="text-xs text-neutral-400">▾</span>
-        </button>
-        {openMode === 'tree' && renderMenu('tree')}
-      </span>
-
-      <span className="relative inline-flex" onKeyDown={boardKeys.onKeyDown}>
-        <button type="button" aria-pressed={mode === 'board'} className={btnClass('board', 'border-l pl-2 pr-1')} onClick={() => selectMode('board')}>
-          ボード
-        </button>
-        <button
-          ref={boardBtnRef}
-          type="button"
-          aria-haspopup="listbox"
-          aria-expanded={openMode === 'board'}
-          aria-label="ボードの対象を選択"
-          className={caretClass('board')}
-          onClick={() => toggleMenu('board')}
-        >
-          <span aria-hidden="true" className="text-xs text-neutral-400">▾</span>
-        </button>
-        {openMode === 'board' && renderMenu('board')}
-      </span>
+      {renderSegment('tree', 'ツリー', treeKeys, treeBtnRef)}
+      {renderSegment('board', 'ボード', boardKeys, boardBtnRef)}
     </div>
   );
 }
