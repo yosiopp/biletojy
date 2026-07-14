@@ -198,10 +198,17 @@ function TicketForm() {
             <button
               key={value}
               type="button"
-              // 編集=左端(左角丸)、両方=中央(角丸なし・sm未満は非表示)、プレビュー=右端(右角丸)
+              // 編集=左端(左角丸)、両方=中央(角丸なし・sm未満は非表示)、プレビュー=右端(右角丸)。
+              // 「両方」を復元したモバイルでは編集のみ表示になるため、編集ボタンをハイライトする
               className={`text-sm border px-3 py-0.5 ${
                 i === 0 ? 'rounded-l-sm' : i === EDITOR_MODES.length - 1 ? 'rounded-r-sm' : 'hidden sm:inline-block'
-              } ${mode === value ? 'bg-neutral-200 dark:bg-neutral-600' : ''}`}
+              } ${
+                mode === value
+                  ? 'bg-neutral-200 dark:bg-neutral-600'
+                  : value === 'edit' && mode === 'split'
+                    ? 'bg-neutral-200 dark:bg-neutral-600 sm:bg-transparent sm:dark:bg-transparent'
+                    : ''
+              }`}
               onClick={() => selectMode(value)}
             >
               {label}
@@ -220,7 +227,8 @@ function TicketForm() {
             onPaste={(e) => pasteFiles(e, setContent, setError)}
             {...fileDrag.dragProps}
           />
-          <div className="border rounded-sm p-4 h-96 overflow-y-auto">
+          {/* モバイルでは「両方」ボタンを隠しているため、復元時も編集のみの表示に落とす */}
+          <div className="hidden sm:block border rounded-sm p-4 h-96 overflow-y-auto">
             <Markdown content={deferredContent} />
           </div>
         </div>
