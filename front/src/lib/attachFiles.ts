@@ -1,5 +1,6 @@
 import { ChangeEvent, ClipboardEvent, Dispatch, DragEvent, SetStateAction, useState } from 'react';
 import { api } from '../api/client';
+import { t } from '../i18n';
 
 type SetValue = Dispatch<SetStateAction<string>>;
 type OnError = (message: string) => void;
@@ -25,7 +26,7 @@ function uploadFiles(
   onError: OnError,
 ): boolean {
   if (files.length === 0) return false;
-  const placeholders = files.map(() => `[アップロード中...${++seq}]()`);
+  const placeholders = files.map(() => `[${t('attachFile.uploading')}${++seq}]()`);
   const joined = placeholders.join('\n');
   setValue((v) => {
     if (at) return v.slice(0, at.start) + joined + v.slice(at.end);

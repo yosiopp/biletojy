@@ -1,5 +1,6 @@
 import { ChangeEvent, useRef, useState } from 'react';
 import { api, TagCatalogItem } from '../api/client';
+import { t } from '../i18n';
 import { readFileInput } from '../lib/attachFiles';
 import { readJsonExport } from '../lib/exportFile';
 import { invalidateCatalog } from '../lib/useCatalog';
@@ -58,19 +59,19 @@ function TagCatalogMenu({ onDone, onError }: Props) {
       tags = await readJsonExport<TagCatalogItem>(
         file,
         'tags',
-        'エクスポートしたタグのJSONファイルを選択してください',
+        t('tagCatalogMenu.selectJson'),
       );
     } catch (err) {
       onError(err instanceof Error ? err.message : String(err));
       return;
     }
     setPending({
-      title: 'タグのインポート',
-      message: `${tags.length}件のタグを取り込みます。\n同名の既存タグはスキップされます。\n取り込みますか？`,
-      actionLabel: '取り込む',
+      title: t('tagCatalogMenu.importTitle'),
+      message: t('tagCatalogMenu.importMessage', { count: tags.length }),
+      actionLabel: t('tagCatalogMenu.importAction'),
       run: async () => {
         const res = await api.importTags(tags);
-        return `${res.imported}件のタグを登録しました（${res.skipped}件スキップ）`;
+        return t('tagCatalogMenu.importDone', { imported: res.imported, skipped: res.skipped });
       },
     });
   };
@@ -78,22 +79,21 @@ function TagCatalogMenu({ onDone, onError }: Props) {
   const confirmRestore = () => {
     setOpen(false);
     setPending({
-      title: 'デフォルトタグの復元',
-      message:
-        '不足しているデフォルトのタグを追加します。\n既存のタグ（名前・色・並び順）は変更されません。\n復元しますか？',
-      actionLabel: '復元する',
+      title: t('tagCatalogMenu.restoreTitle'),
+      message: t('tagCatalogMenu.restoreMessage'),
+      actionLabel: t('tagCatalogMenu.restoreAction'),
       run: async () => {
         const res = await api.restoreDefaultTags();
-        return `${res.restored}件のデフォルトタグを復元しました`;
+        return t('tagCatalogMenu.restoreDone', { count: res.restored });
       },
     });
   };
 
   // hrefありはダウンロードリンク、なしはボタン（onClickでkeyごとに実行）
   const items = [
-    { key: 'export', label: 'エクスポート', href: api.tagsExportUrl() as string | null },
-    { key: 'import', label: 'インポート...', href: null },
-    { key: 'restore', label: 'デフォルトタグの復元', href: null },
+    { key: 'export', label: t('tagCatalogMenu.export'), href: api.tagsExportUrl() as string | null },
+    { key: 'import', label: t('tagCatalogMenu.import'), href: null },
+    { key: 'restore', label: t('tagCatalogMenu.restoreTitle'), href: null },
   ];
 
   const { onKeyDown, close } = useMenuKeys({
@@ -123,13 +123,13 @@ function TagCatalogMenu({ onDone, onError }: Props) {
         disabled={busy}
         onClick={() => (open ? close() : setOpen(true))}
       >
-        {busy ? '処理中...' : 'エクスポート/インポート ▾'}
+        {busy ? t('tagCatalogMenu.busy') : `${t('exportImport.label')} ▾`}
       </button>
 
       {open && (
         <div
           role="menu"
-          aria-label="タグのエクスポート/インポート"
+          aria-label={t('tagCatalogMenu.label')}
           className="absolute z-10 right-0 top-full mt-1 bg-white dark:bg-neutral-800 border rounded-sm shadow-md whitespace-nowrap"
         >
           {items.map((item, i) =>

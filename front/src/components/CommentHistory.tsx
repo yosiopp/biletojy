@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, Comment, CommentHistory as CommentHistoryEntry } from '../api/client';
+import { t } from '../i18n';
 import { formatDateTime } from '../lib/date';
 import { diffLines } from '../lib/diff';
 import { staleGuard } from '../lib/staleGuard';
@@ -39,7 +40,7 @@ function CommentHistory({ comment, onRestored }: { comment: Comment; onRestored:
   };
 
   if (error) return <p className="text-red-600 dark:text-red-400 mt-2">{error}</p>;
-  if (!histories) return <p className="text-neutral-500 dark:text-neutral-400 mt-2">読み込み中...</p>;
+  if (!histories) return <p className="text-neutral-500 dark:text-neutral-400 mt-2">{t('common.loading')}</p>;
 
   return (
     <div className="mt-2">
@@ -51,7 +52,7 @@ function CommentHistory({ comment, onRestored }: { comment: Comment; onRestored:
             <div className="flex items-center text-sm text-neutral-500 dark:text-neutral-400 mb-1">
               <span className="flex-1">
                 v{idx + 1}
-                {idx === histories.length - 1 && '（最新）'} ・{' '}
+                {idx === histories.length - 1 && t('history.latest')} ・{' '}
                 <span title={history.created_sub || undefined}>{history.created_by}</span> ・{' '}
                 {formatDateTime(history.created_at)}
               </span>
@@ -62,7 +63,7 @@ function CommentHistory({ comment, onRestored }: { comment: Comment; onRestored:
                   disabled={restoring}
                   onClick={() => setConfirming({ history, version: idx + 1 })}
                 >
-                  この版に戻す
+                  {t('history.restoreThis')}
                 </button>
               )}
             </div>
@@ -78,9 +79,9 @@ function CommentHistory({ comment, onRestored }: { comment: Comment; onRestored:
         ))}
       {confirming && (
         <ConfirmDialog
-          title="コメントを過去の版に戻す"
-          message={`v${confirming.version} の内容に戻しますか？（新しい版として保存されます）`}
-          actionLabel="戻す"
+          title={t('commentHistory.restoreTitle')}
+          message={t('history.restoreMessage', { version: confirming.version })}
+          actionLabel={t('history.restoreAction')}
           onConfirm={() => {
             const { history } = confirming;
             setConfirming(null);

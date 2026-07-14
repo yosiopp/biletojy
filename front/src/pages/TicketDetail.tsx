@@ -7,6 +7,7 @@ import Icon from '../components/Icon';
 import Markdown from '../components/Markdown';
 import TagItem from '../components/TagItem';
 import TicketRefTextarea from '../components/TicketRefTextarea';
+import { t } from '../i18n';
 import { formatDateTime } from '../lib/date';
 import { dropFiles, pasteFiles, useFileDrag } from '../lib/attachFiles';
 import { staleGuard } from '../lib/staleGuard';
@@ -66,7 +67,7 @@ function TicketDetail() {
   };
 
   if (ticketError) return <p className="text-red-600 dark:text-red-400">{ticketError}</p>;
-  if (!ticket) return <p className="text-neutral-500 dark:text-neutral-400">読み込み中...</p>;
+  if (!ticket) return <p className="text-neutral-500 dark:text-neutral-400">{t('common.loading')}</p>;
 
   return (
     <>
@@ -79,7 +80,7 @@ function TicketDetail() {
           to={`/tickets/${ticket.id}/history`}
           className="border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 mr-2"
           title="ctrl+h"
-          aria-label="履歴"
+          aria-label={t('ticketDetail.history')}
         >
           <Icon name="history" />
         </Link>
@@ -87,13 +88,13 @@ function TicketDetail() {
           to={`/tickets/${ticket.id}/edit`}
           className="border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           title="ctrl+e"
-          aria-label="編集"
+          aria-label={t('common.edit')}
         >
           <Icon name="edit" />
         </Link>
       </div>
       <div className="text-sm text-neutral-500 dark:text-neutral-400 mb-2">
-        <span title={ticket.created_sub || undefined}>{ticket.created_by}</span> が作成 ・ 更新{' '}
+        <span title={ticket.created_sub || undefined}>{ticket.created_by}</span> {t('ticketDetail.createdUpdated')}{' '}
         {formatDateTime(ticket.updated_at)}
       </div>
       <div className="mb-4">
@@ -108,7 +109,7 @@ function TicketDetail() {
 
       {backlinks.length > 0 && (
         <div className="mb-6 pl-3 border-l-2 border-neutral-200 dark:border-neutral-700">
-          <h3 className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">このチケットを参照しているチケット</h3>
+          <h3 className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">{t('ticketDetail.backlinks')}</h3>
           <ul className="text-sm">
             {backlinks.map((b) => (
               <li key={b.id}>
@@ -124,7 +125,7 @@ function TicketDetail() {
 
       <hr className="border-t-2 border-neutral-300 dark:border-neutral-600 mb-6" />
 
-      <h3 className="text-lg mb-2">コメント</h3>
+      <h3 className="text-lg mb-2">{t('ticketDetail.comments')}</h3>
       {commentError && <p className="text-red-600 dark:text-red-400 mb-2">{commentError}</p>}
       <div className="divide-y divide-neutral-200 dark:divide-neutral-700">
         {comments.map((comment) => (
@@ -140,7 +141,7 @@ function TicketDetail() {
                     className="text-blue-700 dark:text-blue-400 hover:underline"
                     onClick={() => setOpenHistories((prev) => ({ ...prev, [comment.id]: !prev[comment.id] }))}
                   >
-                    編集済み（履歴）
+                    {t('ticketDetail.edited')}
                   </button>
                 </>
               )}
@@ -161,7 +162,7 @@ function TicketDetail() {
       <form onSubmit={submitComment} className="mt-4">
         <TicketRefTextarea
           className={`border rounded-sm w-full p-2 h-24 ${fileDrag.dragClass}`}
-          placeholder="コメントを追加（markdown可、画像・ファイル添付可（ペースト/ドロップ）、#でチケット参照）"
+          placeholder={t('ticketDetail.commentPlaceholder')}
           value={commentText}
           onChange={setCommentText}
           onPaste={(e) => pasteFiles(e, setCommentText, setCommentError)}
@@ -172,7 +173,7 @@ function TicketDetail() {
           className="bg-blue-600 text-white rounded-sm px-4 py-1 mt-1 hover:bg-blue-700 disabled:opacity-50"
           disabled={submitting}
         >
-          コメント
+          {t('ticketDetail.submitComment')}
         </button>
         <AttachFileButton setValue={setCommentText} onError={setCommentError} className="ml-3" />
       </form>

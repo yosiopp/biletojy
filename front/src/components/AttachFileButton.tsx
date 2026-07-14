@@ -1,4 +1,5 @@
 import { Dispatch, SetStateAction, useRef } from 'react';
+import { t } from '../i18n';
 import { selectFiles } from '../lib/attachFiles';
 import Icon from './Icon';
 
@@ -22,7 +23,7 @@ function AttachFileButton({
         onClick={() => fileRef.current?.click()}
       >
         <Icon name="attach_file" className="size-4" />
-        ファイルを添付
+        {t('attachFile.button')}
       </button>
       <input
         ref={fileRef}

@@ -1,28 +1,29 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { t } from '../i18n';
 import { hasCurrentUser } from '../lib/tags';
 import Header from './Header';
 import Icon from './Icon';
 import UserNameDialog from './UserNameDialog';
 
 const SHORTCUTS: [string, string][] = [
-  ['Ctrl+N', 'チケット作成'],
-  ['Ctrl+Shift+N', 'タグ作成'],
-  ['Ctrl+E', 'チケット編集（詳細表示中）'],
-  ['Ctrl+H', 'チケット履歴（詳細表示中）'],
-  ['Ctrl+L', 'チケット一覧へ移動'],
-  ['Ctrl+Shift+L', 'ファイル一覧へ移動'],
-  ['Ctrl+T', 'タグ一覧へ移動'],
-  ['Ctrl+M', 'テンプレート一覧へ移動'],
-  ['?', 'このヘルプを表示'],
+  ['Ctrl+N', t('layout.shortcutNewTicket')],
+  ['Ctrl+Shift+N', t('layout.shortcutNewTag')],
+  ['Ctrl+E', t('layout.shortcutEditTicket')],
+  ['Ctrl+H', t('layout.shortcutTicketHistory')],
+  ['Ctrl+L', t('layout.shortcutTicketList')],
+  ['Ctrl+Shift+L', t('layout.shortcutFileList')],
+  ['Ctrl+T', t('layout.shortcutTagList')],
+  ['Ctrl+M', t('layout.shortcutTemplateList')],
+  ['?', t('layout.shortcutHelp')],
 ];
 
 // チケット一覧の検索欄で使える構文（記法と意味）
 const SEARCH_SYNTAX: [string, string][] = [
-  ['-タグ', 'そのタグを除外（NOT）'],
-  ['タグ|タグ', 'いずれかに一致（OR）'],
-  ['日時@:>=…', '日時タグを比較演算子で範囲指定'],
-  ['数値#:>=…', '数値タグを比較演算子で範囲指定'],
+  [t('layout.syntaxNot'), t('layout.syntaxNotDesc')],
+  [t('layout.syntaxOr'), t('layout.syntaxOrDesc')],
+  [t('layout.syntaxDate'), t('layout.syntaxDateDesc')],
+  [t('layout.syntaxNumber'), t('layout.syntaxNumberDesc')],
 ];
 
 // 入力欄にフォーカスがある間はショートカットを無効にする
@@ -98,8 +99,8 @@ function Layout() {
       <button
         type="button"
         className="fixed bottom-4 right-4 z-20 w-8 h-8 rounded-full border bg-white dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 shadow-sm hover:bg-neutral-100 dark:hover:bg-neutral-700"
-        title="ショートカット一覧（?）"
-        aria-label="ショートカット一覧"
+        title={t('layout.shortcutsButtonTitle')}
+        aria-label={t('layout.shortcutsButton')}
         onClick={() => setShowHelp((v) => !v)}
       >
         ?
@@ -112,17 +113,17 @@ function Layout() {
         >
           <div
             role="dialog"
-            aria-label="キーボードショートカット"
+            aria-label={t('layout.shortcutsTitle')}
             className="bg-white dark:bg-neutral-800 rounded-sm shadow-lg p-4 w-80"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center mb-2">
-              <h2 className="text-lg flex-1">キーボードショートカット</h2>
+              <h2 className="text-lg flex-1">{t('layout.shortcutsTitle')}</h2>
               <button
                 type="button"
                 className="p-2 -m-2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
-                aria-label="閉じる"
-                title="閉じる"
+                aria-label={t('common.close')}
+                title={t('common.close')}
                 onClick={() => setShowHelp(false)}
               >
                 <Icon name="close" />
@@ -141,7 +142,7 @@ function Layout() {
               </tbody>
             </table>
 
-            <h3 className="text-sm text-neutral-500 dark:text-neutral-400 mt-4 mb-1">検索構文</h3>
+            <h3 className="text-sm text-neutral-500 dark:text-neutral-400 mt-4 mb-1">{t('layout.searchSyntax')}</h3>
             <table className="w-full text-sm">
               <tbody>
                 {SEARCH_SYNTAX.map(([syntax, desc]) => (

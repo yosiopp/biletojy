@@ -1,5 +1,6 @@
 import { ReactNode, useRef, useState } from 'react';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { t } from '../i18n';
 
 // タグ入力欄（TagInput）の未確定テキストが残ったまま保存すると失われるため、
 // 保存前に確認ダイアログを挟むフック。onTextChangeをTagInputへ渡し、保存処理の先頭で
@@ -23,9 +24,9 @@ export function usePendingTagGuard(): {
 
   const dialog = confirming && (
     <ConfirmDialog
-      title="未確定のタグ入力があります"
-      message={`タグ入力欄の「${confirming.text}」はまだタグとして確定されておらず、保存すると失われます。このまま保存しますか？`}
-      actionLabel="このまま保存"
+      title={t('pendingTagGuard.title')}
+      message={t('pendingTagGuard.message', { text: confirming.text })}
+      actionLabel={t('pendingTagGuard.saveAnyway')}
       onConfirm={() => {
         setConfirming(null);
         confirming.save();

@@ -9,6 +9,7 @@ import TicketRow from '../components/TicketRow';
 import TicketTree from '../components/TicketTree';
 import ViewModeSelect from '../components/ViewModeSelect';
 import ViewSelect from '../components/ViewSelect';
+import { t } from '../i18n';
 import { buildSort, HIERARCHY_SORT_KEY, parseSort, sortTickets, SortSpec } from '../lib/sort';
 import { staleGuard } from '../lib/staleGuard';
 import { groupCatalog, isRangeGroup, stripRangeMark } from '../lib/tags';
@@ -96,13 +97,13 @@ function TicketList() {
   return (
     <>
       <div className="flex items-center gap-2 mb-2">
-        <h2 className="text-xl flex-1">チケット一覧</h2>
+        <h2 className="text-xl flex-1">{t('ticketList.title')}</h2>
         <Link
           to="/tickets/new"
           className="bg-blue-600 text-white rounded-sm px-3 py-1 text-sm hover:bg-blue-700 whitespace-nowrap"
           title="ctrl+n"
         >
-          + 新規チケット
+          {t('ticketList.new')}
         </Link>
       </div>
 
@@ -113,7 +114,7 @@ function TicketList() {
         aria-controls="ticket-filters ticket-controls"
         onClick={() => setFiltersOpen((v) => !v)}
       >
-        <span className="flex-1 text-left">絞り込み・表示設定{hasFilter && '（適用中）'}</span>
+        <span className="flex-1 text-left">{t('ticketList.filters')}{hasFilter && t('ticketList.filtersActive')}</span>
         <span className="text-xs text-neutral-400">{filtersOpen ? '▾' : '▸'}</span>
       </button>
 
@@ -140,7 +141,7 @@ function TicketList() {
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <label htmlFor="ticket-sort" className="text-neutral-500 dark:text-neutral-400">
-            並び替え:
+            {t('ticketList.sort')}
           </label>
           <select
             id="ticket-sort"
@@ -150,7 +151,7 @@ function TicketList() {
           >
             <option value="updated">updated</option>
             <option value="id">id</option>
-            <option value={HIERARCHY_SORT_KEY}>階層タグ</option>
+            <option value={HIERARCHY_SORT_KEY}>{t('ticketList.sortHierarchy')}</option>
             {sortGroups.map((group) => (
               <option key={group} value={group}>
                 {stripRangeMark(group)}
@@ -159,8 +160,8 @@ function TicketList() {
           </select>
           <button
             type="button"
-            aria-label={sort.desc ? '降順' : '昇順'}
-            title={sort.desc ? '降順' : '昇順'}
+            aria-label={sort.desc ? t('ticketList.desc') : t('ticketList.asc')}
+            title={sort.desc ? t('ticketList.desc') : t('ticketList.asc')}
             className="inline-flex items-center justify-center border rounded-full p-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
             onClick={() => updateSort({ ...sort, desc: !sort.desc })}
           >
@@ -171,7 +172,7 @@ function TicketList() {
             q={q}
             tags={tags}
             onImported={(count) => {
-              setNotice(`${count}件のチケットをインポートしました`);
+              setNotice(t('ticketList.imported', { count }));
               setError('');
               setReload((n) => n + 1);
             }}
@@ -192,7 +193,7 @@ function TicketList() {
           <div className="flex-none w-40 py-1 pr-4">updated</div>
         </div>
       )}
-      {tickets == null && !error && <p className="text-neutral-500 dark:text-neutral-400 p-4">読み込み中...</p>}
+      {tickets == null && !error && <p className="text-neutral-500 dark:text-neutral-400 p-4">{t('common.loading')}</p>}
       {sortedTickets != null && mode === 'list' &&
         sortedTickets.map((ticket) => (
           <TicketRow key={ticket.id} ticket={ticket} colors={tagColors} />
@@ -211,27 +212,27 @@ function TicketList() {
             onError={setError}
           />
         ) : (
-          <p className="text-neutral-500 dark:text-neutral-400 p-4">対象のタググループを選択してください</p>
+          <p className="text-neutral-500 dark:text-neutral-400 p-4">{t('ticketList.selectGroup')}</p>
         )
       )}
       {tickets != null && tickets.length === 0 && (
         <div className="text-neutral-500 dark:text-neutral-400 p-4">
           {hasFilter ? (
             <>
-              条件に一致するチケットがありません
+              {t('ticketList.emptyFiltered')}
               <button
                 type="button"
                 className="text-blue-700 dark:text-blue-400 hover:underline ml-2"
                 onClick={() => updateParams('', [])}
               >
-                条件をクリア
+                {t('ticketList.clearFilters')}
               </button>
             </>
           ) : (
             <>
-              チケットがありません
+              {t('ticketList.empty')}
               <Link to="/tickets/new" className="text-blue-700 dark:text-blue-400 hover:underline ml-2">
-                新規チケットを作成
+                {t('ticketList.createNew')}
               </Link>
             </>
           )}

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, Ticket, TicketHistory as TicketHistoryEntry } from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
 import DiffView from '../components/DiffView';
+import { t } from '../i18n';
 import { formatDateTime } from '../lib/date';
 import { diffLines, hasDiff } from '../lib/diff';
 import { staleGuard } from '../lib/staleGuard';
@@ -65,14 +66,14 @@ function TicketHistory() {
   };
 
   if (error && !ticket) return <p className="text-red-600 dark:text-red-400">{error}</p>;
-  if (!ticket || histories.length === 0) return <p className="text-neutral-500 dark:text-neutral-400">読み込み中...</p>;
+  if (!ticket || histories.length === 0) return <p className="text-neutral-500 dark:text-neutral-400">{t('common.loading')}</p>;
 
   const oldHistory = histories[oldIdx];
   const newHistory = histories[newIdx];
   const sections = [
-    { label: 'タイトル', lines: diffLines(oldHistory.title, newHistory.title) },
-    { label: 'タグ', lines: diffLines(oldHistory.tags, newHistory.tags) },
-    { label: '本文', lines: diffLines(oldHistory.content, newHistory.content) },
+    { label: t('ticketHistory.sectionTitle'), lines: diffLines(oldHistory.title, newHistory.title) },
+    { label: t('ticketHistory.sectionTags'), lines: diffLines(oldHistory.tags, newHistory.tags) },
+    { label: t('ticketHistory.sectionContent'), lines: diffLines(oldHistory.content, newHistory.content) },
   ].filter((s) => hasDiff(s.lines));
 
   return (
@@ -80,26 +81,26 @@ function TicketHistory() {
       <div className="flex items-start mb-4">
         <h2 className="text-xl flex-1">
           <span className="text-neutral-400 mr-2">#{ticket.id}</span>
-          {ticket.title} の履歴
+          {t('ticketHistory.heading', { title: ticket.title })}
         </h2>
         <Link to={`/tickets/${ticket.id}`} className="border rounded-sm px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">
-          詳細へ戻る
+          {t('ticketHistory.backToDetail')}
         </Link>
       </div>
 
       {error && <p className="text-red-600 dark:text-red-400 mb-2">{error}</p>}
 
       {histories.length === 1 ? (
-        <p className="text-neutral-500 dark:text-neutral-400">変更履歴はまだありません</p>
+        <p className="text-neutral-500 dark:text-neutral-400">{t('ticketHistory.empty')}</p>
       ) : (
         <>
       <div className="mb-6">
         <div className="hidden sm:flex text-sm text-neutral-500 dark:text-neutral-400 border-b py-1 gap-x-2">
-          <span className="w-8 text-center">旧</span>
-          <span className="w-8 text-center">新</span>
-          <span className="w-24">版</span>
-          <span className="w-36">日時</span>
-          <span className="flex-1">更新者</span>
+          <span className="w-8 text-center">{t('ticketHistory.headerOld')}</span>
+          <span className="w-8 text-center">{t('ticketHistory.headerNew')}</span>
+          <span className="w-24">{t('ticketHistory.headerVersion')}</span>
+          <span className="w-36">{t('ticketHistory.headerDate')}</span>
+          <span className="flex-1">{t('ticketHistory.headerUpdatedBy')}</span>
           <span className="w-24" />
         </div>
         {histories
@@ -111,7 +112,7 @@ function TicketHistory() {
                 <input
                   type="radio"
                   name="old-version"
-                  aria-label={`v${idx + 1} を比較元にする`}
+                  aria-label={t('ticketHistory.compareFrom', { version: idx + 1 })}
                   checked={oldIdx === idx}
                   onChange={() => setOldIdx(idx)}
                 />
@@ -120,14 +121,14 @@ function TicketHistory() {
                 <input
                   type="radio"
                   name="new-version"
-                  aria-label={`v${idx + 1} を比較先にする`}
+                  aria-label={t('ticketHistory.compareTo', { version: idx + 1 })}
                   checked={newIdx === idx}
                   onChange={() => setNewIdx(idx)}
                 />
               </span>
               <span className="w-24">
                 v{idx + 1}
-                {idx === histories.length - 1 && <span className="text-sm text-neutral-500 dark:text-neutral-400">（最新）</span>}
+                {idx === histories.length - 1 && <span className="text-sm text-neutral-500 dark:text-neutral-400">{t('history.latest')}</span>}
               </span>
               <span className="w-36 text-sm text-neutral-500 dark:text-neutral-400">{formatDateTime(history.created_at)}</span>
               <span className="flex-1 text-sm text-neutral-500 dark:text-neutral-400" title={history.created_sub || undefined}>
@@ -141,7 +142,7 @@ function TicketHistory() {
                     disabled={restoring}
                     onClick={() => setConfirming({ history, version: idx + 1 })}
                   >
-                    この版に戻す
+                    {t('history.restoreThis')}
                   </button>
                 )}
               </span>
@@ -150,9 +151,9 @@ function TicketHistory() {
       </div>
 
       <h3 className="text-lg mb-2">
-        差分（v{oldIdx + 1} → v{newIdx + 1}）
+        {t('ticketHistory.diffHeading', { old: oldIdx + 1, new: newIdx + 1 })}
       </h3>
-      {sections.length === 0 && <p className="text-neutral-500 dark:text-neutral-400">選択した版の間に差分はありません</p>}
+      {sections.length === 0 && <p className="text-neutral-500 dark:text-neutral-400">{t('ticketHistory.noDiff')}</p>}
       {sections.map((section) => (
         <div key={section.label} className="mb-4">
           <div className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">{section.label}</div>
@@ -163,9 +164,9 @@ function TicketHistory() {
       )}
       {confirming && (
         <ConfirmDialog
-          title="チケットを過去の版に戻す"
-          message={`v${confirming.version} の内容に戻しますか？（新しい版として保存されます）`}
-          actionLabel="戻す"
+          title={t('ticketHistory.restoreTitle')}
+          message={t('history.restoreMessage', { version: confirming.version })}
+          actionLabel={t('history.restoreAction')}
           onConfirm={() => {
             const { history } = confirming;
             setConfirming(null);

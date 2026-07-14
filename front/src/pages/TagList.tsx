@@ -7,6 +7,7 @@ import Icon from '../components/Icon';
 import RowIconButton from '../components/RowIconButton';
 import TagCatalogMenu from '../components/TagCatalogMenu';
 import TagItem from '../components/TagItem';
+import { t } from '../i18n';
 import { currentUser, parseTag } from '../lib/tags';
 import { invalidateCatalog } from '../lib/useCatalog';
 
@@ -97,11 +98,9 @@ function TagList() {
         // 件数の取得に失敗した場合は件数なしの確認にフォールバック
       }
       const message =
-        `タグ名を「${original.tag}」から「${name}」へ変更します。\n` +
-        (count > 0
-          ? `このタグを使用している ${count} 件のチケットのタグも一括で変更されます。\n`
-          : '') +
-        '変更しますか？';
+        t('tagList.renameMessage', { from: original.tag, to: name }) +
+        (count > 0 ? t('tagList.renameUsage', { count }) : '') +
+        t('tagList.renameConfirm');
       setRenaming(message);
       return;
     }
@@ -143,14 +142,11 @@ function TagList() {
 
   // 削除前に使用状況を調べて確認ダイアログを開く
   const confirmRemove = async (tag: Tag) => {
-    let message = `タグ「${tag.tag}」を削除しますか？`;
+    let message = t('tagList.deleteMessage', { tag: tag.tag });
     try {
       const used = await countUsage(tag);
       if (used > 0) {
-        message =
-          `タグ「${tag.tag}」は ${used} 件のチケットで使用されています。\n` +
-          '削除してもチケット側のタグ表記は残りますが、色やグループなどの機能は失われます。\n' +
-          '削除しますか？';
+        message = t('tagList.deleteUsedMessage', { tag: tag.tag, count: used });
       }
     } catch {
       // 件数の取得に失敗した場合は通常の確認にフォールバック
@@ -221,12 +217,12 @@ function TagList() {
   };
 
   const editDialog = editing && (
-    <Dialog label={editing.id == null ? '新規タグ' : 'タグの編集'} onClose={() => setEditing(null)}>
+    <Dialog label={editing.id == null ? t('tagList.newTitle') : t('tagList.editTitle')} onClose={() => setEditing(null)}>
       <form onSubmit={submit} className="w-80 max-w-full">
-        <h2 className="text-lg mb-2">{editing.id == null ? '新規タグ' : 'タグの編集'}</h2>
+        <h2 className="text-lg mb-2">{editing.id == null ? t('tagList.newTitle') : t('tagList.editTitle')}</h2>
         {status?.kind === 'error' && <p className="text-red-600 dark:text-red-400 text-sm mb-2">{status.text}</p>}
         <label className="block text-sm text-neutral-600 dark:text-neutral-300 mb-2">
-          タグ
+          {t('tagList.fieldTag')}
           <input
             type="text"
             className="border rounded-sm px-2 py-1 block w-full"
@@ -237,7 +233,7 @@ function TagList() {
           />
         </label>
         <label className="block text-sm text-neutral-600 dark:text-neutral-300 mb-2">
-          説明
+          {t('tagList.note')}
           <input
             type="text"
             className="border rounded-sm px-2 py-1 block w-full"
@@ -246,7 +242,7 @@ function TagList() {
           />
         </label>
         <label className="block text-sm text-neutral-600 dark:text-neutral-300 mb-3">
-          色
+          {t('tagList.fieldColor')}
           <span className="flex items-center gap-1">
             <input
               type="color"
@@ -260,7 +256,7 @@ function TagList() {
                 className="text-xs text-neutral-500 dark:text-neutral-400 underline"
                 onClick={() => setEditing({ ...editing, color: '' })}
               >
-                色なし
+                {t('tagList.clearColor')}
               </button>
             )}
           </span>
@@ -271,10 +267,10 @@ function TagList() {
             className="border rounded-sm px-4 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
             onClick={() => setEditing(null)}
           >
-            キャンセル
+            {t('common.cancel')}
           </button>
           <button type="submit" className="bg-blue-600 text-white rounded-sm px-4 py-1 ml-2 hover:bg-blue-700">
-            {editing.id == null ? '作成' : '更新'}
+            {editing.id == null ? t('common.create') : t('common.update')}
           </button>
         </div>
       </form>
@@ -284,9 +280,9 @@ function TagList() {
   // タグ名変更の警告。編集ダイアログの上に重ねて表示する
   const renameDialog = renaming != null && (
     <ConfirmDialog
-      title="タグ名の変更"
+      title={t('tagList.renameTitle')}
       message={renaming}
-      actionLabel="変更する"
+      actionLabel={t('tagList.renameAction')}
       onConfirm={rename}
       onClose={() => setRenaming(null)}
     />
@@ -294,9 +290,9 @@ function TagList() {
 
   const confirmDialog = confirming && (
     <ConfirmDialog
-      title="タグの削除"
+      title={t('tagList.deleteTitle')}
       message={confirming.message}
-      actionLabel="削除する"
+      actionLabel={t('common.deleteAction')}
       danger
       onConfirm={remove}
       onClose={() => setConfirming(null)}
@@ -306,7 +302,7 @@ function TagList() {
   return (
     <>
       <div className="flex items-center gap-2 mb-2">
-        <h2 className="text-xl flex-1">タグ一覧</h2>
+        <h2 className="text-xl flex-1">{t('tagList.title')}</h2>
         <TagCatalogMenu
           onDone={(message) => {
             setStatus({ kind: 'notice', text: message });
@@ -323,7 +319,7 @@ function TagList() {
             setEditing(EMPTY);
           }}
         >
-          + 新規タグ
+          {t('tagList.new')}
         </button>
       </div>
       {status?.kind === 'error' && !editing && <p className="text-red-600 dark:text-red-400 mb-2">{status.text}</p>}
@@ -335,16 +331,16 @@ function TagList() {
       <input
         type="search"
         className="border rounded-sm px-2 py-1 w-full sm:w-64 mb-2"
-        placeholder="タグ名・説明で絞り込み"
-        aria-label="タグ名・説明で絞り込み"
+        placeholder={t('tagList.filterPlaceholder')}
+        aria-label={t('tagList.filterPlaceholder')}
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
       />
 
       <div className="hidden sm:flex text-neutral-500 dark:text-neutral-400 border-b">
         <div className="w-1/3 py-1 pl-2">tag</div>
-        <div className="w-1/4 py-1">説明</div>
-        <div className="flex-1 py-1">属性</div>
+        <div className="w-1/4 py-1">{t('tagList.note')}</div>
+        <div className="flex-1 py-1">{t('tagList.headerAttrs')}</div>
         <div className="flex-none w-24 py-1"></div>
       </div>
       {visible.map((tag, i) => {
@@ -380,8 +376,8 @@ function TagList() {
                   type="button"
                   draggable
                   className="cursor-grab text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
-                  title="ドラッグまたは↑↓キーで並び替え"
-                  aria-label={`${tag.tag} を並び替え`}
+                  title={t('tagList.sortHint')}
+                  aria-label={t('tagList.sortAria', { tag: tag.tag })}
                   onDragStart={(e) => {
                     e.dataTransfer.setData('text/plain', tag.tag);
                     e.dataTransfer.effectAllowed = 'move';
@@ -406,16 +402,16 @@ function TagList() {
           </div>
           <div className="sm:w-1/4 sm:py-2 text-sm">{tag.note}</div>
           <div className="sm:flex-1 sm:py-2 mt-1 sm:mt-0 text-sm text-neutral-500 dark:text-neutral-400">
-            {tag.is_group && <span className="mr-2">グループ</span>}
-            {tag.is_range && <span className="mr-2">{parseTag(tag.tag).isNumber ? '数値' : '日時'}</span>}
-            {tag.tag.includes('/') && <span className="mr-2">階層</span>}
+            {tag.is_group && <span className="mr-2">{t('tagList.attrGroup')}</span>}
+            {tag.is_range && <span className="mr-2">{parseTag(tag.tag).isNumber ? t('tagList.attrNumber') : t('tagList.attrDate')}</span>}
+            {tag.tag.includes('/') && <span className="mr-2">{t('tagList.attrHierarchy')}</span>}
           </div>
           <div className="sm:flex-none sm:w-24 sm:pr-2 mt-1 sm:mt-0 flex items-center sm:justify-end gap-1">
             <RowIconButton
               icon="edit"
               action="edit"
-              aria-label={`${tag.tag} を編集`}
-              title="編集"
+              aria-label={t('tagList.editAria', { tag: tag.tag })}
+              title={t('common.edit')}
               onClick={() => {
                 setStatus(null);
                 setEditing({ id: tag.id, tag: tag.tag, note: tag.note ?? '', color: tag.color ?? '' });
@@ -424,8 +420,8 @@ function TagList() {
             <RowIconButton
               icon="delete"
               action="delete"
-              aria-label={`${tag.tag} を削除`}
-              title="削除"
+              aria-label={t('tagList.deleteAria', { tag: tag.tag })}
+              title={t('common.delete')}
               onClick={() => confirmRemove(tag)}
             />
           </div>
@@ -433,7 +429,7 @@ function TagList() {
         );
       })}
       {catalog != null && visible.length === 0 && (
-        <p className="text-neutral-500 dark:text-neutral-400 p-4">一致するタグがありません</p>
+        <p className="text-neutral-500 dark:text-neutral-400 p-4">{t('tagList.emptyFiltered')}</p>
       )}
     </>
   );

@@ -2,6 +2,7 @@ import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { api, FileInfo } from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
 import RowIconButton from '../components/RowIconButton';
+import { t } from '../i18n';
 import { readFileInput } from '../lib/attachFiles';
 import { formatDateTime } from '../lib/date';
 
@@ -14,9 +15,14 @@ function formatSize(size: number): string {
 
 // 参照状況のラベル（現役のチケット・コメントから / 履歴のみから / 参照なし）
 function refLabel(file: FileInfo): string {
-  if (file.referenced) return '参照あり';
-  if (file.history_referenced) return '履歴のみ';
-  return '参照なし';
+  if (file.referenced) return t('fileList.referenced');
+  if (file.history_referenced) return t('fileList.historyOnly');
+  return t('fileList.noReference');
+}
+
+// 確認ダイアログ等での表示名（名前が無ければ id:n 形式）
+function fileLabel(file: FileInfo): string {
+  return file.name || `id:${file.id}`;
 }
 
 // 添付ファイルの管理（一覧・アップロード・削除）。
@@ -71,15 +77,15 @@ function FileList() {
 
   const confirmDialog = confirming && (
     <ConfirmDialog
-      title="ファイルの削除"
+      title={t('fileList.deleteTitle')}
       message={
-        confirming.referenced || confirming.history_referenced
-          ? `ファイル「${confirming.name || `id:${confirming.id}`}」は` +
-            `チケット・コメント${confirming.referenced ? '' : 'の履歴'}から参照されています。\n` +
-            '削除するとチケットからの参照（リンク・画像）が切れます。\n削除しますか？'
-          : `ファイル「${confirming.name || `id:${confirming.id}`}」を削除しますか？`
+        confirming.referenced
+          ? t('fileList.deleteReferencedMessage', { name: fileLabel(confirming) })
+          : confirming.history_referenced
+            ? t('fileList.deleteHistoryReferencedMessage', { name: fileLabel(confirming) })
+            : t('fileList.deleteMessage', { name: fileLabel(confirming) })
       }
-      actionLabel="削除する"
+      actionLabel={t('common.deleteAction')}
       danger
       onConfirm={remove}
       onClose={() => setConfirming(null)}
@@ -89,13 +95,13 @@ function FileList() {
   return (
     <>
       <div className="flex items-center mb-2">
-        <h2 className="text-xl flex-1">ファイル一覧</h2>
+        <h2 className="text-xl flex-1">{t('fileList.title')}</h2>
         <button
           type="button"
           className="bg-blue-600 text-white rounded-sm px-3 py-1 text-sm hover:bg-blue-700"
           onClick={() => inputRef.current?.click()}
         >
-          + ファイル追加
+          {t('fileList.add')}
         </button>
         <input ref={inputRef} type="file" multiple className="hidden" onChange={upload} />
       </div>
@@ -104,16 +110,16 @@ function FileList() {
 
       <div className="hidden sm:flex text-neutral-500 dark:text-neutral-400 border-b">
         <div className="w-14 py-1 pl-2">id</div>
-        <div className="flex-1 py-1">ファイル名</div>
+        <div className="flex-1 py-1">{t('fileList.headerName')}</div>
         <div className="w-44 py-1">MIME-Type</div>
-        <div className="w-24 py-1 text-right">サイズ</div>
-        <div className="w-40 py-1 pl-4">追加日時</div>
-        <div className="w-20 py-1">参照</div>
+        <div className="w-24 py-1 text-right">{t('fileList.headerSize')}</div>
+        <div className="w-40 py-1 pl-4">{t('fileList.headerCreated')}</div>
+        <div className="w-20 py-1">{t('fileList.headerRef')}</div>
         <div className="flex-none w-16 py-1"></div>
       </div>
       {loaded && files.length === 0 && (
         <p className="text-neutral-500 dark:text-neutral-400 p-4">
-          添付ファイルはまだありません。「+ ファイル追加」のほか、チケット・コメントの編集エリアへの貼り付け・ドロップでも追加できます。
+          {t('fileList.empty')}
         </p>
       )}
       {files.map((file) => (
@@ -132,7 +138,7 @@ function FileList() {
             </div>
             <div className="sm:flex-1 sm:py-2 truncate">
               <span className="sm:hidden text-neutral-500 dark:text-neutral-400 mr-2">{file.id}</span>
-              {file.name || <span className="text-neutral-400">(名前なし)</span>}
+              {file.name || <span className="text-neutral-400">{t('fileList.noName')}</span>}
             </div>
             <div className="sm:w-44 sm:py-2 text-sm text-neutral-500 dark:text-neutral-400 truncate">{file.mime}</div>
             <div className="sm:w-24 sm:py-2 sm:text-right text-sm">{formatSize(file.size)}</div>
@@ -145,8 +151,8 @@ function FileList() {
             <RowIconButton
               icon="delete"
               action="delete"
-              aria-label={`ファイル「${file.name || `id:${file.id}`}」を削除`}
-              title="削除"
+              aria-label={t('fileList.deleteAria', { name: fileLabel(file) })}
+              title={t('common.delete')}
               onClick={() => setConfirming(file)}
             />
           </div>

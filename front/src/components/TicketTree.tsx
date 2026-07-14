@@ -1,6 +1,7 @@
 import { KeyboardEvent as ReactKeyboardEvent, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Ticket } from '../api/client';
+import { t } from '../i18n';
 import { parseTag, splitTags, tagColor, TagColorMap } from '../lib/tags';
 import TagItem from './TagItem';
 
@@ -75,7 +76,7 @@ function buildTree(tickets: Ticket[], by: string): TreeNode[] {
   if (unclassified.length > 0) {
     nodes.push({
       path: UNCLASSIFIED,
-      label: '未分類',
+      label: t('ticketTree.unclassified'),
       children: [],
       tickets: unclassified,
       ids: new Set(unclassified.map((t) => t.id)),
@@ -170,7 +171,7 @@ function TicketTree({ tickets, colors, by }: Props) {
   };
 
   return (
-    <div role="tree" aria-label="チケットツリー">
+    <div role="tree" aria-label={t('ticketTree.label')}>
       {rows.map((row, i) =>
         row.type === 'node' ? (
           <button

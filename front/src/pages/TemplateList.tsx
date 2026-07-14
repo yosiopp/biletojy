@@ -6,6 +6,7 @@ import RowIconButton from '../components/RowIconButton';
 import TagInput from '../components/TagInput';
 import TagItem from '../components/TagItem';
 import TicketRefTextarea from '../components/TicketRefTextarea';
+import { t } from '../i18n';
 import { joinTags, splitTags, tagColor } from '../lib/tags';
 import { useCatalog, useTagColors } from '../lib/useCatalog';
 import { usePendingTagGuard } from '../lib/usePendingTagGuard';
@@ -92,44 +93,44 @@ function TemplateList() {
 
   const editDialog = editing && (
     <Dialog
-      label={editing.id == null ? '新規テンプレート' : 'テンプレートの編集'}
+      label={editing.id == null ? t('templateList.newTitle') : t('templateList.editTitle')}
       onClose={() => setEditing(null)}
     >
       <form onSubmit={submit} className="w-[36rem] max-w-full">
-        <h2 className="text-lg mb-2">{editing.id == null ? '新規テンプレート' : 'テンプレートの編集'}</h2>
+        <h2 className="text-lg mb-2">{editing.id == null ? t('templateList.newTitle') : t('templateList.editTitle')}</h2>
         {error && <p className="text-red-600 dark:text-red-400 text-sm mb-2">{error}</p>}
         <label className="block text-sm text-neutral-600 dark:text-neutral-300 mb-2">
-          テンプレート名
+          {t('templateList.fieldName')}
           <input
             type="text"
             className="border rounded-sm px-2 py-1 block w-full"
-            placeholder="バグ報告"
+            placeholder={t('templateList.namePlaceholder')}
             value={editing.name}
             onChange={(e) => setEditing({ ...editing, name: e.target.value })}
             autoFocus
           />
         </label>
         <label className="block text-sm text-neutral-600 dark:text-neutral-300 mb-2">
-          タイトル
+          {t('templateList.fieldTitle')}
           <input
             type="text"
             className="border rounded-sm px-2 py-1 block w-full"
-            placeholder="【バグ】"
+            placeholder={t('templateList.titlePlaceholder')}
             value={editing.title}
             onChange={(e) => setEditing({ ...editing, title: e.target.value })}
           />
         </label>
         <label className="block text-sm text-neutral-600 dark:text-neutral-300 mb-2">
-          本文
+          {t('templateList.fieldContent')}
           <TicketRefTextarea
             className="border rounded-sm w-full p-2 h-40 font-mono text-sm"
-            placeholder={'## 再現手順\n\n## 期待する結果\n\n## 実際の結果'}
+            placeholder={t('templateList.contentPlaceholder')}
             value={editing.content}
             onChange={(content) => setEditing({ ...editing, content })}
           />
         </label>
         <div className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
-          タグ
+          {t('templateList.fieldTags')}
           <TagInput
             value={editing.tags}
             onChange={(tags) => setEditing({ ...editing, tags })}
@@ -143,10 +144,10 @@ function TemplateList() {
             className="border rounded-sm px-4 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
             onClick={() => setEditing(null)}
           >
-            キャンセル
+            {t('common.cancel')}
           </button>
           <button type="submit" className="bg-blue-600 text-white rounded-sm px-4 py-1 ml-2 hover:bg-blue-700">
-            {editing.id == null ? '作成' : '更新'}
+            {editing.id == null ? t('common.create') : t('common.update')}
           </button>
         </div>
       </form>
@@ -155,9 +156,9 @@ function TemplateList() {
 
   const confirmDialog = confirming && (
     <ConfirmDialog
-      title="テンプレートの削除"
-      message={`テンプレート「${confirming.name}」を削除しますか？`}
-      actionLabel="削除する"
+      title={t('templateList.deleteTitle')}
+      message={t('templateList.deleteMessage', { name: confirming.name })}
+      actionLabel={t('common.deleteAction')}
       danger
       onConfirm={remove}
       onClose={() => setConfirming(null)}
@@ -167,7 +168,7 @@ function TemplateList() {
   return (
     <>
       <div className="flex items-center mb-2">
-        <h2 className="text-xl flex-1">テンプレート一覧</h2>
+        <h2 className="text-xl flex-1">{t('templateList.title')}</h2>
         <button
           type="button"
           className="bg-blue-600 text-white rounded-sm px-3 py-1 text-sm hover:bg-blue-700"
@@ -176,7 +177,7 @@ function TemplateList() {
             setEditing(EMPTY);
           }}
         >
-          + 新規テンプレート
+          {t('templateList.new')}
         </button>
       </div>
       {error && !editing && <p className="text-red-600 dark:text-red-400 mb-2">{error}</p>}
@@ -185,14 +186,14 @@ function TemplateList() {
       {tagGuard.dialog}
 
       <div className="hidden sm:flex text-neutral-500 dark:text-neutral-400 border-b">
-        <div className="w-1/4 py-1 pl-2">テンプレート名</div>
-        <div className="w-1/4 py-1">タイトル</div>
-        <div className="flex-1 py-1">タグ</div>
+        <div className="w-1/4 py-1 pl-2">{t('templateList.fieldName')}</div>
+        <div className="w-1/4 py-1">{t('templateList.fieldTitle')}</div>
+        <div className="flex-1 py-1">{t('templateList.fieldTags')}</div>
         <div className="flex-none w-24 py-1"></div>
       </div>
       {loaded && templates.length === 0 && (
         <p className="text-neutral-500 dark:text-neutral-400 p-4">
-          テンプレートはまだありません。「+ 新規テンプレート」から登録すると、チケット作成時に選択して適用できます。
+          {t('templateList.empty')}
         </p>
       )}
       {templates.map((tpl) => (
@@ -208,8 +209,8 @@ function TemplateList() {
             <RowIconButton
               icon="edit"
               action="edit"
-              aria-label={`テンプレート「${tpl.name}」を編集`}
-              title="編集"
+              aria-label={t('templateList.editAria', { name: tpl.name })}
+              title={t('common.edit')}
               onClick={() => {
                 setError('');
                 setEditing({
@@ -224,8 +225,8 @@ function TemplateList() {
             <RowIconButton
               icon="delete"
               action="delete"
-              aria-label={`テンプレート「${tpl.name}」を削除`}
-              title="削除"
+              aria-label={t('templateList.deleteAria', { name: tpl.name })}
+              title={t('common.delete')}
               onClick={() => setConfirming(tpl)}
             />
           </div>

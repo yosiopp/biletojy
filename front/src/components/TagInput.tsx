@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Tag } from '../api/client';
+import { t } from '../i18n';
 import {
   completeOnTab,
   completionCandidates,
@@ -183,7 +184,7 @@ function TagInput({ value, onChange, catalog, onTextChange }: Props) {
           aria-autocomplete="list"
           aria-activedescendant={showList && active >= 0 ? `tag-opt-${active}` : undefined}
           className="border rounded-sm px-2 py-1 w-full"
-          placeholder="タグを追加（Enterで確定）"
+          placeholder={t('tagInput.placeholder')}
           value={text}
           onFocus={() => setOpen(true)}
           onChange={(e) => {
@@ -246,7 +247,7 @@ function TagInput({ value, onChange, catalog, onTextChange }: Props) {
           <div
             id="tag-input-listbox"
             role="listbox"
-            aria-label="タグ候補"
+            aria-label={t('tagInput.candidates')}
             className="absolute z-10 left-0 top-full mt-1 bg-white dark:bg-neutral-800 border rounded-sm shadow-md min-w-full max-h-64 overflow-auto whitespace-nowrap"
           >
             {matches.map((c, i) => (

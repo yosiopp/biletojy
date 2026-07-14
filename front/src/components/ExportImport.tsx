@@ -1,5 +1,6 @@
 import { ChangeEvent, useRef, useState } from 'react';
 import { api, TicketExport } from '../api/client';
+import { t } from '../i18n';
 import { readFileInput } from '../lib/attachFiles';
 import { readJsonExport } from '../lib/exportFile';
 import { invalidateCatalog } from '../lib/useCatalog';
@@ -41,7 +42,7 @@ function ExportImport({ q, tags, onImported, onError, className = '' }: Props) {
       const tickets = await readJsonExport<TicketExport>(
         file,
         'tickets',
-        'エクスポートしたJSONファイルを選択してください',
+        t('exportImport.selectJson'),
       );
       const res = await api.importTickets(tickets);
       // 未定義タグはサーバー側でカタログへ自動登録されるため、共有キャッシュを取得し直させる
@@ -55,9 +56,9 @@ function ExportImport({ q, tags, onImported, onError, className = '' }: Props) {
   };
 
   const items = [
-    { key: 'export-json', label: 'JSONエクスポート', href: api.exportUrl(q, tags, 'json') },
-    { key: 'export-md', label: 'Markdownエクスポート', href: api.exportUrl(q, tags, 'markdown') },
-    { key: 'import', label: 'JSONインポート...', href: null },
+    { key: 'export-json', label: t('exportImport.exportJson'), href: api.exportUrl(q, tags, 'json') },
+    { key: 'export-md', label: t('exportImport.exportMarkdown'), href: api.exportUrl(q, tags, 'markdown') },
+    { key: 'import', label: t('exportImport.importJson'), href: null },
   ];
 
   const { onKeyDown, close } = useMenuKeys({
@@ -83,8 +84,8 @@ function ExportImport({ q, tags, onImported, onError, className = '' }: Props) {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="エクスポート/インポート"
-        title={importing ? 'インポート中...' : 'エクスポート/インポート'}
+        aria-label={t('exportImport.label')}
+        title={importing ? t('exportImport.importing') : t('exportImport.label')}
         className="inline-flex items-center justify-center border rounded-full p-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
         disabled={importing}
         onClick={() => (open ? close() : setOpen(true))}
@@ -95,7 +96,7 @@ function ExportImport({ q, tags, onImported, onError, className = '' }: Props) {
       {open && (
         <div
           role="menu"
-          aria-label="エクスポート/インポート"
+          aria-label={t('exportImport.label')}
           className="absolute z-10 right-0 top-full mt-1 bg-white dark:bg-neutral-800 border rounded-sm shadow-md whitespace-nowrap"
         >
           {items.map((item, i) =>

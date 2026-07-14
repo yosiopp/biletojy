@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { dueState, parseTag, stripRangeMark } from '../lib/tags';
 
 type Props = {
@@ -30,7 +31,7 @@ function TagItem({ tag, color, onRemove, onClick }: Props) {
     <span
       className={`inline-flex items-center rounded-lg border py-0.5 px-2 mr-1 mb-1 whitespace-nowrap ${dueClass}`}
       style={style}
-      title={due === 'overdue' ? '期限超過' : due === 'soon' ? '期限まで3日以内' : undefined}
+      title={due === 'overdue' ? t('tagItem.overdue') : due === 'soon' ? t('tagItem.dueSoon') : undefined}
     >
       {group != null ? (
         <>

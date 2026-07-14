@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react';
 import { api, Ticket } from '../api/client';
+import { t } from '../i18n';
 import { staleGuard } from '../lib/staleGuard';
 
 type Props = Omit<ComponentPropsWithoutRef<'textarea'>, 'value' | 'onChange'> & {
@@ -204,11 +205,11 @@ function TicketRefTextarea({ value, onChange, onKeyDown, onSelect, onBlur, onScr
           onMouseDown={(e) => e.preventDefault()}
         >
           {candidates == null ? (
-            <span className="block px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">検索中...</span>
+            <span className="block px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">{t('ticketRef.searching')}</span>
           ) : candidates.length === 0 ? (
-            <span className="block px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">該当するチケットはありません</span>
+            <span className="block px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">{t('ticketRef.noMatch')}</span>
           ) : (
-            <span className="block" role="listbox" aria-label="チケット参照の候補">
+            <span className="block" role="listbox" aria-label={t('ticketRef.candidates')}>
               {candidates.map((ticket, i) => (
                 <button
                   key={ticket.id}

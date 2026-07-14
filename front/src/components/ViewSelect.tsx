@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { t } from '../i18n';
 import { splitTags } from '../lib/tags';
 import Icon from './Icon';
 import { useMenuKeys } from '../lib/useMenuKeys';
@@ -106,7 +107,7 @@ function ViewSelect({ q, tags, mode, by, onApply }: Props) {
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
-        title={current ? `ビュー「${current.name}」` : canSave ? '現在の条件をビューとして保存' : '保存済みビューを適用'}
+        title={current ? t('viewSelect.currentTitle', { name: current.name }) : canSave ? t('viewSelect.saveTitle') : t('viewSelect.applyTitle')}
         className={`inline-flex items-center rounded-sm border py-0.5 px-2 text-sm whitespace-nowrap ${
           current
             ? 'bg-neutral-100 dark:bg-neutral-700 border-transparent'
@@ -114,17 +115,17 @@ function ViewSelect({ q, tags, mode, by, onApply }: Props) {
         }`}
         onClick={toggle}
       >
-        <span className="border-r border-neutral-300 dark:border-neutral-600 pr-1 text-sm opacity-70">ビュー</span>
-        <span className="pl-2">{current ? current.name : canSave ? '+ 保存' : '選択'}</span>
+        <span className="border-r border-neutral-300 dark:border-neutral-600 pr-1 text-sm opacity-70">{t('viewSelect.chipLabel')}</span>
+        <span className="pl-2">{current ? current.name : canSave ? t('viewSelect.saveNew') : t('viewSelect.select')}</span>
         <span className="ml-1 text-xs text-neutral-400">▾</span>
       </button>
 
       {open && (
         <div className="absolute z-10 left-0 top-full mt-1 bg-white dark:bg-neutral-800 border rounded-sm shadow-md min-w-full max-h-64 overflow-auto whitespace-nowrap">
           {views.length === 0 ? (
-            <p className="px-2 py-1 text-sm text-neutral-400">保存済みのビューはありません</p>
+            <p className="px-2 py-1 text-sm text-neutral-400">{t('viewSelect.empty')}</p>
           ) : (
-            <div role="listbox" aria-label="ビュー">
+            <div role="listbox" aria-label={t('viewSelect.chipLabel')}>
               {views.map((view, i) => (
                 <div
                   key={view.name}
@@ -147,8 +148,8 @@ function ViewSelect({ q, tags, mode, by, onApply }: Props) {
                   <button
                     type="button"
                     className="p-2 text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
-                    title={`ビュー「${view.name}」を削除`}
-                    aria-label={`ビュー「${view.name}」を削除`}
+                    title={t('viewSelect.deleteView', { name: view.name })}
+                    aria-label={t('viewSelect.deleteView', { name: view.name })}
                     onClick={() => remove(view.name)}
                   >
                     <Icon name="delete" />
@@ -164,7 +165,7 @@ function ViewSelect({ q, tags, mode, by, onApply }: Props) {
                 <input
                   type="text"
                   className="border rounded-sm px-1 py-0.5 text-sm w-40"
-                  placeholder="現在の条件に名前を付ける"
+                  placeholder={t('viewSelect.namePlaceholder')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => {
@@ -180,11 +181,11 @@ function ViewSelect({ q, tags, mode, by, onApply }: Props) {
                   disabled={!name.trim()}
                   onClick={save}
                 >
-                  保存
+                  {t('common.save')}
                 </button>
               </div>
             ) : (
-              <p className="text-sm text-neutral-400">検索条件を設定すると保存できます</p>
+              <p className="text-sm text-neutral-400">{t('viewSelect.needCondition')}</p>
             )}
           </div>
         </div>

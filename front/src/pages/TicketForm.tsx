@@ -6,6 +6,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import Markdown from '../components/Markdown';
 import TagInput from '../components/TagInput';
 import TicketRefTextarea from '../components/TicketRefTextarea';
+import { t } from '../i18n';
 import { dropFiles, pasteFiles, useFileDrag } from '../lib/attachFiles';
 import { EditorMode, EDITOR_MODES, loadEditorMode, saveEditorMode } from '../lib/editorMode';
 import { staleGuard } from '../lib/staleGuard';
@@ -15,8 +16,7 @@ import { usePendingTagGuard } from '../lib/usePendingTagGuard';
 
 type Draft = { title: string; content: string; tags: string };
 
-const CONTENT_PLACEHOLDER =
-  '本文（markdown / mermaid可、画像・ファイル添付可（ペースト/ドロップ）、#でチケット参照）\n\n```mermaid\ngraph TD; A-->B;\n```';
+const CONTENT_PLACEHOLDER = t('ticketForm.contentPlaceholder');
 
 // チケット作成（/tickets/new）と編集（/tickets/:id/edit）を兼ねるフォーム
 function TicketForm() {
@@ -123,7 +123,7 @@ function TicketForm() {
     e.preventDefault();
     if (submitting) return;
     if (!title.trim()) {
-      setError('タイトルを入力してください');
+      setError(t('ticketForm.titleRequired'));
       setTitleError(true);
       titleRef.current?.focus();
       return;
@@ -156,16 +156,16 @@ function TicketForm() {
   return (
     <form onSubmit={submit}>
       <div className="flex items-center mb-2">
-        <h2 className="text-xl flex-1">{isEdit ? `チケット編集 #${id}` : 'チケット作成'}</h2>
+        <h2 className="text-xl flex-1">{isEdit ? t('ticketForm.editTitle', { id }) : t('ticketForm.newTitle')}</h2>
         {!isEdit && templates.length > 0 && (
           <label className="text-sm text-neutral-500 dark:text-neutral-400">
-            テンプレート
+            {t('ticketForm.template')}
             <select
               className="border rounded-sm px-2 py-1 ml-1"
               value={templateId}
               onChange={(e) => selectTemplate(e.target.value)}
             >
-              <option value="">選択なし</option>
+              <option value="">{t('ticketForm.noTemplate')}</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
@@ -183,7 +183,7 @@ function TicketForm() {
         className={`border rounded-sm w-full px-2 py-1 mb-2 text-lg ${
           titleError ? 'border-red-500' : ''
         }`}
-        placeholder="タイトル"
+        placeholder={t('ticketForm.titlePlaceholder')}
         value={title}
         onChange={(e) => {
           setTitle(e.target.value);
@@ -248,7 +248,7 @@ function TicketForm() {
       )}
 
       <div className="border rounded-sm p-2 mb-2">
-        <div className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">タグ</div>
+        <div className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">{t('ticketForm.tags')}</div>
         <TagInput value={tags} onChange={setTags} catalog={catalog} onTextChange={tagGuard.onTextChange} />
       </div>
 
@@ -257,21 +257,21 @@ function TicketForm() {
         className="bg-blue-600 text-white rounded-sm px-4 py-1 hover:bg-blue-700 disabled:opacity-50"
         disabled={submitting}
       >
-        {isEdit ? '更新' : '作成'}
+        {isEdit ? t('common.update') : t('common.create')}
       </button>
       <button
         type="button"
         className="border rounded-sm px-4 py-1 ml-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         onClick={() => navigate(-1)}
       >
-        キャンセル
+        {t('common.cancel')}
       </button>
 
       {pendingTemplate && (
         <ConfirmDialog
-          title="テンプレートの適用"
-          message={`入力中の内容をテンプレート「${pendingTemplate.name}」の内容で置き換えます。よろしいですか？`}
-          actionLabel="置き換える"
+          title={t('ticketForm.applyTemplateTitle')}
+          message={t('ticketForm.applyTemplateMessage', { name: pendingTemplate.name })}
+          actionLabel={t('ticketForm.applyTemplateAction')}
           onConfirm={() => {
             applyTemplate(pendingTemplate);
             setPendingTemplate(null);
@@ -282,9 +282,9 @@ function TicketForm() {
       {tagGuard.dialog}
       {blocker.state === 'blocked' && (
         <ConfirmDialog
-          title="ページ離脱の確認"
-          message="編集中の内容は保存されていません。このページを離れますか？"
-          actionLabel="離れる"
+          title={t('ticketForm.leaveTitle')}
+          message={t('ticketForm.leaveMessage')}
+          actionLabel={t('ticketForm.leaveAction')}
           onConfirm={() => blocker.proceed()}
           onClose={() => blocker.reset()}
         />

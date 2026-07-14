@@ -1,5 +1,6 @@
 import { RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { Tag } from '../api/client';
+import { t } from '../i18n';
 import { groupCatalog, hierarchyOptions, isRangeGroup } from '../lib/tags';
 import { useMenuKeys } from '../lib/useMenuKeys';
 import { useOutsideClick } from '../lib/useOutsideClick';
@@ -18,7 +19,7 @@ type Props = {
 type MenuMode = 'tree' | 'board';
 
 // 対象の空選択（value=''）の表示名。ツリーは全件表示、ボードは未グルーピング
-const EMPTY_LABEL: Record<MenuMode, string> = { tree: 'すべて', board: 'なし' };
+const EMPTY_LABEL: Record<MenuMode, string> = { tree: t('viewModeSelect.all'), board: t('viewModeSelect.none') };
 
 // チケット一覧の表示モード切替（リスト / ツリー▾ / ボード▾）。
 // ツリー・ボードは ▾ で対象選択のプルダウンを開く。キーボード操作（↑↓移動・Enter確定・Escで閉じる）に対応
@@ -126,7 +127,7 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
     return (
       <div
         role="listbox"
-        aria-label="対象"
+        aria-label={t('viewModeSelect.target')}
         className="absolute z-10 left-0 top-full mt-1 bg-white dark:bg-neutral-800 border rounded-sm shadow-md min-w-full max-h-64 overflow-auto whitespace-nowrap text-neutral-900 dark:text-neutral-100"
       >
         {options.map((opt, i) => (
@@ -165,8 +166,8 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
         type="button"
         aria-haspopup="listbox"
         aria-expanded={openMode === target}
-        aria-label={`${label}の対象を選択`}
-        title={`${label}の対象を選択`}
+        aria-label={t('viewModeSelect.selectTarget', { label })}
+        title={t('viewModeSelect.selectTarget', { label })}
         className={caretClass(target)}
         onClick={() => toggleMenu(target)}
       >
@@ -177,7 +178,7 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
   );
 
   return (
-    <div ref={rootRef} className="inline-flex border rounded-sm text-sm mr-2 mb-1" role="group" aria-label="表示モード">
+    <div ref={rootRef} className="inline-flex border rounded-sm text-sm mr-2 mb-1" role="group" aria-label={t('viewModeSelect.label')}>
       <button
         type="button"
         aria-pressed={mode === 'list'}
@@ -187,10 +188,10 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
           onChange('list', '');
         }}
       >
-        リスト
+        {t('viewMode.list')}
       </button>
-      {renderSegment('tree', 'ツリー', treeKeys, treeBtnRef)}
-      {renderSegment('board', 'ボード', boardKeys, boardBtnRef)}
+      {renderSegment('tree', t('viewMode.tree'), treeKeys, treeBtnRef)}
+      {renderSegment('board', t('viewMode.board'), boardKeys, boardBtnRef)}
     </div>
   );
 }

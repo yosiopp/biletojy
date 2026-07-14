@@ -1,6 +1,7 @@
 import { DragEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, Tag, Ticket } from '../api/client';
+import { t } from '../i18n';
 import { currentUser, groupCatalog, joinTags, parseTag, splitTags, tagColor, TagColorMap } from '../lib/tags';
 import { invalidateCatalog } from '../lib/useCatalog';
 import TagItem from './TagItem';
@@ -54,7 +55,7 @@ function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props
     const values = groupCatalog(catalog).get(by) ?? [];
     const cols: Column[] = values.map((t) => ({ tag: t.tag, label: parseTag(t.tag).name, tickets: [] }));
     const extra: Column[] = [];
-    const none: Column = { tag: null, label: 'なし', tickets: [] };
+    const none: Column = { tag: null, label: t('ticketBoard.none'), tickets: [] };
     const prefix = `${by}:`;
     for (const ticket of tickets) {
       const value = splitTags(ticket.tags).find((t) => t.startsWith(prefix));

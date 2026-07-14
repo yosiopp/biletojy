@@ -1,5 +1,6 @@
 import { ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import type { Tag } from '../api/client';
+import { t } from '../i18n';
 import {
   buildCond,
   completeOnTab,
@@ -164,7 +165,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
           ref={searchRef}
           type="search"
           className="border rounded-sm px-2 py-1 w-full"
-          placeholder="タグまたは全文検索"
+          placeholder={t('tagFilter.placeholder')}
           list="tag-filter-suggestions"
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -209,7 +210,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
       </span>
 
       <div className="flex flex-wrap items-center mt-2">
-        <span className="text-sm text-neutral-500 dark:text-neutral-400 mr-1 mb-1">絞り込み:</span>
+        <span className="text-sm text-neutral-500 dark:text-neutral-400 mr-1 mb-1">{t('tagFilter.filterLabel')}</span>
 
         {filterGroups.map(([group, tags]) => {
           const groupSelected = selectedInGroup(group);
@@ -228,7 +229,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
 
         {hierarchies.length > 0 && (
           <TagGroupSelect
-            group="階層"
+            group={t('tagFilter.hierarchy')}
             options={hierarchies.map((h) => ({
               value: h,
               label: '\u00A0'.repeat((h.split('/').length - 1) * 2) + h,
@@ -256,7 +257,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
             !not && alts.length === 1 ? (
               <TagItem tag={alts[0]} color={tagColor(colors, alts[0])} onRemove={remove} onClick={startEdit} />
             ) : (
-              <ConditionChip label={not ? '除外' : undefined} onRemove={remove} onClick={startEdit}>
+              <ConditionChip label={not ? t('tagFilter.not') : undefined} onRemove={remove} onClick={startEdit}>
                 {alts.join(' | ')}
               </ConditionChip>
             );
@@ -268,7 +269,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
                   group={range.group ?? ''}
                   value={editValue}
                   onValueChange={setEditValue}
-                  submitLabel="設定"
+                  submitLabel={t('common.set')}
                   onSubmit={() => {
                     // 比較演算子は変えずに値だけ差し替える。同一条件が既にあれば重複させない
                     const [op] = splitRangeValue(range.name);
@@ -285,7 +286,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
         {queryWords.map((word) => (
           <ConditionChip
             key={word}
-            label="全文"
+            label={t('tagFilter.fullText')}
             onRemove={() => onQueryChange(queryWords.filter((w) => w !== word).join(' '))}
           >
             {word}

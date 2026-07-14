@@ -16,9 +16,9 @@ const NAV_ITEMS = [
 
 // 表示テーマの選択肢。現在値はボタンのアイコン（と title）で示す
 const THEME_OPTIONS: { mode: ThemeMode; icon: IconName; label: string }[] = [
-  { mode: 'system', icon: 'brightness_auto', label: '自動' },
-  { mode: 'light', icon: 'light_mode', label: 'ライト' },
-  { mode: 'dark', icon: 'dark_mode', label: 'ダーク' },
+  { mode: 'system', icon: 'brightness_auto', label: t('header.themeAuto') },
+  { mode: 'light', icon: 'light_mode', label: t('header.themeLight') },
+  { mode: 'dark', icon: 'dark_mode', label: t('header.themeDark') },
 ];
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
@@ -55,8 +55,8 @@ function NavMenu() {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="メニュー"
-        title="メニュー"
+        aria-label={t('header.menu')}
+        title={t('header.menu')}
         className="inline-flex items-center justify-center border rounded-full p-1.5 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         onClick={() => (open ? close() : setOpen(true))}
       >
@@ -66,7 +66,7 @@ function NavMenu() {
       {open && (
         <div
           role="menu"
-          aria-label="ナビゲーション"
+          aria-label={t('header.nav')}
           className="absolute z-10 left-0 top-full mt-1 bg-white dark:bg-neutral-800 border rounded-sm shadow-md whitespace-nowrap"
         >
           {NAV_ITEMS.map((item, i) => (
@@ -140,8 +140,8 @@ function ThemeMenu() {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="表示テーマ"
-        title={`表示テーマ: ${current.label}（自動はOS設定に追随）`}
+        aria-label={t('header.theme')}
+        title={t('header.themeTitle', { label: current.label })}
         className="inline-flex items-center justify-center border rounded-full p-1.5 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         onClick={() => (open ? close() : openMenu())}
       >
@@ -151,7 +151,7 @@ function ThemeMenu() {
       {open && (
         <div
           role="menu"
-          aria-label="表示テーマ"
+          aria-label={t('header.theme')}
           className="absolute z-10 right-0 top-full mt-1 bg-white dark:bg-neutral-800 border rounded-sm shadow-md whitespace-nowrap"
         >
           {THEME_OPTIONS.map((option, i) => (
@@ -302,10 +302,10 @@ function Header({ onUserClick }: { onUserClick: () => void }) {
         <button
           type="button"
           className="text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:underline max-w-32 truncate"
-          title="ユーザ名を変更"
+          title={t('header.changeUserName')}
           onClick={onUserClick}
         >
-          {user ?? 'ユーザ名を設定'}
+          {user ?? t('header.setUserName')}
         </button>
       </div>
     </header>

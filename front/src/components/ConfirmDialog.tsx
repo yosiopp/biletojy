@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import Dialog from './Dialog';
 
 // 削除・タグ名変更などの確認モーダル。誤操作を防ぐためキャンセルに初期フォーカスを置く。
@@ -29,7 +30,7 @@ function ConfirmDialog({
             onClick={onClose}
             autoFocus
           >
-            キャンセル
+            {t('common.cancel')}
           </button>
           <button
             type="button"

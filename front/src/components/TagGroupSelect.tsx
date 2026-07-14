@@ -1,4 +1,5 @@
 import { KeyboardEvent as ReactKeyboardEvent, useRef, useState } from 'react';
+import { t } from '../i18n';
 import { buildCond, isRangeGroup, parseCond, parseTag, rangePickerValue, stripRangeMark } from '../lib/tags';
 import { useOutsideClick } from '../lib/useOutsideClick';
 
@@ -153,7 +154,7 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
                     className="border rounded-sm px-2 py-0.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700"
                     onClick={() => select('')}
                   >
-                    クリア
+                    {t('common.clear')}
                   </button>
                 )}
                 <button
@@ -162,7 +163,7 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
                   disabled={!rangeValue}
                   onClick={() => select(`${group}:${rangeValue}`)}
                 >
-                  設定
+                  {t('common.set')}
                 </button>
               </div>
             </div>
@@ -211,7 +212,7 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
                   onMouseEnter={() => setActive(lastIndex)}
                 >
                   <span className="inline-block w-4 text-blue-700 dark:text-blue-400">{not ? '✓' : ''}</span>
-                  除外（マッチしないもの）
+                  {t('tagGroupSelect.exclude')}
                 </button>
               )}
             </div>

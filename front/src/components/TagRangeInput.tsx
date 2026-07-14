@@ -1,4 +1,5 @@
 import { RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { t } from '../i18n';
 import { RANGE_OP_CHARS } from '../lib/tags';
 import { useOutsideClick } from '../lib/useOutsideClick';
 
@@ -44,7 +45,7 @@ function TagRangeInput({
   value,
   onValueChange,
   onSubmit,
-  submitLabel = '追加',
+  submitLabel = t('tagRangeInput.add'),
   anchorRef,
   text = '',
   autoFocus = true,

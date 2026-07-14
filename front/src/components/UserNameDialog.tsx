@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { t } from '../i18n';
 import { currentUser, hasCurrentUser, setCurrentUser } from '../lib/tags';
 import Icon from './Icon';
 
@@ -31,31 +32,30 @@ function UserNameDialog({ onClose }: { onClose: () => void }) {
     >
       <form
         role="dialog"
-        aria-label="ユーザ名の設定"
+        aria-label={t('userName.title')}
         className="bg-white dark:bg-neutral-800 rounded-sm shadow-lg p-4 w-80"
         onClick={(e) => e.stopPropagation()}
         onSubmit={submit}
       >
         <div className="flex items-center mb-2">
-          <h2 className="text-lg flex-1">ユーザ名の設定</h2>
+          <h2 className="text-lg flex-1">{t('userName.title')}</h2>
           <button
             type="button"
             className="p-2 -m-2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
-            aria-label="閉じる"
-            title="閉じる"
+            aria-label={t('common.close')}
+            title={t('common.close')}
             onClick={onClose}
           >
             <Icon name="close" />
           </button>
         </div>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-2">
-          チケットやコメントの作成者名として記録されます。未設定のままの場合は anonymous
-          として記録されます。
+          {t('userName.description')}
         </p>
         <input
           type="text"
           className="border rounded-sm px-2 py-1 w-full mb-3"
-          placeholder="ユーザ名"
+          placeholder={t('userName.placeholder')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoFocus
@@ -66,14 +66,14 @@ function UserNameDialog({ onClose }: { onClose: () => void }) {
             className="border rounded-sm px-4 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
             onClick={onClose}
           >
-            {hasCurrentUser() ? 'キャンセル' : 'あとで'}
+            {hasCurrentUser() ? t('common.cancel') : t('userName.later')}
           </button>
           <button
             type="submit"
             className="bg-blue-600 text-white rounded-sm px-4 py-1 ml-2 hover:bg-blue-700 disabled:opacity-50"
             disabled={!name.trim()}
           >
-            保存
+            {t('common.save')}
           </button>
         </div>
       </form>
