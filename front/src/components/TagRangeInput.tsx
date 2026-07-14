@@ -101,6 +101,9 @@ function TagRangeInput({
             onTextChange(text.slice(0, -1));
             anchorRef?.current?.focus();
           } else if (e.key === 'Escape') {
+            // <dialog>内では既定動作（cancelでダイアログごと閉じる）を抑止し、ピッカーだけを閉じる
+            e.preventDefault();
+            e.stopPropagation();
             if (onClose) onClose();
             else anchorRef?.current?.focus();
           }

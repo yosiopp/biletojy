@@ -10,6 +10,7 @@ import {
   pendingRangeGroup,
   splitTags,
   tagColor,
+  tailToken,
 } from '../lib/tags';
 import { useTagColors } from '../lib/useCatalog';
 import { useOutsideClick } from '../lib/useOutsideClick';
@@ -106,19 +107,34 @@ function TagInput({ value, onChange, catalog, onTextChange }: Props) {
       .map((tag) => ({ tag, note: notes.get(tag) ?? null, color: tagColor(colors, tag) }));
   }, [completions, catalog, colors]);
 
-  // 入力末尾のトークン（空白・"|"区切り、先頭の"-"は除外記法なので外す）に前方一致し、
-  // かつ未追加の候補だけを表示する。値待ち状態のときは候補ではなくピッカーを出すので閉じる
+  // 入力末尾のトークン（tailToken。Tab補完と同じ切り出し規則）に一致し、かつ未追加の候補だけを表示する。
+  // 一致は大文字小文字を区別せず、タグ全体の前方一致に加えて値部分の前方一致（例: "BUG" → "type:BUG"）も拾う。
+  // 描画数はスクロール表示域を大きく超えない程度に制限する（カタログが大きいときのDOM肥大防止）。
+  // 値待ち状態のときは候補ではなくピッカーを出すので閉じる
   const matches = useMemo(() => {
-    const [tail] = text.match(/[^\s|]*$/) ?? [''];
-    const token = text.length === tail.length && tail.startsWith('-') ? tail.slice(1) : tail;
-    return displayCandidates.filter((c) => c.tag.startsWith(token) && !value.includes(c.tag));
+    const token = tailToken(text).token.toLowerCase();
+    const hit = (tag: string) => {
+      const lc = tag.toLowerCase();
+      if (lc.startsWith(token)) return true;
+      const sep = lc.indexOf(':');
+      return sep >= 0 && lc.slice(sep + 1).startsWith(token);
+    };
+    return displayCandidates.filter((c) => hit(c.tag) && !value.includes(c.tag)).slice(0, 50);
   }, [text, displayCandidates, value]);
 
   const showList = open && !rangeGroup && matches.length > 0;
 
-  // 候補を確定してタグに追加する。入力欄は空に戻し、続けて入力できるようフォーカスを残す
+  // ↑↓でハイライトを動かしたとき、スクロール領域（max-h-64）内で候補を追従表示する
+  useEffect(() => {
+    if (active < 0) return;
+    rootRef.current?.querySelector(`#tag-opt-${active}`)?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
+
+  // 候補を確定してタグに追加する。置き換えるのは末尾トークンだけで、手前に入力済みの
+  // 未確定タグ（空白区切り）も一緒に追加する。入力欄は空に戻し、続けて入力できるようフォーカスを残す
   const pickCandidate = (tag: string) => {
-    addTag(tag);
+    const { head } = tailToken(text);
+    addTag(head + tag);
     setText('');
     setActive(-1);
     inputRef.current?.focus();
@@ -176,6 +192,8 @@ function TagInput({ value, onChange, catalog, onTextChange }: Props) {
             setOpen(true);
           }}
           onKeyDown={(e) => {
+            // IME変換中のキー操作（変換候補の移動・確定のEnter）を候補リストの操作として扱わない
+            if (e.nativeEvent.isComposing) return;
             if (e.key === 'Enter') {
               e.preventDefault();
               // 値待ち状態ならピッカーの値で確定する
@@ -192,8 +210,10 @@ function TagInput({ value, onChange, catalog, onTextChange }: Props) {
               return;
             }
             if (e.key === 'Escape') {
-              // 候補が開いている間だけEscで閉じ、ダイアログ側へは伝えない
-              if (open) {
+              // 候補が表示されている間だけEscで閉じる。<dialog>のEscキャンセルは
+              // keydownの既定動作なので、preventDefaultで抑止する（stopPropagationでは防げない）
+              if (showList) {
+                e.preventDefault();
                 e.stopPropagation();
                 setOpen(false);
                 setActive(-1);
