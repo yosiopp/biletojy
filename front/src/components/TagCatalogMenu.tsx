@@ -1,5 +1,7 @@
 import { ChangeEvent, useRef, useState } from 'react';
 import { api, TagCatalogItem } from '../api/client';
+import { readFileInput } from '../lib/attachFiles';
+import { readJsonExport } from '../lib/exportFile';
 import { invalidateCatalog } from '../lib/useCatalog';
 import { useMenuKeys } from '../lib/useMenuKeys';
 import { useOutsideClick } from '../lib/useOutsideClick';
@@ -48,22 +50,18 @@ function TagCatalogMenu({ onDone, onError }: Props) {
 
   // JSONファイルを読み取り、取り込み内容を確認ダイアログで見せる（取り込みは確認後）
   const onFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
+    const [file] = readFileInput(e);
     if (!file) return;
     setOpen(false);
     let tags: TagCatalogItem[];
     try {
-      const parsed: unknown = JSON.parse(await file.text());
-      // エクスポートの形式（{tags: [...]}）とタグ配列のみのどちらも受け付ける
-      const list = Array.isArray(parsed) ? parsed : (parsed as { tags?: unknown }).tags;
-      if (!Array.isArray(list) || list.length === 0) {
-        throw new Error('エクスポートしたタグのJSONファイルを選択してください');
-      }
-      tags = list as TagCatalogItem[];
+      tags = await readJsonExport<TagCatalogItem>(
+        file,
+        'tags',
+        'エクスポートしたタグのJSONファイルを選択してください',
+      );
     } catch (err) {
-      if (err instanceof SyntaxError) onError('JSONファイルを読み取れませんでした');
-      else onError(err instanceof Error ? err.message : String(err));
+      onError(err instanceof Error ? err.message : String(err));
       return;
     }
     setPending({

@@ -1,5 +1,7 @@
 import { ChangeEvent, useRef, useState } from 'react';
 import { api, TicketExport } from '../api/client';
+import { readFileInput } from '../lib/attachFiles';
+import { readJsonExport } from '../lib/exportFile';
 import { invalidateCatalog } from '../lib/useCatalog';
 import { useMenuKeys } from '../lib/useMenuKeys';
 import { useOutsideClick } from '../lib/useOutsideClick';
@@ -31,28 +33,22 @@ function ExportImport({ q, tags, onImported, onError, className = '' }: Props) {
 
   // JSONエクスポートファイルを読み取ってインポートし、結果を親へ通知する
   const onFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
+    const [file] = readFileInput(e);
     if (!file) return;
     setOpen(false);
     setImporting(true);
     try {
-      const parsed: unknown = JSON.parse(await file.text());
-      // エクスポートの形式（{tickets: [...]}）とチケット配列のみのどちらも受け付ける
-      const tickets = Array.isArray(parsed) ? parsed : (parsed as { tickets?: unknown }).tickets;
-      if (!Array.isArray(tickets) || tickets.length === 0) {
-        throw new Error('エクスポートしたJSONファイルを選択してください');
-      }
-      const res = await api.importTickets(tickets as TicketExport[]);
+      const tickets = await readJsonExport<TicketExport>(
+        file,
+        'tickets',
+        'エクスポートしたJSONファイルを選択してください',
+      );
+      const res = await api.importTickets(tickets);
       // 未定義タグはサーバー側でカタログへ自動登録されるため、共有キャッシュを取得し直させる
       invalidateCatalog();
       onImported(res.imported);
     } catch (err) {
-      if (err instanceof SyntaxError) {
-        onError('JSONファイルを読み取れませんでした');
-      } else {
-        onError(err instanceof Error ? err.message : String(err));
-      }
+      onError(err instanceof Error ? err.message : String(err));
     } finally {
       setImporting(false);
     }

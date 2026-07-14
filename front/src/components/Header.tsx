@@ -55,6 +55,7 @@ function NavMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="メニュー"
+        title="メニュー"
         className="inline-flex items-center justify-center border rounded-full p-1.5 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         onClick={() => (open ? close() : setOpen(true))}
       >

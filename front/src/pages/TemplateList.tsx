@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, Template } from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Dialog from '../components/Dialog';
-import Icon from '../components/Icon';
+import RowIconButton from '../components/RowIconButton';
 import TagInput from '../components/TagInput';
 import TagItem from '../components/TagItem';
 import TicketRefTextarea from '../components/TicketRefTextarea';
@@ -205,11 +205,11 @@ function TemplateList() {
             ))}
           </div>
           <div className="sm:flex-none sm:w-24 sm:pr-2 mt-1 sm:mt-0 flex items-center sm:justify-end gap-1">
-            <button
-              type="button"
+            <RowIconButton
+              icon="edit"
+              action="edit"
               aria-label={`テンプレート「${tpl.name}」を編集`}
               title="編集"
-              className="p-2 rounded-sm text-neutral-500 dark:text-neutral-400 hover:text-blue-700 dark:hover:text-blue-400"
               onClick={() => {
                 setError('');
                 setEditing({
@@ -220,18 +220,14 @@ function TemplateList() {
                   tags: splitTags(tpl.tags),
                 });
               }}
-            >
-              <Icon name="edit" />
-            </button>
-            <button
-              type="button"
+            />
+            <RowIconButton
+              icon="delete"
+              action="delete"
               aria-label={`テンプレート「${tpl.name}」を削除`}
               title="削除"
-              className="p-2 rounded-sm text-neutral-500 dark:text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
               onClick={() => setConfirming(tpl)}
-            >
-              <Icon name="delete" />
-            </button>
+            />
           </div>
         </div>
       ))}
