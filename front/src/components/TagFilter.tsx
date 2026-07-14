@@ -8,6 +8,7 @@ import {
   groupCatalog,
   groupOptions,
   hierarchyOptions,
+  isRangeGroup,
   normalizeTag,
   parseCond,
   parseTag,
@@ -84,7 +85,7 @@ function TagFilter({ selected, onChange, query, onQueryChange, catalog }: Props)
 
   // 絞り込みチップにするグループ（日時・数値グループと選択肢なしグループは除く）
   const filterGroups = useMemo(
-    () => [...groups.entries()].filter(([group, tags]) => !/[@#]$/.test(group) && tags.length > 0),
+    () => [...groups.entries()].filter(([group, tags]) => !isRangeGroup(group) && tags.length > 0),
     [groups],
   );
 

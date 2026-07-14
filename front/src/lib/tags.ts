@@ -54,6 +54,16 @@ export function condGroup(cond: string): string | null {
   return groups[0] != null && groups.every((g) => g === groups[0]) ? groups[0] : null;
 }
 
+// グループ名が日時（末尾@）・数値（末尾#）のタググループかどうか
+export function isRangeGroup(group: string): boolean {
+  return /[@#]$/.test(group);
+}
+
+// 表示用にグループ名の末尾の @ / # を取り除く
+export function stripRangeMark(group: string): string {
+  return group.replace(/[@#]$/, '');
+}
+
 export function splitTags(tags: string): string[] {
   return tags.split(/\s+/).filter((t) => t.length > 0);
 }
@@ -172,10 +182,10 @@ export function completionCandidates(catalog: Tag[]): string[] {
   return [...options];
 }
 
-// 入力末尾のトークンを、前方一致するタグ候補の共通プレフィックスまで補完した入力全体を返す
-// 候補が一意ならタグ全体まで、複数でも確定している部分（例: "sta" → "status:"）までは補完する
-// 1文字も進まない場合はnull。トークンは空白・"|"（OR）区切りで、先頭の "-"（除外）は対象から外す
-export function completeTag(input: string, candidates: Iterable<string>): string | null {
+// 入力末尾のトークン（token）とその手前（head）を返す。トークンは空白・"|"（OR）区切りで、
+// 入力全体が1トークンのときの先頭 "-"（除外記法）はheadへ分離する。
+// Tab補完（completeTag）と候補プルダウン（TagInput）で共通の切り出し規則
+export function tailToken(input: string): { head: string; token: string } {
   const [tail] = input.match(/[^\s|]*$/) ?? [''];
   let head = input.slice(0, input.length - tail.length);
   let token = tail;
@@ -183,6 +193,14 @@ export function completeTag(input: string, candidates: Iterable<string>): string
     head = '-';
     token = token.slice(1);
   }
+  return { head, token };
+}
+
+// 入力末尾のトークンを、前方一致するタグ候補の共通プレフィックスまで補完した入力全体を返す
+// 候補が一意ならタグ全体まで、複数でも確定している部分（例: "sta" → "status:"）までは補完する
+// 1文字も進まない場合はnull
+export function completeTag(input: string, candidates: Iterable<string>): string | null {
+  const { head, token } = tailToken(input);
   if (token.length === 0) return null;
   let common: string | null = null;
   for (const c of candidates) {

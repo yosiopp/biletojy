@@ -11,7 +11,7 @@ import ViewModeSelect from '../components/ViewModeSelect';
 import ViewSelect from '../components/ViewSelect';
 import { buildSort, HIERARCHY_SORT_KEY, parseSort, sortTickets, SortSpec } from '../lib/sort';
 import { staleGuard } from '../lib/staleGuard';
-import { groupCatalog } from '../lib/tags';
+import { groupCatalog, isRangeGroup, stripRangeMark } from '../lib/tags';
 import { useCatalog, useTagColors } from '../lib/useCatalog';
 import { parseViewMode, ViewMode } from '../lib/viewMode';
 
@@ -41,8 +41,8 @@ function TicketList() {
   // ソートキーに選べる日時・数値タググループ（例: due-date@, estimate#）。
   // URL直指定などでカタログに無いキーが来ても選択欄の表示が崩れないように含める
   const sortGroups = useMemo(() => {
-    const groups = [...groupCatalog(catalog).keys()].filter((g) => /[@#]$/.test(g));
-    if (/[@#]$/.test(sort.key) && !groups.includes(sort.key)) groups.push(sort.key);
+    const groups = [...groupCatalog(catalog).keys()].filter((g) => isRangeGroup(g));
+    if (isRangeGroup(sort.key) && !groups.includes(sort.key)) groups.push(sort.key);
     return groups;
   }, [catalog, sort.key]);
 
@@ -153,7 +153,7 @@ function TicketList() {
             <option value={HIERARCHY_SORT_KEY}>階層タグ</option>
             {sortGroups.map((group) => (
               <option key={group} value={group}>
-                {group.replace(/[@#]$/, '')}
+                {stripRangeMark(group)}
               </option>
             ))}
           </select>

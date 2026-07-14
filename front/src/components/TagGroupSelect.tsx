@@ -1,5 +1,5 @@
 import { KeyboardEvent as ReactKeyboardEvent, useRef, useState } from 'react';
-import { buildCond, parseCond, parseTag, rangePickerValue } from '../lib/tags';
+import { buildCond, isRangeGroup, parseCond, parseTag, rangePickerValue, stripRangeMark } from '../lib/tags';
 import { useOutsideClick } from '../lib/useOutsideClick';
 
 export type TagGroupOption = {
@@ -30,11 +30,11 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
   const rootRef = useRef<HTMLSpanElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isDate = group.endsWith('@');
-  const isRange = isDate || group.endsWith('#');
+  const isRange = isRangeGroup(group);
   const { not, alts } = parseCond(value);
   const chipLabel = alts.map((a) => parseTag(a).name).join('|');
   // 除外条件は "-status:CLOSED" の記法に合わせて "-" をグループ名の前に表示する
-  const groupLabel = (not ? '-' : '') + group.replace(/[@#]$/, '');
+  const groupLabel = (not ? '-' : '') + stripRangeMark(group);
 
   // キーボード移動の対象: 0=クリア、1..n=選択肢、（filter時のみ）n+1=除外トグル
   const lastIndex = options.length + (filter ? 1 : 0);

@@ -1,4 +1,4 @@
-import { dueState, parseTag } from '../lib/tags';
+import { dueState, parseTag, stripRangeMark } from '../lib/tags';
 
 type Props = {
   tag: string;
@@ -34,7 +34,7 @@ function TagItem({ tag, color, onRemove, onClick }: Props) {
     >
       {group != null ? (
         <>
-          <span className="border-r border-neutral-300 dark:border-neutral-600 pr-1 text-sm opacity-70">{group.replace(/[@#]$/, '')}</span>
+          <span className="border-r border-neutral-300 dark:border-neutral-600 pr-1 text-sm opacity-70">{stripRangeMark(group)}</span>
           <span className="pl-2">{nameEl}</span>
         </>
       ) : (
