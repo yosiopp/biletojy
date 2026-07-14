@@ -105,34 +105,32 @@ const (
 	_SQL_GET_TAG         = `SELECT id, tag, note, color, is_group, is_range, sort_order FROM tag_catalog WHERE id = ?`
 	_SQL_GET_TAG_NAME    = `SELECT tag FROM tag_catalog WHERE id = ?`
 	_SQL_QUERY_TAG_NAMES = `SELECT tag FROM tag_catalog`
+	// タグ名から一覧のセクション区分（グループ接頭辞 / 値なしのグループエントリは ':' / グループでないタグは ''）を
+	// 導くSQL断片。dao.goのtagSection()と同じ規則で、sort_orderのセクション末尾採番のWHERE句に使う。
+	// instrは1始まりのため、グループ判定（先頭以外の ":"）はGo側のIndex > 0に合わせて > 1 とする
+	_SQL_TAG_SECTION_CASE = `CASE WHEN instr(tag, ':') <= 1 THEN '' WHEN instr(tag, ':') = length(tag) THEN ':' ELSE substr(tag, 1, instr(tag, ':')) END`
 	// UI経由のタグ追加。一覧・絞り込みプルダウンでセクション末尾に並ぶよう、?6（Go側で導出したセクション区分）と
-	// 同一セクションの最大sort_order + 1を設定する（_SQL_ADD_UNKNOWN_TAGと同方式）
-	_SQL_ADD_TAG         = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range, sort_order)
+	// 同一セクションの最大sort_order + 1を設定する（_SQL_IMPORT_TAG_SECTION_ENDと同方式。こちらは重複時に
+	// スキップせずUNIQUE制約エラーを返す＝409にするため、ON CONFLICTを付けない）
+	_SQL_ADD_TAG = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range, sort_order)
 		SELECT ?1, ?2, ?3, ?4, ?5, COALESCE(MAX(sort_order), 0) + 1 FROM tag_catalog
-		WHERE CASE WHEN instr(tag, ':') <= 1 THEN '' WHEN instr(tag, ':') = length(tag) THEN ':' ELSE substr(tag, 1, instr(tag, ':')) END = ?6`
-	_SQL_EDIT_TAG        = `UPDATE tag_catalog SET tag = ?, note = ?, color = ?, is_group = ?, is_range = ? WHERE id = ?`
-	_SQL_DELETE_TAG      = `DELETE FROM tag_catalog WHERE id = ?`
-	_SQL_SET_TAG_ORDER   = `UPDATE tag_catalog SET sort_order = ? WHERE id = ?`
+		WHERE ` + _SQL_TAG_SECTION_CASE + ` = ?6`
+	_SQL_EDIT_TAG      = `UPDATE tag_catalog SET tag = ?, note = ?, color = ?, is_group = ?, is_range = ? WHERE id = ?`
+	_SQL_DELETE_TAG    = `DELETE FROM tag_catalog WHERE id = ?`
+	_SQL_SET_TAG_ORDER = `UPDATE tag_catalog SET sort_order = ? WHERE id = ?`
 	// タグ名変更時の書き換え候補の絞り込み（LIKEは % _ を含むタグ名でも上位集合を返すため、
 	// 実際の書き換え対象はGo側でトークン単位に判定する）
 	_SQL_QUERY_TICKETS_BY_TAG = `SELECT id, title, content, COALESCE(tags, ''), created_by, created_sub, updated_by, updated_sub, created_at, updated_at FROM tickets WHERE tags LIKE ?`
 	// タグ使用数の集計候補の絞り込み（同上、tagsカラムのみ。厳密な判定はGo側でトークン単位に行う）
 	_SQL_QUERY_TICKET_TAGS_BY_TAG = `SELECT COALESCE(tags, '') FROM tickets WHERE tags LIKE ?`
-	// チケット保存時のカタログ未定義タグの自動登録（定義済みなら何もしない）。
-	// 一覧でセクション末尾に並ぶよう、?4（Go側で導出したセクション区分）と同一セクションの
-	// 最大sort_order + 1を設定する
-	_SQL_ADD_UNKNOWN_TAG = `INSERT INTO tag_catalog (tag, is_group, is_range, sort_order)
-		SELECT ?1, ?2, ?3, COALESCE(MAX(sort_order), 0) + 1 FROM tag_catalog
-		WHERE CASE WHEN instr(tag, ':') <= 1 THEN '' WHEN instr(tag, ':') = length(tag) THEN ':' ELSE substr(tag, 1, instr(tag, ':')) END = ?4
-		ON CONFLICT (tag) DO NOTHING`
-	// タグ定義の一括登録（初回シード・インポート・デフォルト復元で共用）。同名の既存タグは
-	// ON CONFLICT DO NOTHING で変更せずスキップする。sort_orderを明示する版（export→importの往復再現用）と、
-	// 未指定時に同一セクションの末尾へ採番する版（_SQL_ADD_UNKNOWN_TAGにnote/colorを加えた版）の2種
+	// タグ定義の一括登録（初回シード・インポート・デフォルト復元・チケット保存時の未定義タグの
+	// 自動登録で共用）。同名の既存タグは ON CONFLICT DO NOTHING で変更せずスキップする。
+	// sort_orderを明示する版（export→importの往復再現用）と、未指定時に同一セクションの末尾へ採番する版の2種
 	_SQL_IMPORT_TAG = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range, sort_order)
 		VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (tag) DO NOTHING`
 	_SQL_IMPORT_TAG_SECTION_END = `INSERT INTO tag_catalog (tag, note, color, is_group, is_range, sort_order)
 		SELECT ?1, ?2, ?3, ?4, ?5, COALESCE(MAX(sort_order), 0) + 1 FROM tag_catalog
-		WHERE CASE WHEN instr(tag, ':') <= 1 THEN '' WHEN instr(tag, ':') = length(tag) THEN ':' ELSE substr(tag, 1, instr(tag, ':')) END = ?6
+		WHERE ` + _SQL_TAG_SECTION_CASE + ` = ?6
 		ON CONFLICT (tag) DO NOTHING`
 
 	// チケット取得

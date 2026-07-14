@@ -143,33 +143,19 @@ func NewDao(dbPath string) (*Dao, error) {
 		db.Close()
 		return nil, err
 	}
+	dao := &Dao{db: db}
 	if count == 0 {
-		if err := seedDefaultTags(db); err != nil {
+		// 空のタグカタログへDefaultTagsを一括投入する（初回シード。登録件数は使わない）
+		if _, _, err := dao.ImportTags(DefaultTags); err != nil {
 			db.Close()
 			return nil, err
 		}
 	}
-	return &Dao{db: db}, nil
+	return dao, nil
 }
 
-// seedDefaultTags は空のタグカタログへ DefaultTags を一括投入する（NewDaoの初回シード用）。
-// ImportTags / RestoreDefaultTags と同じ挿入関数（insertCatalogTag）を共有する
-func seedDefaultTags(db *sql.DB) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	for _, t := range DefaultTags {
-		if _, err := insertCatalogTag(tx, t); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
-// insertCatalogTag はタグ定義を1件カタログへ登録する（シード・インポート・デフォルト復元で共用）。
-// is_group / is_range は TagAttrs でタグ名から導出し（AddTag / registerUnknownTagsと同じ流儀）、
+// insertCatalogTag はタグ定義を1件カタログへ登録する（シード・インポート・デフォルト復元・
+// 未定義タグの自動登録で共用）。is_group / is_range は TagAttrs でタグ名から導出し（AddTagと同じ流儀）、
 // 同名の既存タグは変更せずスキップする。SortOrder が正なら尊重し（export→importの往復再現）、
 // 0（未指定）なら同一セクションの末尾へ採番する。行を追加したら true を返す
 func insertCatalogTag(tx *sql.Tx, t Tag) (bool, error) {
@@ -560,16 +546,14 @@ func (dao *Dao) exists(query string, id int64) (bool, error) {
 // タグAPIの検証（TagNameError）に通らない名前はカタログに登録できないため除外する
 func registerUnknownTags(tx *sql.Tx, tags string, known map[string]bool) error {
 	for _, tag := range strings.Fields(tags) {
-		sep := strings.Index(tag, ":")
-		isGroup, isRange := TagAttrs(tag)
-		if isRange {
-			tag = tag[:sep+1]
+		if _, isRange := TagAttrs(tag); isRange {
+			tag = tag[:strings.Index(tag, ":")+1]
 		}
 		if known[tag] || TagNameError(tag) != "" {
 			continue
 		}
-		// 同一セクションの末尾に並ぶsort_orderを設定させる（tagSectionが一覧のセクション区分を返す）
-		if _, err := tx.Exec(_SQL_ADD_UNKNOWN_TAG, tag, isGroup, isRange, tagSection(tag)); err != nil {
+		// insertCatalogTagが属性の導出とセクション末尾のsort_order採番を行う（note/colorはNULL）
+		if _, err := insertCatalogTag(tx, Tag{Tag: tag}); err != nil {
 			return err
 		}
 		known[tag] = true
