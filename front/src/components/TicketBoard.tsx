@@ -109,8 +109,12 @@ function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props
       e.preventDefault();
       const target = colIndex + (e.key === 'ArrowLeft' ? -1 : 1);
       if (target < 0 || target >= columns.length) return;
+      // 空で非表示中の「なし」列（下の描画側の条件と同じ）へは移動させない。
+      // 見えていない列への移動はタグが外れる操作結果を予測できないため
+      const col = columns[target];
+      if (col.tag === null && col.tickets.length === 0 && !dragging) return;
       pendingFocus.current = ticket.id;
-      move(ticket, columns[target].tag);
+      move(ticket, col.tag);
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       const next = columns[colIndex].tickets[rowIndex + (e.key === 'ArrowDown' ? 1 : -1)];
