@@ -11,9 +11,11 @@ import (
 	"github.com/yosiopp/biletojy/webui"
 )
 
-// envOr は環境変数keyがあればその値を、なければfallbackを返す（フラグの既定値算出に使う）
+// envOr は環境変数keyが空でない値を持てばその値を、なければfallbackを返す（フラグの既定値算出に使う）。
+// 「定義はあるが空」（docker-composeの値なし定義など）は未設定として扱い、誤って
+// 空のアドレス（:80待ち受け）や空のDBパスで起動しないようにする
 func envOr(key, fallback string) string {
-	if v, ok := os.LookupEnv(key); ok {
+	if v := os.Getenv(key); v != "" {
 		return v
 	}
 	return fallback
@@ -22,10 +24,10 @@ func envOr(key, fallback string) string {
 // defaultAddr は-addr未指定・BILETOJY_ADDR未設定時の待ち受けアドレスを決める。
 // Cloud Runのポート契約に合わせ、PORTがあれば :$PORT へフォールバックする
 func defaultAddr() string {
-	if v, ok := os.LookupEnv("BILETOJY_ADDR"); ok {
+	if v := os.Getenv("BILETOJY_ADDR"); v != "" {
 		return v
 	}
-	if port, ok := os.LookupEnv("PORT"); ok && port != "" {
+	if port := os.Getenv("PORT"); port != "" {
 		return ":" + port
 	}
 	return ":8040"

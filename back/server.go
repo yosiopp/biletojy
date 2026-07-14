@@ -522,7 +522,8 @@ func newServer(dao *data.Dao, static fs.FS, userHeader string) http.Handler {
 		var req struct {
 			Tags []tagCatalogItem `json:"tags"`
 		}
-		if !readJson(w, r, &req) {
+		// 自前のエクスポートを再取り込みできるよう、チケットのインポートと同じ上限にする
+		if !readJsonLimit(w, r, &req, _MAX_FILE_BYTES) {
 			return
 		}
 		if len(req.Tags) == 0 {
