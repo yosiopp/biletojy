@@ -15,6 +15,7 @@ export type IconName =
   | 'arrow_upward'
   | 'attach_file'
   | 'drag_indicator'
+  | 'language'
   | 'menu';
 
 // SVGをCSSマスクで切り抜き、bg-current（背景色 = currentColor）で塗りつぶすことで、
