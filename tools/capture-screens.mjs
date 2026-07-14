@@ -28,8 +28,8 @@ const SEED = process.argv.includes('--seed');
 function findChrome() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
   const cache = path.join(os.homedir(), 'Library/Caches/ms-playwright');
-  const dir = fs
-    .readdirSync(cache)
+  // キャッシュディレクトリ自体が無い環境でも、生のENOENTではなく下の案内エラーにする
+  const dir = (fs.existsSync(cache) ? fs.readdirSync(cache) : [])
     .filter((d) => /^chromium-\d+$/.test(d))
     .sort()
     .pop();
@@ -135,11 +135,12 @@ async function newContext(options = {}, theme) {
   await page.goto(`${BASE}/tickets/1/edit`, { waitUntil: 'networkidle' });
   await shot(page, '08-ticket-edit');
 
-  // タグ入力の補完（ネイティブdatalistのためポップアップ自体は写らない）
+  // タグ入力の補完（カスタム候補リストがページ内に描画されるため、ポップアップも写る）
   const tagInput = page.getByPlaceholder(/タグを追加/);
   if (await tagInput.count()) {
     await tagInput.click();
     await tagInput.pressSequentially('pri', { delay: 30 });
+    await page.locator('#tag-input-listbox').waitFor({ state: 'visible' }).catch(() => {});
     await shot(page, '09-tag-suggest');
   }
 
