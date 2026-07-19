@@ -111,7 +111,7 @@ function FileList() {
       <div className="hidden sm:flex text-neutral-500 dark:text-neutral-400 border-b">
         <div className="w-14 py-1 pl-2">id</div>
         <div className="flex-1 py-1">{t('fileList.headerName')}</div>
-        <div className="w-44 py-1">MIME-Type</div>
+        <div className="w-36 py-1">MIME-Type</div>
         <div className="w-24 py-1 text-right">{t('fileList.headerSize')}</div>
         <div className="w-40 py-1 pl-4">{t('fileList.headerCreated')}</div>
         <div className="w-20 py-1">{t('fileList.headerRef')}</div>
@@ -140,7 +140,9 @@ function FileList() {
               <span className="sm:hidden text-neutral-500 dark:text-neutral-400 mr-2">{file.id}</span>
               {file.name || <span className="text-neutral-400">{t('fileList.noName')}</span>}
             </div>
-            <div className="sm:w-44 sm:py-2 text-sm text-neutral-500 dark:text-neutral-400 truncate">{file.mime}</div>
+            <div className="sm:w-36 sm:py-2 text-sm text-neutral-500 dark:text-neutral-400 truncate" title={file.mime}>
+              {file.mime}
+            </div>
             <div className="sm:w-24 sm:py-2 sm:text-right text-sm">{formatSize(file.size)}</div>
             <div className="sm:w-40 sm:py-2 sm:pl-4 text-sm text-neutral-500 dark:text-neutral-400">
               {formatDateTime(file.created_at)}
