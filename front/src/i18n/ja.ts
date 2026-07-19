@@ -18,7 +18,6 @@ export const ja = {
 
   // ヘッダー
   'header.menu': 'メニュー',
-  'header.nav': 'ナビゲーション',
   'header.theme': '表示テーマ',
   'header.themeTitle': '表示テーマ: {label}（自動はOS設定に追随）',
   'header.themeAuto': '自動',
@@ -27,6 +26,7 @@ export const ja = {
   'header.language': '言語',
   'header.languageTitle': '言語: {label}（自動はブラウザ設定に追随）',
   'header.langAuto': '自動',
+  'header.userName': 'ユーザ名',
   'header.changeUserName': 'ユーザ名を変更',
   'header.setUserName': 'ユーザ名を設定',
 

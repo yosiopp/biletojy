@@ -19,7 +19,6 @@ export const en: Record<keyof typeof ja, string> = {
 
   // ヘッダー
   'header.menu': 'Menu',
-  'header.nav': 'Navigation',
   'header.theme': 'Theme',
   'header.themeTitle': 'Theme: {label} (Auto follows the OS setting)',
   'header.themeAuto': 'Auto',
@@ -28,6 +27,7 @@ export const en: Record<keyof typeof ja, string> = {
   'header.language': 'Language',
   'header.languageTitle': 'Language: {label} (Auto follows the browser setting)',
   'header.langAuto': 'Auto',
+  'header.userName': 'User name',
   'header.changeUserName': 'Change user name',
   'header.setUserName': 'Set user name',
 
