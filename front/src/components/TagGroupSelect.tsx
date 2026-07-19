@@ -116,7 +116,7 @@ function TagGroupSelect({ group, options, value, color, onChange, filter = false
   const chipStyle = value && color ? { backgroundColor: `${color}20`, borderColor: color } : {};
 
   return (
-    <span ref={rootRef} className="relative inline-block mr-1 mb-1" onKeyDown={onKeyDown}>
+    <span ref={rootRef} className="relative inline-block" onKeyDown={onKeyDown}>
       <button
         ref={buttonRef}
         type="button"

@@ -200,7 +200,7 @@ function TemplateList() {
         <div key={tpl.id} className="block sm:flex sm:items-center border-b hover:bg-neutral-100 dark:hover:bg-neutral-800 px-2 py-2 sm:px-0 sm:py-0">
           <div className="sm:w-1/4 sm:py-2 sm:pl-2">{tpl.name}</div>
           <div className="sm:w-1/4 sm:py-2 text-sm truncate">{tpl.title}</div>
-          <div className="sm:flex-1 sm:py-2 mt-1 sm:mt-0">
+          <div className="sm:flex-1 sm:py-2 mt-1 sm:mt-0 flex flex-wrap items-center gap-1">
             {splitTags(tpl.tags).map((tag) => (
               <TagItem key={tag} tag={tag} color={tagColor(colors, tag)} />
             ))}

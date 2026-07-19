@@ -147,7 +147,7 @@ function FileList() {
             </div>
             <div className="sm:w-20 sm:py-2 text-sm text-neutral-500 dark:text-neutral-400">{refLabel(file)}</div>
           </a>
-          <div className="sm:flex-none sm:w-16 sm:pr-2 px-2 pb-2 sm:pb-0 mt-1 sm:mt-0 flex sm:justify-end">
+          <div className="sm:flex-none sm:w-16 sm:pr-2 px-2 pb-2 sm:pb-0 mt-1 sm:mt-0 flex items-center sm:justify-end">
             <RowIconButton
               icon="delete"
               action="delete"

@@ -17,7 +17,7 @@ function TicketRow({ ticket, colors }: { ticket: Ticket; colors: TagColorMap }) 
         <span className="sm:hidden text-neutral-500 dark:text-neutral-400 mr-2">#{id}</span>
         {title}
       </div>
-      <div className="sm:flex-1 sm:py-2 mt-1 sm:mt-0">
+      <div className="sm:flex-1 sm:py-2 mt-1 sm:mt-0 flex flex-wrap items-center gap-1">
         {splitTags(tags).map((tag) => (
           <TagItem key={tag} tag={tag} color={tagColor(colors, tag)} />
         ))}

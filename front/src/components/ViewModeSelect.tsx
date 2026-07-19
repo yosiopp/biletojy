@@ -178,7 +178,7 @@ function ViewModeSelect({ mode, by, catalog, onChange }: Props) {
   );
 
   return (
-    <div ref={rootRef} className="inline-flex border rounded-sm text-sm mr-2 mb-1" role="group" aria-label={t('viewModeSelect.label')}>
+    <div ref={rootRef} className="inline-flex border rounded-sm text-sm" role="group" aria-label={t('viewModeSelect.label')}>
       <button
         type="button"
         aria-pressed={mode === 'list'}

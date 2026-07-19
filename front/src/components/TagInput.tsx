@@ -150,7 +150,7 @@ function TagInput({ value, onChange, catalog, onTextChange }: Props) {
   };
 
   return (
-    <div className="flex flex-wrap items-center">
+    <div className="flex flex-wrap items-center gap-1">
       {[...groups.entries()].map(([group, tags]) => {
         const selected = selectedInGroup(group);
         return (
@@ -174,7 +174,7 @@ function TagInput({ value, onChange, catalog, onTextChange }: Props) {
         />
       ))}
 
-      <span ref={rootRef} className="relative mb-1 flex-1 min-w-40">
+      <span ref={rootRef} className="relative flex-1 min-w-40">
         <input
           ref={inputRef}
           type="text"

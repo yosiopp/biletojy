@@ -29,7 +29,7 @@ function TagItem({ tag, color, onRemove, onClick }: Props) {
 
   return (
     <span
-      className={`inline-flex items-center rounded-lg border py-0.5 px-2 mr-1 mb-1 whitespace-nowrap ${dueClass}`}
+      className={`inline-flex items-center rounded-lg border py-0.5 px-2 whitespace-nowrap ${dueClass}`}
       style={style}
       title={due === 'overdue' ? t('tagItem.overdue') : due === 'soon' ? t('tagItem.dueSoon') : undefined}
     >

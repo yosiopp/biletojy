@@ -101,7 +101,7 @@ function ViewSelect({ q, tags, mode, by, onApply }: Props) {
   });
 
   return (
-    <span ref={rootRef} className="relative inline-block mr-1 mb-1" onKeyDown={onKeyDown}>
+    <span ref={rootRef} className="relative inline-block" onKeyDown={onKeyDown}>
       <button
         ref={buttonRef}
         type="button"

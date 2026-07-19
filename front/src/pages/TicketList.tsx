@@ -132,9 +132,9 @@ function TicketList() {
       {notice && <p className="text-blue-700 dark:text-blue-400 mb-2">{notice}</p>}
 
       <div id="ticket-controls" className={filtersOpen ? '' : 'hidden sm:block'}>
-      <div className="flex flex-wrap items-start justify-between mb-2">
+      <div className="flex flex-wrap items-start justify-between gap-y-1 mb-2">
         {/* items-start で上端揃え。ビュー選択が出ても表示モードの縦位置がズレないようにする */}
-        <div className="flex flex-wrap items-start">
+        <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
           {/* 表示モード切替を先頭に固定。ツリー/ボードは ▾ で対象選択のプルダウンを内蔵する */}
           <ViewModeSelect mode={mode} by={by} catalog={catalog} onChange={(m, b) => applyView(q, tags, m, b)} />
           <ViewSelect q={q} tags={tags} mode={mode} by={by} onApply={applyView} />

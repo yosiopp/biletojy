@@ -188,7 +188,7 @@ function TicketBoard({ tickets, catalog, colors, by, onUpdated, onError }: Props
                     <span className="text-sm text-neutral-500 dark:text-neutral-400 mr-2">#{ticket.id}</span>
                     {ticket.title}
                     {otherTags.length > 0 && (
-                      <span className="block mt-1 -mb-1">
+                      <span className="flex flex-wrap gap-1 mt-1">
                         {otherTags.map((tag) => (
                           <TagItem key={tag} tag={tag} color={tagColor(colors, tag)} />
                         ))}

@@ -211,7 +211,7 @@ function TicketTree({ tickets, colors, by }: Props) {
           >
             <span className="text-neutral-500 dark:text-neutral-400 mr-2">#{row.ticket.id}</span>
             {row.ticket.title}
-            <span className="block sm:inline sm:ml-2 mt-1 sm:mt-0">
+            <span className="flex sm:inline-flex flex-wrap gap-1 sm:ml-2 mt-1 sm:mt-0">
               {splitTags(row.ticket.tags)
                 .filter((tag) => tag !== row.path)
                 .map((tag) => (

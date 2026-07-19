@@ -17,7 +17,7 @@ function RowIconButton({ icon, action, ...props }: Props) {
   return (
     <button
       type="button"
-      className={`p-2 rounded-sm text-neutral-500 dark:text-neutral-400 ${ACTION_CLASS[action]}`}
+      className={`flex items-center justify-center p-2 rounded-sm text-neutral-500 dark:text-neutral-400 ${ACTION_CLASS[action]}`}
       {...props}
     >
       <Icon name={icon} />

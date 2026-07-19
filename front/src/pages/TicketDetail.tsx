@@ -78,7 +78,7 @@ function TicketDetail() {
         </h2>
         <Link
           to={`/tickets/${ticket.id}/history`}
-          className="border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 mr-2"
+          className="inline-flex items-center justify-center border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 mr-2"
           title="ctrl+h"
           aria-label={t('ticketDetail.history')}
         >
@@ -86,7 +86,7 @@ function TicketDetail() {
         </Link>
         <Link
           to={`/tickets/${ticket.id}/edit`}
-          className="border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          className="inline-flex items-center justify-center border rounded-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           title="ctrl+e"
           aria-label={t('common.edit')}
         >
@@ -97,7 +97,7 @@ function TicketDetail() {
         <span title={ticket.created_sub || undefined}>{ticket.created_by}</span> {t('ticketDetail.createdUpdated')}{' '}
         {formatDateTime(ticket.updated_at)}
       </div>
-      <div className="mb-4">
+      <div className="flex flex-wrap gap-1 mb-4">
         {splitTags(ticket.tags).map((tag) => (
           <TagItem key={tag} tag={tag} color={tagColor(colors, tag)} />
         ))}
