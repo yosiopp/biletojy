@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { t } from '../i18n';
+import { isTypingTarget } from '../lib/keyboard';
 import { hasCurrentUser } from '../lib/tags';
 import Header from './Header';
 import Icon from './Icon';
@@ -15,6 +16,8 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+Shift+L', t('layout.shortcutFileList')],
   ['Ctrl+T', t('layout.shortcutTagList')],
   ['Ctrl+M', t('layout.shortcutTemplateList')],
+  ['↑ / ↓', t('layout.shortcutMoveRow')],
+  ['Space', t('layout.shortcutOpenRow')],
   ['?', t('layout.shortcutHelp')],
 ];
 
@@ -25,17 +28,6 @@ const SEARCH_SYNTAX: [string, string][] = [
   [t('layout.syntaxDate'), t('layout.syntaxDateDesc')],
   [t('layout.syntaxNumber'), t('layout.syntaxNumberDesc')],
 ];
-
-// 入力欄にフォーカスがある間はショートカットを無効にする
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement ||
-    target.isContentEditable
-  );
-}
 
 function Layout() {
   const navigate = useNavigate();

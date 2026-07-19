@@ -5,7 +5,7 @@ import ExportImport from '../components/ExportImport';
 import Icon from '../components/Icon';
 import TagFilter from '../components/TagFilter';
 import TicketBoard from '../components/TicketBoard';
-import TicketRow from '../components/TicketRow';
+import TicketRows from '../components/TicketRows';
 import TicketTree from '../components/TicketTree';
 import ViewModeSelect from '../components/ViewModeSelect';
 import ViewSelect from '../components/ViewSelect';
@@ -194,10 +194,9 @@ function TicketList() {
         </div>
       )}
       {tickets == null && !error && <p className="text-neutral-500 dark:text-neutral-400 p-4">{t('common.loading')}</p>}
-      {sortedTickets != null && mode === 'list' &&
-        sortedTickets.map((ticket) => (
-          <TicketRow key={ticket.id} ticket={ticket} colors={tagColors} />
-        ))}
+      {sortedTickets != null && mode === 'list' && sortedTickets.length > 0 && (
+        <TicketRows tickets={sortedTickets} colors={tagColors} />
+      )}
       {sortedTickets != null && mode === 'tree' && sortedTickets.length > 0 && (
         <TicketTree tickets={sortedTickets} colors={tagColors} by={by} />
       )}

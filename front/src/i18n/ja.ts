@@ -39,6 +39,8 @@ export const ja = {
   'layout.shortcutFileList': 'ファイル一覧へ移動',
   'layout.shortcutTagList': 'タグ一覧へ移動',
   'layout.shortcutTemplateList': 'テンプレート一覧へ移動',
+  'layout.shortcutMoveRow': 'チケットの行を移動（一覧表示中）',
+  'layout.shortcutOpenRow': 'フォーカス中のチケットを開く（一覧表示中）',
   'layout.shortcutHelp': 'このヘルプを表示',
   'layout.syntaxNot': '-タグ',
   'layout.syntaxNotDesc': 'そのタグを除外（NOT）',

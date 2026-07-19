@@ -40,6 +40,8 @@ export const en: Record<keyof typeof ja, string> = {
   'layout.shortcutFileList': 'Go to file list',
   'layout.shortcutTagList': 'Go to tag list',
   'layout.shortcutTemplateList': 'Go to template list',
+  'layout.shortcutMoveRow': 'Move between ticket rows (on ticket list)',
+  'layout.shortcutOpenRow': 'Open the focused ticket (on ticket list)',
   'layout.shortcutHelp': 'Show this help',
   'layout.syntaxNot': '-tag',
   'layout.syntaxNotDesc': 'Exclude the tag (NOT)',
